@@ -1,0 +1,851 @@
+"""Portfolio list page with full CRUD operations."""
+
+import logging
+from datetime import datetime, timedelta
+from typing import Any, Dict, List
+
+import pandas as pd
+import streamlit as st
+
+from core.exceptions import PortfolioNotFoundError
+from services.data_service import DataService
+from services.portfolio_service import PortfolioService
+from services.schemas import (
+    AddPositionRequest,
+    UpdatePortfolioRequest,
+    UpdatePositionRequest,
+)
+from streamlit_app.utils.formatters import format_currency, format_percentage
+
+logger = logging.getLogger(__name__)
+
+
+def render_portfolio_list() -> None:
+    """Main function to render the portfolio list page."""
+    st.title("Portfolio Management")
+
+    # Initialize services
+    portfolio_service = PortfolioService()
+    data_service = DataService()
+
+    # Store services in session state
+    st.session_state.portfolio_service = portfolio_service
+    st.session_state.data_service = data_service
+
+    # Initialize session state for management operations
+    if 'selected_portfolios' not in st.session_state:
+        st.session_state.selected_portfolios = []
+
+    if 'deleted_portfolios' not in st.session_state:
+        st.session_state.deleted_portfolios = []
+
+    if 'management_view' not in st.session_state:
+        st.session_state.management_view = "list"
+
+    # Main interface
+    if 'viewing_portfolio' in st.session_state:
+        render_portfolio_details()
+    elif st.session_state.management_view == "edit":
+        render_portfolio_editor()
+    else:
+        render_portfolio_list_view()
+
+
+def render_portfolio_list_view() -> None:
+    """Render the main portfolio list view."""
+    # Action bar
+    render_action_bar()
+
+    # Load portfolios
+    portfolios_data = load_portfolios_with_cache()
+
+    if not portfolios_data:
+        render_empty_state()
+        return
+
+    # Search and filter
+    filtered_portfolios = render_search_and_filter(portfolios_data)
+
+    if not filtered_portfolios:
+        st.info("No portfolios match your search criteria.")
+        return
+
+    # Bulk operations
+    if st.session_state.selected_portfolios:
+        render_bulk_operations()
+        st.divider()
+
+    # Portfolio table
+    render_portfolio_table(filtered_portfolios)
+
+    # Individual portfolio actions
+    render_individual_actions(filtered_portfolios)
+
+    # Undo section
+    if st.session_state.deleted_portfolios:
+        render_undo_section()
+
+
+def render_action_bar() -> None:
+    """Render the main action bar with primary actions."""
+    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+
+    with col1:
+        st.subheader("Your Portfolios")
+
+    with col2:
+        if st.button("Create New", type="primary", use_container_width=True):
+            st.switch_page("pages/create_portfolio.py")
+
+    with col3:
+        if st.button("Refresh", use_container_width=True):
+            clear_portfolio_cache()
+            st.rerun()
+
+    with col4:
+        st.button("Export All", use_container_width=True, disabled=True,
+                  help="Export functionality coming soon")
+
+
+def load_portfolios_with_cache() -> List[Dict[str, Any]]:
+    """Load portfolios with caching for performance."""
+    cache_key = "portfolio_list"
+    cache_time_key = "portfolio_list_time"
+
+    # Check cache validity (5 minutes)
+    if (cache_key in st.session_state and
+            cache_time_key in st.session_state and
+            datetime.now() - st.session_state[cache_time_key] < timedelta(minutes=5)):
+        return st.session_state[cache_key]
+
+    try:
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+
+        # Load fresh data
+        portfolios = portfolio_service.list_portfolios()
+
+        # Enrich with calculated metrics
+        enriched_portfolios = []
+        for portfolio in portfolios:
+            try:
+                # Calculate additional metrics
+                metrics = portfolio_service.calculate_portfolio_metrics(portfolio.id)
+
+                enriched_portfolios.append({
+                    'id': portfolio.id,
+                    'name': portfolio.name,
+                    'description': portfolio.description or '',
+                    'starting_capital': portfolio.starting_capital,
+                    'current_value': metrics.get('current_value', portfolio.starting_capital),
+                    'asset_count': metrics.get('positions_count', len(portfolio.get_all_positions())),
+                    'portfolio_object': portfolio
+                })
+            except Exception as e:
+                logger.warning(f"Error loading portfolio {portfolio.name}: {e}")
+                # Add portfolio even if metrics calculation failed
+                enriched_portfolios.append({
+                    'id': portfolio.id,
+                    'name': portfolio.name,
+                    'description': portfolio.description or '',
+                    'starting_capital': portfolio.starting_capital,
+                    'current_value': portfolio.starting_capital,
+                    'asset_count': len(portfolio.get_all_positions()),
+                    'portfolio_object': portfolio
+                })
+
+        # Cache results
+        st.session_state[cache_key] = enriched_portfolios
+        st.session_state[cache_time_key] = datetime.now()
+
+        return enriched_portfolios
+
+    except Exception as e:
+        st.error(f"Error loading portfolios: {str(e)}")
+        logger.error(f"Error loading portfolios: {e}", exc_info=True)
+        return []
+
+
+def clear_portfolio_cache() -> None:
+    """Clear portfolio cache to force refresh."""
+    cache_keys = ["portfolio_list", "portfolio_list_time"]
+    for key in cache_keys:
+        if key in st.session_state:
+            del st.session_state[key]
+
+
+def render_empty_state() -> None:
+    """Render empty state when no portfolios exist."""
+    st.info("No portfolios found. Create your first portfolio to get started!")
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("Create Your First Portfolio", type="primary", use_container_width=True):
+            st.switch_page("pages/create_portfolio.py")
+
+
+def render_search_and_filter(portfolios: List[Dict]) -> List[Dict]:
+    """Render search and filter controls."""
+    with st.expander("Search & Filter", expanded=False):
+        search_col, sort_col = st.columns(2)
+
+        with search_col:
+            search_term = st.text_input(
+                "Search portfolios",
+                placeholder="Search by name or description...",
+                key="portfolio_search"
+            )
+
+        with sort_col:
+            sort_by = st.selectbox(
+                "Sort by",
+                options=["Name", "Created Date", "Asset Count", "Value"],
+                key="portfolio_sort"
+            )
+
+    # Apply filters
+    filtered = portfolios.copy()
+
+    # Search filter
+    if search_term:
+        search_lower = search_term.lower()
+        filtered = [
+            p for p in filtered
+            if (search_lower in p.get('name', '').lower() or
+                search_lower in p.get('description', '').lower())
+        ]
+
+    # Sort
+    if sort_by == "Name":
+        filtered.sort(key=lambda x: x.get('name', '').lower())
+    elif sort_by == "Created Date":
+        # Sort by name if no created_date
+        filtered.sort(key=lambda x: x.get('name', '').lower())
+    elif sort_by == "Asset Count":
+        filtered.sort(key=lambda x: x.get('asset_count', 0), reverse=True)
+    elif sort_by == "Value":
+        filtered.sort(key=lambda x: x.get('current_value', 0), reverse=True)
+
+    return filtered
+
+
+def render_portfolio_table(portfolios: List[Dict]) -> None:
+    """Render the main portfolio table with selection."""
+    st.subheader(f"Portfolios ({len(portfolios)})")
+
+    # Prepare table data
+    table_data = []
+    for portfolio in portfolios:
+        table_data.append({
+            'Select': False,
+            'Name': portfolio.get('name', 'Unnamed'),
+            'Description': (
+                portfolio.get('description', '')[:50] +
+                ('...' if len(portfolio.get('description', '')) > 50 else '')
+            ),
+            'Assets': portfolio.get('asset_count', 0),
+            'Value': format_currency(portfolio.get('current_value', 0)),
+            'Created': (
+                portfolio.get('created_at', '')
+                if portfolio.get('created_at')
+                else 'N/A'
+            ),
+            'Last Updated': 'Recently',  # TODO: Calculate actual time
+        })
+
+    # Display editable table
+    edited_df = st.data_editor(
+        pd.DataFrame(table_data),
+        column_config={
+            'Select': st.column_config.CheckboxColumn('Select', width=60),
+            'Name': st.column_config.TextColumn('Name', width=150),
+            'Description': st.column_config.TextColumn(
+                'Description', width=200
+            ),
+            'Assets': st.column_config.NumberColumn('Assets', width=80),
+            'Value': st.column_config.TextColumn('Value', width=120),
+            'Created': st.column_config.TextColumn('Created', width=150),
+            'Last Updated': st.column_config.TextColumn(
+                'Last Updated', width=120
+            ),
+        },
+        hide_index=True,
+        use_container_width=True,
+        key="portfolio_table"
+    )
+
+    # Update selected portfolios
+    selected_indices = [i for i, row in edited_df.iterrows() if row['Select']]
+    st.session_state.selected_portfolios = [portfolios[i] for i in selected_indices]
+
+
+def render_individual_actions(portfolios: List[Dict]) -> None:
+    """Render individual action buttons for each portfolio."""
+    st.subheader("Portfolio Actions")
+
+    for i, portfolio in enumerate(portfolios):
+        with st.container(border=True):
+            # Portfolio info
+            st.write(f"**{portfolio['name']}**")
+            st.write(f"Assets: {portfolio.get('asset_count', 0)} | "
+                     f"Value: {format_currency(portfolio.get('current_value', 0))}")
+
+            # Action buttons
+            btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+
+            with btn_col1:
+                if st.button("View", key=f"view_{i}", use_container_width=True):
+                    view_portfolio(portfolio)
+
+            with btn_col2:
+                if st.button("Edit", key=f"edit_{i}", use_container_width=True):
+                    edit_portfolio(portfolio)
+
+            with btn_col3:
+                if st.button("Clone", key=f"clone_{i}", use_container_width=True):
+                    clone_portfolio(portfolio)
+
+            with btn_col4:
+                if st.button("Delete", key=f"delete_{i}", type="secondary", use_container_width=True):
+                    delete_portfolio_confirmed(portfolio)
+
+
+def render_bulk_operations() -> None:
+    """Render bulk operations for selected portfolios."""
+    st.subheader(f"Bulk Operations ({len(st.session_state.selected_portfolios)} selected)")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("Update Prices", use_container_width=True, type="primary"):
+            bulk_update_prices()
+
+    with col2:
+        if st.button("Clear Selection", use_container_width=True):
+            st.session_state.selected_portfolios = []
+            st.rerun()
+
+    with col3:
+        if st.button("Delete Selected", use_container_width=True, type="secondary"):
+            if st.session_state.selected_portfolios:
+                bulk_delete_portfolios()
+
+
+def view_portfolio(portfolio_info: Dict) -> None:
+    """Set portfolio for detailed view."""
+    st.session_state.viewing_portfolio = portfolio_info
+    st.rerun()
+
+
+def render_portfolio_details() -> None:
+    """Render full-width portfolio details view."""
+    try:
+        portfolio_info = st.session_state.viewing_portfolio
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+
+        portfolio = portfolio_info.get('portfolio_object')
+        if not portfolio:
+            portfolio = portfolio_service.get_portfolio(portfolio_info['id'])
+
+        # Full-width container for details
+        with st.container(border=True):
+            # Header with close button
+            header_col1, header_col2 = st.columns([3, 1])
+
+            with header_col1:
+                st.markdown(f"### Portfolio Details: {portfolio.name}")
+
+            with header_col2:
+                if st.button("Close", use_container_width=True):
+                    if 'viewing_portfolio' in st.session_state:
+                        del st.session_state.viewing_portfolio
+                    st.rerun()
+
+            # Basic metrics
+            metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
+
+            try:
+                metrics = portfolio_service.calculate_portfolio_metrics(portfolio.id)
+                total_value = metrics.get("current_value", portfolio.starting_capital)
+                weights = metrics.get("weights", {})
+            except Exception:
+                total_value = portfolio.starting_capital
+                weights = {}
+
+            with metrics_col1:
+                st.metric("Total Assets", len(portfolio.get_all_positions()))
+            with metrics_col2:
+                st.metric("Total Value", format_currency(total_value))
+            with metrics_col3:
+                st.metric("Currency", portfolio.base_currency)
+            with metrics_col4:
+                st.metric("Starting Capital", format_currency(portfolio.starting_capital))
+
+            # Description
+            if portfolio.description:
+                st.info(f"**Description:** {portfolio.description}")
+
+            # Positions table
+            if portfolio.get_all_positions():
+                positions = portfolio.get_all_positions()
+                position_data = []
+
+                data_service: DataService = st.session_state.data_service
+
+                for pos in positions:
+                    try:
+                        current_price = data_service.fetch_current_price(pos.ticker)
+                        current_value = pos.shares * current_price
+                        weight = weights.get(pos.ticker, 0.0)
+                        purchase_value = (
+                            pos.shares * pos.purchase_price
+                            if pos.purchase_price
+                            else None
+                        )
+                        gain_loss = (
+                            current_value - purchase_value
+                            if purchase_value
+                            else None
+                        )
+
+                        position_data.append({
+                            'Ticker': pos.ticker,
+                            'Shares': f"{pos.shares:.2f}",
+                            'Current Price': format_currency(current_price),
+                            'Current Value': format_currency(current_value),
+                            'Weight': format_percentage(weight),
+                            'Gain/Loss': format_currency(gain_loss) if gain_loss else "N/A"
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error fetching price for {pos.ticker}: {e}")
+                        position_data.append({
+                            'Ticker': pos.ticker,
+                            'Shares': f"{pos.shares:.2f}",
+                            'Current Price': "N/A",
+                            'Current Value': "N/A",
+                            'Weight': format_percentage(weights.get(pos.ticker, 0.0)),
+                            'Gain/Loss': "N/A"
+                        })
+
+                st.subheader("Positions")
+                st.dataframe(pd.DataFrame(position_data), hide_index=True, use_container_width=True)
+
+    except PortfolioNotFoundError:
+        st.error("Portfolio not found")
+        if 'viewing_portfolio' in st.session_state:
+            del st.session_state.viewing_portfolio
+        st.rerun()
+    except Exception as e:
+        st.error(f"Error loading portfolio details: {str(e)}")
+        logger.error(f"Error loading portfolio details: {e}", exc_info=True)
+
+
+def edit_portfolio(portfolio_info: Dict) -> None:
+    """Edit portfolio."""
+    st.session_state.editing_portfolio = portfolio_info
+    st.session_state.management_view = "edit"
+    st.rerun()
+
+
+def render_portfolio_editor() -> None:
+    """Render the portfolio editing interface."""
+    if 'editing_portfolio' not in st.session_state:
+        st.error("No portfolio selected for editing.")
+        if st.button("Back to List"):
+            st.session_state.management_view = "list"
+            st.rerun()
+        return
+
+    portfolio_info = st.session_state.editing_portfolio
+    portfolio_service: PortfolioService = st.session_state.portfolio_service
+
+    try:
+        portfolio = portfolio_service.get_portfolio(portfolio_info['id'])
+        st.subheader(f"Edit Portfolio: {portfolio.name}")
+
+        # Basic information editing
+        with st.form("edit_portfolio_form", clear_on_submit=False):
+            # Basic info
+            basic_col1, basic_col2 = st.columns(2)
+
+            with basic_col1:
+                new_name = st.text_input("Portfolio Name", value=portfolio.name)
+                new_currency = st.selectbox(
+                    "Currency",
+                    options=["USD", "EUR", "GBP", "JPY", "CAD", "AUD"],
+                    index=["USD", "EUR", "GBP", "JPY", "CAD", "AUD"].index(
+                        portfolio.base_currency
+                    ) if portfolio.base_currency in ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"] else 0
+                )
+
+            with basic_col2:
+                new_description = st.text_area(
+                    "Description",
+                    value=portfolio.description or "",
+                    height=100
+                )
+                new_starting_capital = st.number_input(
+                    "Starting Capital",
+                    min_value=0.01,
+                    value=portfolio.starting_capital,
+                    step=1000.0
+                )
+
+            # Form buttons
+            button_col1, button_col2, button_col3 = st.columns(3)
+
+            with button_col1:
+                save_changes = st.form_submit_button("Save Changes", type="primary", use_container_width=True)
+
+            with button_col2:
+                cancel_edit = st.form_submit_button("Cancel", use_container_width=True)
+
+            with button_col3:
+                delete_portfolio = st.form_submit_button("Delete Portfolio", type="secondary", use_container_width=True)
+
+        # Handle form submissions
+        if save_changes:
+            save_portfolio_changes(portfolio, new_name, new_description, new_currency, new_starting_capital)
+
+        if cancel_edit:
+            st.session_state.management_view = "list"
+            if 'editing_portfolio' in st.session_state:
+                del st.session_state.editing_portfolio
+            st.rerun()
+
+        if delete_portfolio:
+            delete_portfolio_confirmed(portfolio_info)
+
+        # Positions editing section
+        st.subheader("Positions")
+        positions = portfolio.get_all_positions()
+
+        if positions:
+            position_data = []
+            for pos in positions:
+                position_data.append({
+                    'Ticker': pos.ticker,
+                    'Shares': pos.shares,
+                    'Weight Target': pos.weight_target * 100 if pos.weight_target else 0,
+                    'Purchase Price': pos.purchase_price or 0,
+                })
+
+            edited_positions = st.data_editor(
+                pd.DataFrame(position_data),
+                column_config={
+                    'Ticker': st.column_config.TextColumn('Ticker', disabled=True),
+                    'Shares': st.column_config.NumberColumn('Shares', step=0.01),
+                    'Weight Target': st.column_config.NumberColumn('Weight Target (%)', step=0.1),
+                    'Purchase Price': st.column_config.NumberColumn('Purchase Price', step=0.01),
+                },
+                hide_index=True,
+                use_container_width=True,
+                key="edit_positions_table"
+            )
+
+            if st.button("Update Positions", type="primary"):
+                update_positions(portfolio.id, edited_positions)
+
+        # Add new position
+        with st.expander("Add New Position"):
+            with st.form("add_position_form"):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    new_ticker = st.text_input("Ticker")
+                with col2:
+                    new_shares = st.number_input("Shares", min_value=0.01, value=1.0)
+                with col3:
+                    new_weight = st.number_input("Weight Target (%)", min_value=0.0, max_value=100.0, value=10.0)
+
+                if st.form_submit_button("Add Position"):
+                    if new_ticker:
+                        add_position_to_portfolio(portfolio.id, new_ticker, new_shares, new_weight / 100)
+
+    except PortfolioNotFoundError:
+        st.error("Portfolio not found")
+        if 'editing_portfolio' in st.session_state:
+            del st.session_state.editing_portfolio
+        st.rerun()
+    except Exception as e:
+        st.error(f"Error loading portfolio for editing: {str(e)}")
+        logger.error(f"Error loading portfolio for editing: {e}", exc_info=True)
+        if st.button("Back to List"):
+            st.session_state.management_view = "list"
+            st.rerun()
+
+
+def save_portfolio_changes(
+    portfolio,
+    new_name: str,
+    new_description: str,
+    new_currency: str,
+    new_starting_capital: float
+) -> None:
+    """Save portfolio changes."""
+    try:
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+
+        request = UpdatePortfolioRequest(
+            name=new_name,
+            description=new_description,
+            base_currency=new_currency,
+            starting_capital=new_starting_capital
+        )
+
+        portfolio_service.update_portfolio(portfolio.id, request)
+
+        st.success(f"Portfolio '{new_name}' updated successfully!")
+
+        # Clear cache and return to list
+        clear_portfolio_cache()
+        st.session_state.management_view = "list"
+        if 'editing_portfolio' in st.session_state:
+            del st.session_state.editing_portfolio
+
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Error saving portfolio changes: {str(e)}")
+        logger.error(f"Error saving portfolio changes: {e}", exc_info=True)
+
+
+def update_positions(portfolio_id: str, edited_positions: pd.DataFrame) -> None:
+    """Update positions from edited dataframe."""
+    try:
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+        portfolio = portfolio_service.get_portfolio(portfolio_id)
+
+        for _, row in edited_positions.iterrows():
+            ticker = row['Ticker']
+            request = UpdatePositionRequest(
+                shares=row['Shares'],
+                weight_target=row['Weight Target'] / 100 if row['Weight Target'] > 0 else None,
+                purchase_price=row['Purchase Price'] if row['Purchase Price'] > 0 else None
+            )
+            portfolio_service.update_position(portfolio_id, ticker, request)
+
+        st.success("Positions updated successfully!")
+        clear_portfolio_cache()
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Error updating positions: {str(e)}")
+        logger.error(f"Error updating positions: {e}", exc_info=True)
+
+
+def add_position_to_portfolio(portfolio_id: str, ticker: str, shares: float, weight: float) -> None:
+    """Add position to portfolio."""
+    try:
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+        data_service: DataService = st.session_state.data_service
+
+        # Validate ticker
+        validation_results = data_service.validate_tickers([ticker.upper()])
+        if not validation_results.get(ticker.upper(), False):
+            st.error(f"Invalid ticker: {ticker}")
+            return
+
+        request = AddPositionRequest(
+            ticker=ticker.upper(),
+            shares=shares,
+            weight_target=weight if weight > 0 else None
+        )
+
+        portfolio_service.add_position(portfolio_id, request)
+        st.success(f"Position {ticker.upper()} added successfully!")
+        clear_portfolio_cache()
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Error adding position: {str(e)}")
+        logger.error(f"Error adding position: {e}", exc_info=True)
+
+
+def clone_portfolio(portfolio_info: Dict) -> None:
+    """Clone portfolio."""
+    try:
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+        portfolio = portfolio_service.get_portfolio(portfolio_info['id'])
+
+        new_name = f"{portfolio.name} (Copy)"
+
+        with st.spinner("Cloning portfolio..."):
+            cloned = portfolio_service.clone_portfolio(portfolio.id, new_name)
+
+        st.success(f"Portfolio cloned: {cloned.name}")
+        clear_portfolio_cache()
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Error cloning portfolio: {str(e)}")
+        logger.error(f"Error cloning portfolio: {e}", exc_info=True)
+
+
+def delete_portfolio_confirmed(portfolio_info: Dict) -> None:
+    """Delete portfolio with confirmation."""
+    try:
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+        portfolio = portfolio_service.get_portfolio(portfolio_info['id'])
+
+        # Store for undo functionality
+        st.session_state.deleted_portfolios.append({
+            'portfolio': portfolio,
+            'deleted_at': datetime.now(),
+            'portfolio_id': portfolio.id
+        })
+
+        # Delete portfolio
+        success = portfolio_service.delete_portfolio(portfolio.id)
+
+        if success:
+            st.success(f"Portfolio '{portfolio.name}' deleted successfully!")
+            clear_portfolio_cache()
+        else:
+            st.error("Failed to delete portfolio.")
+
+    except Exception as e:
+        st.error(f"Error deleting portfolio: {str(e)}")
+        logger.error(f"Error deleting portfolio: {e}", exc_info=True)
+
+
+def render_undo_section() -> None:
+    """Render undo section for deleted portfolios."""
+    st.divider()
+    st.subheader("Recently Deleted")
+
+    for i, deleted_item in enumerate(st.session_state.deleted_portfolios):
+        portfolio = deleted_item['portfolio']
+        deleted_at = deleted_item['deleted_at']
+
+        with st.container(border=True):
+            undo_col1, undo_col2, undo_col3 = st.columns([3, 2, 1])
+
+            with undo_col1:
+                st.write(f"**{portfolio.name}**")
+                st.write(f"Deleted: {deleted_at.strftime('%Y-%m-%d %H:%M:%S')}")
+
+            with undo_col2:
+                st.write(f"Assets: {len(portfolio.get_all_positions())}")
+                st.write(f"Starting Capital: {format_currency(portfolio.starting_capital)}")
+
+            with undo_col3:
+                if st.button("Restore", key=f"restore_{i}", use_container_width=True):
+                    restore_deleted_portfolio(i)
+
+    if len(st.session_state.deleted_portfolios) > 1:
+        if st.button("Clear All Deleted", type="secondary"):
+            st.session_state.deleted_portfolios = []
+            st.rerun()
+
+
+def restore_deleted_portfolio(index: int) -> None:
+    """Restore a deleted portfolio."""
+    try:
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+        deleted_item = st.session_state.deleted_portfolios[index]
+        portfolio = deleted_item['portfolio']
+
+        # Generate new name if original exists
+        existing_portfolios = portfolio_service.list_portfolios()
+        existing_names = [p.name for p in existing_portfolios]
+
+        if portfolio.name in existing_names:
+            portfolio.name = f"{portfolio.name} (Restored)"
+
+        # Recreate portfolio
+        from services.schemas import CreatePortfolioRequest, PositionSchema
+
+        positions = []
+        for pos in portfolio.get_all_positions():
+            positions.append(PositionSchema(
+                ticker=pos.ticker,
+                shares=pos.shares,
+                weight_target=pos.weight_target,
+                purchase_price=pos.purchase_price,
+                purchase_date=pos.purchase_date
+            ))
+
+        request = CreatePortfolioRequest(
+            name=portfolio.name,
+            description=portfolio.description,
+            starting_capital=portfolio.starting_capital,
+            base_currency=portfolio.base_currency,
+            positions=positions
+        )
+
+        portfolio_service.create_portfolio(request)
+
+        # Remove from deleted list
+        st.session_state.deleted_portfolios.pop(index)
+
+        st.success(f"Portfolio '{portfolio.name}' restored successfully!")
+        clear_portfolio_cache()
+
+    except Exception as e:
+        st.error(f"Error restoring portfolio: {str(e)}")
+        logger.error(f"Error restoring portfolio: {e}", exc_info=True)
+
+
+def bulk_update_prices() -> None:
+    """Update prices for selected portfolios."""
+    try:
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+
+        selected_count = len(st.session_state.selected_portfolios)
+        with st.spinner(f"Updating prices for {selected_count} portfolios..."):
+            updated_count = 0
+
+            for portfolio_info in st.session_state.selected_portfolios:
+                try:
+                    # Prices are updated on-demand when calculating metrics
+                    portfolio_service.get_portfolio(portfolio_info['id'])
+                    updated_count += 1
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to update prices for {portfolio_info['name']}: {e}"
+                    )
+
+            st.success(f"Updated prices for {updated_count} portfolios!")
+            clear_portfolio_cache()
+
+    except Exception as e:
+        st.error(f"Error updating prices: {str(e)}")
+        logger.error(f"Error updating prices: {e}", exc_info=True)
+
+
+def bulk_delete_portfolios() -> None:
+    """Delete selected portfolios with confirmation."""
+    try:
+        portfolio_service: PortfolioService = st.session_state.portfolio_service
+        deleted_count = 0
+
+        for portfolio_info in st.session_state.selected_portfolios:
+            try:
+                # Load for backup
+                portfolio = portfolio_service.get_portfolio(portfolio_info['id'])
+
+                # Store for undo
+                st.session_state.deleted_portfolios.append({
+                    'portfolio': portfolio,
+                    'deleted_at': datetime.now(),
+                    'portfolio_id': portfolio.id
+                })
+
+                # Delete
+                success = portfolio_service.delete_portfolio(portfolio.id)
+                if success:
+                    deleted_count += 1
+
+            except Exception as e:
+                logger.warning(f"Failed to delete {portfolio_info['name']}: {e}")
+
+        st.success(f"Deleted {deleted_count} portfolios successfully!")
+        st.session_state.selected_portfolios = []
+        clear_portfolio_cache()
+
+    except Exception as e:
+        st.error(f"Error deleting portfolios: {str(e)}")
+        logger.error(f"Error deleting portfolios: {e}", exc_info=True)
+
+
+if __name__ == "__main__":
+    render_portfolio_list()
