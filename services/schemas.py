@@ -13,8 +13,8 @@ class PositionSchema(BaseModel):
         ...,
         min_length=1,
         max_length=10,
-        pattern=r"^[A-Z0-9]+$",
-        description="Ticker symbol (uppercase, alphanumeric)",
+        pattern=r"^[A-Z0-9-]+$",
+        description="Ticker symbol (uppercase, alphanumeric, may contain hyphens)",
     )
     shares: Optional[float] = Field(
         None, gt=0, description="Number of shares (must be > 0 if provided)"
@@ -154,8 +154,8 @@ class AddPositionRequest(BaseModel):
         ...,
         min_length=1,
         max_length=10,
-        pattern=r"^[A-Z0-9]+$",
-        description="Ticker symbol",
+        pattern=r"^[A-Z0-9-]+$",
+        description="Ticker symbol (may contain hyphens)",
     )
     shares: float = Field(
         ..., gt=0, description="Number of shares (must be > 0)"
