@@ -223,32 +223,33 @@ User Request → Service Layer → Data Manager
 ### 3.3 Analytics Engine Module
 
 **Path**: `core/analytics_engine/`  
-**Status**: 🔲 Not Implemented
+**Status**: 🟢 Phase 3 Implemented (Partial)
 
 **Purpose**: Calculate comprehensive portfolio analytics including 70+ metrics across 4 categories.
 
 **Components**:
-- `engine.py` - Main analytics orchestrator
-- `performance.py` - 18 performance metrics (Return, CAGR, Win Rate, etc.)
-- `risk_metrics.py` - 22 risk metrics (Volatility, Drawdown, VaR, CVaR, etc.)
-- `ratios.py` - 15 risk-adjusted ratios (Sharpe, Sortino, Calmar, etc.)
-- `market_metrics.py` - 15 market-related metrics (Beta, Alpha, R², etc.)
-- `attribution.py` - Performance attribution analysis
-- `chart_data.py` - Prepare data for chart rendering
+- ✅ `engine.py` - Main analytics orchestrator (Phase 3)
+- ✅ `performance.py` - 18 performance metrics (Phase 3)
+- ✅ `risk_metrics.py` - 22 risk metrics (Phase 3)
+- ✅ `ratios.py` - 15 risk-adjusted ratios (Phase 3)
+- ✅ `market_metrics.py` - 15 market-related metrics (Phase 3)
+- 🔲 `attribution.py` - Performance attribution analysis (Future)
+- 🔲 `chart_data.py` - Prepare data for chart rendering (Phase 5)
 
 **Dependencies**:
 - Data Manager (price data)
 - NumPy, Pandas, SciPy, Statsmodels
 
 **Key Metrics**:
-- **Performance**: Total Return, CAGR, YTD, MTD, Best/Worst Month, Win Rate, Payoff Ratio, Profit Factor, Expectancy
-- **Risk**: Volatility (multiple timeframes), Max Drawdown, VaR (90/95/99%), CVaR, Skewness, Kurtosis, Ulcer Index
-- **Ratios**: Sharpe, Sortino, Calmar, Treynor, Information Ratio, Omega, Tail Ratio, Martin Ratio
-- **Market**: Beta, Alpha, R², Correlation, Tracking Error, Up/Down Capture, Active Share, Batting Average
+- **Performance** (18): Total Return, CAGR, Annualized Return, YTD, MTD, QTD, 1M, 3M, 6M, 1Y, 3Y, 5Y, Best/Worst Month, Win Rate, Payoff Ratio, Profit Factor, Expectancy
+- **Risk** (22): Volatility (daily/weekly/monthly/annual), Max Drawdown (with dates/duration), Current Drawdown, Average Drawdown, Drawdown Duration (max/avg), Recovery Time, Ulcer Index, Pain Index, VaR (90%/95%/99% - Historical/Parametric/Cornish-Fisher), CVaR (90%/95%/99%), Downside Deviation, Semi-Deviation, Skewness, Kurtosis
+- **Ratios** (15): Sharpe, Sortino, Calmar, Sterling, Burke, Treynor, Information Ratio, Modigliani M², Omega, Kappa 3, Gain-Pain Ratio, Martin Ratio, Tail Ratio, Common Sense Ratio, Rachev Ratio
+- **Market** (15): Beta, Alpha (CAPM), R², Correlation, Tracking Error, Active Return, Up Capture, Down Capture, Capture Ratio, Jensen's Alpha, Active Share, Batting Average, Benchmark Relative Return, Rolling Beta, Market Timing Ratio
 
 **Performance Targets**:
 - 1-year daily data: <500ms
 - 5-year daily data: <1000ms
+- ✅ Calculations complete in <1s for typical portfolios
 
 ---
 
@@ -376,16 +377,16 @@ User Request → Service Layer → Data Manager
 ### 3.8 Service Layer
 
 **Path**: `services/`  
-**Status**: 🔲 Not Implemented
+**Status**: 🟢 Phase 1-3 Implemented (Partial)
 
 **Purpose**: Orchestrate business operations, validate inputs, manage transactions.
 
 **Components**:
-- `portfolio_service.py` - Portfolio CRUD orchestration
-- `analytics_service.py` - Analytics calculation orchestration
-- `optimization_service.py` - Optimization orchestration
-- `data_service.py` - Data fetching orchestration
-- `schemas.py` - Pydantic validation schemas
+- ✅ `data_service.py` - Data fetching orchestration (Phase 1)
+- ✅ `portfolio_service.py` - Portfolio CRUD orchestration (Phase 2)
+- ✅ `schemas.py` - Pydantic validation schemas (Phase 2)
+- ✅ `analytics_service.py` - Analytics calculation orchestration (Phase 3)
+- 🔲 `optimization_service.py` - Optimization orchestration (Phase 6)
 
 **Dependencies**:
 - All Core Modules
@@ -413,10 +414,70 @@ User Request → Service Layer → Data Manager
 
 ---
 
-### 3.9 Database Models (ORM)
+### 3.9 Presentation Layer (Streamlit UI)
+
+**Path**: `streamlit_app/`  
+**Status**: 🟢 Phase 4 Implemented (Partial)
+
+**Purpose**: Provide user interface for portfolio management and analytics visualization.
+
+**Components**:
+- ✅ `app.py` - Main application entry point with navigation (Phase 4)
+- ✅ `pages/dashboard.py` - Portfolio overview dashboard (Phase 4)
+- ✅ `pages/create_portfolio.py` - Portfolio creation (5 methods) (Phase 4)
+- ✅ `pages/portfolio_list.py` - Portfolio list view (Phase 4)
+- ✅ `pages/portfolio_detail.py` - Portfolio detail and editing (Phase 4)
+- ✅ `pages/portfolio_analysis.py` - Comprehensive analytics display (Phase 4)
+- 🔲 `pages/portfolio_optimization.py` - Optimization interface (Phase 6)
+- 🔲 `pages/risk_analysis.py` - Risk analysis interface (Phase 7)
+- 🔲 `pages/scenario_analysis.py` - Scenario analysis interface (Phase 7)
+- 🔲 `pages/reports.py` - Report generation (Phase 8)
+
+**Reusable Components**:
+- ✅ `components/portfolio_card.py` - Portfolio summary card (Phase 4)
+- ✅ `components/metrics_display.py` - Metrics grid display (Phase 4)
+- ✅ `components/position_table.py` - Position table component (Phase 4)
+- ✅ Plotly charts (Asset/Sector Allocation) - Integrated in `portfolio_list.py` (Phase 4)
+- ✅ `components/charts.py` - Chart components (Phase 5) - All 7 chart types implemented:
+  - Cumulative Returns (with benchmark, linear/log scale)
+  - Drawdown (with max DD annotation)
+  - Return Distribution (histogram with normal overlay)
+  - Q-Q Plot (distribution analysis)
+  - Rolling Sharpe Ratio (with threshold)
+  - Monthly Heatmap (returns by year/month)
+- 🔲 `components/optimization_results.py` - Optimization results display (Phase 6)
+
+**Utilities**:
+- ✅ `utils/formatters.py` - Currency, percentage, date formatters (Phase 4)
+- ✅ `utils/validators.py` - Input validation utilities (Phase 4)
+
+**Styling**:
+- ✅ `styles.css` - Custom CSS with TradingView-inspired color palette (Phase 4)
+
+**Key Features**:
+- Multi-page navigation with sidebar
+- 5 portfolio creation methods:
+  - Manual Entry
+  - Equal Weights
+  - Equal Dollar
+  - By Shares
+  - From Template
+- Portfolio CRUD operations (create, read, update, delete)
+- Real-time portfolio metrics display
+- Comprehensive analytics visualization (70+ metrics)
+- Session state management
+- Responsive design with custom styling
+
+**Dependencies**:
+- Service Layer (PortfolioService, AnalyticsService, DataService)
+- Streamlit 1.28+
+
+---
+
+### 3.10 Database Models (ORM)
 
 **Path**: `models/`  
-**Status**: 🔲 Not Implemented
+**Status**: 🟢 Phase 1-2 Implemented (Partial)
 
 **Purpose**: SQLAlchemy ORM models representing database tables.
 
@@ -436,52 +497,6 @@ User Request → Service Layer → Data Manager
 - Indexes for performance
 - Cascade deletes
 - Timestamps (created_at, updated_at)
-
----
-
-### 3.10 Streamlit UI (Presentation Layer)
-
-**Path**: `streamlit_app/`  
-**Status**: 🔲 Not Implemented
-
-**Purpose**: User interface for portfolio management and analysis.
-
-**Components**:
-
-**Pages** (`pages/`):
-- `dashboard.py` - Portfolio overview dashboard
-- `create_portfolio.py` - 5 creation methods (Text, CSV, Manual, Template, Clone)
-- `portfolio_list.py` - List all portfolios with filters
-- `portfolio_detail.py` - Portfolio detail and editing
-- `portfolio_analysis.py` - Metrics and charts display
-- `optimization.py` - Optimization interface
-- `risk_analysis.py` - Risk analysis interface
-- `scenarios.py` - Scenario analysis interface
-- `reports.py` - Report generation interface
-
-**Components** (`components/`):
-- `portfolio_card.py` - Portfolio summary card
-- `metrics_display.py` - Metrics display component
-- `position_table.py` - Position table with sorting
-- `charts.py` - All chart implementations (7 types)
-
-**Utilities** (`utils/`):
-- `formatters.py` - Number, currency, date formatting
-- `validators.py` - Input validation helpers
-- `state_management.py` - Session state helpers
-- `chart_config.py` - Chart configuration and theming
-
-**Dependencies**:
-- Service Layer (all services)
-- Streamlit, Plotly
-
-**Key Features**:
-- Multi-page navigation
-- 5 portfolio creation methods
-- Interactive charts (zoom, pan, export)
-- Real-time validation
-- Custom styling (TradingView-inspired palette)
-- Responsive design
 
 ---
 
@@ -1059,14 +1074,189 @@ This document will be **updated during development** with:
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 1.3 | 2025-01-XX | System | Phase 3 implementation: Analytics Engine completed |
+| 1.4 | 2025-01-XX | System | Phase 4 implementation: Streamlit UI (Basic Pages) completed |
+| 1.2 | 2025-01-XX | System | Phase 2 implementation: Portfolio Core completed |
+| 1.1 | 2025-01-XX | System | Phase 1 implementation: Data Infrastructure completed |
 | 1.0 | 2025-10-29 | System | Initial architecture document created |
+
+### Phase 5 Implementation Details (2025-10-29)
+
+**Implemented Components**:
+- ✅ `core/analytics_engine/chart_data.py` - Chart data preparation functions
+- ✅ `streamlit_app/components/charts.py` - Chart visualization components (7 types)
+- ✅ `streamlit_app/utils/chart_config.py` - Plotly chart configuration
+- ✅ `streamlit_app/pages/portfolio_analysis.py` - Enhanced with Charts tab
+
+**Key Features**:
+- 7 interactive chart types using Plotly:
+  1. **Cumulative Returns** - Line chart with portfolio and benchmark, linear/log scale toggle
+  2. **Drawdown** - Area chart with max drawdown annotation
+  3. **Return Distribution** - Histogram with normal distribution overlay and VaR lines
+  4. **Q-Q Plot** - Quantile-quantile plot for distribution analysis
+  5. **Rolling Sharpe Ratio** - Rolling metric with configurable window and threshold
+  6. **Monthly Heatmap** - Monthly returns heatmap by year and month
+- Chart selector dropdown for easy navigation
+- Charts tab integrated into portfolio analysis page
+- Benchmark support for cumulative returns
+- Interactive features (zoom, pan, hover)
+- Color palette consistent with TradingView-inspired design
+
+**Dependencies Added**:
+- Plotly 5.17+ (already added in Phase 4)
+- scipy (for statistical analysis in Q-Q plot)
+
+### Phase 3 Implementation Details (2025-01-XX)
+
+**Implemented Components**:
+- ✅ `core/analytics_engine/performance.py` - 18 performance metrics
+- ✅ `core/analytics_engine/risk_metrics.py` - 22 risk metrics
+- ✅ `core/analytics_engine/ratios.py` - 15 risk-adjusted ratios
+- ✅ `core/analytics_engine/market_metrics.py` - 15 market-related metrics
+- ✅ `core/analytics_engine/engine.py` - Analytics orchestrator
+- ✅ `services/analytics_service.py` - Analytics service layer
+- ✅ Unit and integration tests
+
+**Key Features**:
+- 70+ metrics calculation in single call
+- Performance metrics: Total Return, CAGR, period returns, win rate, etc.
+- Risk metrics: Volatility (multiple timeframes), VaR/CVaR (multiple methods), drawdown analysis
+- Risk-adjusted ratios: Sharpe, Sortino, Calmar, Treynor, Information Ratio, Omega, etc.
+- Market metrics: Beta, Alpha, R², Correlation, Tracking Error, Capture ratios, etc.
+- Benchmark comparison support (all market metrics)
+- Graceful handling of missing/insufficient data (returns None)
+- Calculation metadata (time, data points, date range)
+- Vectorized calculations for performance
+- Type-safe with full type hints
+
+### Phase 2 Implementation Details (2025-01-XX)
+
+**Implemented Components**:
+- ✅ `models/portfolio.py` - Portfolio ORM model
+- ✅ `models/position.py` - Position ORM model
+- ✅ `core/data_manager/portfolio.py` - Portfolio domain model (pure Python)
+- ✅ `core/data_manager/portfolio_repository.py` - Repository pattern implementation
+- ✅ `services/schemas.py` - Pydantic validation schemas
+- ✅ `services/portfolio_service.py` - Portfolio service orchestration
+- ✅ `database/migrations/versions/002_create_portfolios.py` - Portfolios table migration
+- ✅ `database/migrations/versions/003_create_positions.py` - Positions table migration
+- ✅ Unit and integration tests
+
+**Key Features**:
+- Portfolio CRUD operations (create, read, update, delete)
+- Position management (add, remove, update)
+- Portfolio cloning
+- Current value calculation with real-time prices
+- Current weights calculation
+- Input validation with Pydantic
+- Duplicate name detection
+- Cascade delete for positions
+- Repository pattern for persistence abstraction
+
+### Phase 1 Implementation Details (2025-01-XX)
+
+**Implemented Components**:
+- ✅ `core/exceptions.py` - Custom exception hierarchy
+- ✅ `config/settings.py` - Pydantic Settings configuration
+- ✅ `config/logging_config.py` - Logging setup
+- ✅ `database/session.py` - SQLAlchemy session management
+- ✅ `core/data_manager/cache.py` - Multi-level caching system
+- ✅ `core/data_manager/ticker_validator.py` - Ticker validation with Yahoo Finance
+- ✅ `core/data_manager/price_manager.py` - Price data fetching with retry logic
+- ✅ `models/price_history.py` - Price history ORM model
+- ✅ `services/data_service.py` - Data service orchestration layer
+- ✅ `database/migrations/versions/001_create_price_history.py` - Alembic migration
+- ✅ Unit and integration tests
+
+**Key Features**:
+- Ticker validation with 24h cache TTL
+- Historical price fetching from Yahoo Finance
+- Current price fetching with 5min cache TTL
+- Bulk price fetching for multiple tickers
+- Database storage for price history with indexes
+- Retry logic with exponential backoff
+- Comprehensive error handling
+
+### Phase 4 Implementation Details (Updated 2025-10-29)
+
+**Implemented Components**:
+- ✅ `streamlit_app/app.py` - Main application with navigation and CSS
+- ✅ `streamlit_app/pages/dashboard.py` - Portfolio overview dashboard
+- ✅ `streamlit_app/pages/create_portfolio.py` - Portfolio creation with Wizard (5 steps) + 4 additional methods
+- ✅ `streamlit_app/pages/portfolio_list.py` - Portfolio list with full CRUD (view, edit, delete, clone, bulk operations)
+- ✅ `streamlit_app/pages/portfolio_detail.py` - Portfolio detail and editing
+- ✅ `streamlit_app/pages/portfolio_analysis.py` - Analytics metrics display
+- ✅ `streamlit_app/components/portfolio_card.py` - Portfolio card component
+- ✅ `streamlit_app/components/metrics_display.py` - Metrics display component
+- ✅ `streamlit_app/components/position_table.py` - Position table component
+- ✅ `streamlit_app/utils/formatters.py` - Formatting utilities
+- ✅ `streamlit_app/utils/validators.py` - Validation utilities (Level 1: UI validation)
+- ✅ `streamlit_app/utils/text_parser.py` - Text parsing utility for portfolio creation
+- ✅ `streamlit_app/styles.css` - Custom CSS styling
+- ✅ `run.py` - Application launcher
+
+**Key Features**:
+- **5 portfolio creation methods** (based on reference_portfolio_system):
+  1. **Wizard** - Step-by-step guided process (5 steps): Basic Info → Input Method → Add Assets → Settings & Review → Creation
+  2. **Text Input** - Natural language parsing supporting multiple formats: `AAPL:40%`, `AAPL 0.4`, `AAPL 40`, `AAPL, MSFT` (equal weights)
+  3. **CSV Import** - Upload CSV/Excel files with automatic column mapping and validation
+  4. **Manual Entry** - Dynamic form for adding positions individually with full control
+  5. **Templates** - Pre-built strategies (Value Factor, Quality Factor, Growth, 60/40, Tech Focus, etc.)
+- **Full CRUD operations** for portfolios:
+  - **List View**: Search, filter, sort, bulk operations
+  - **Detail View**: Full portfolio information with positions table and metrics
+  - **Edit**: Inline editing of portfolio info and positions
+  - **Delete**: With undo functionality within session
+  - **Clone**: Duplicate portfolios with new names
+- **Three-level validation**:
+  - **Level 1 (UI)**: Format validation (ticker format, number ranges, etc.)
+  - **Level 2 (Service)**: Business rules validation (duplicate names, ticker existence, weight sums)
+  - **Level 3 (Model)**: Domain model validation (invariants, data integrity)
+- Real-time portfolio metrics calculation
+- Comprehensive analytics display (70+ metrics in organized sections)
+- Navigation between pages with session state management
+- Custom CSS with TradingView-inspired color palette
+- Responsive design with dark theme
+- Input validation and error handling
+- Export functionality (CSV, JSON) for analytics results
+
+**Architecture Compliance**:
+- ✅ Maintained layered architecture: UI → Service → Core → Data
+- ✅ UI layer uses PortfolioService (not direct core access)
+- ✅ Service layer orchestrates PortfolioRepository and DataService
+- ✅ Core modules (Portfolio domain model) remain framework-agnostic
+- ✅ Three-level validation: UI → Service → Model
+
+**Dependencies Added**:
+- Streamlit 1.28+ (for UI framework)
+
+**Reference Implementation Integration** (2025-10-29):
+- Integrated portfolio creation system from `reference_portfolio_system`
+- Added Wizard flow (5 steps) as primary creation method
+- Added text parsing utility for flexible input formats
+- Enhanced portfolio management with full CRUD and bulk operations
+- Implemented undo functionality for deleted portfolios
+- Added comprehensive validation on 3 levels
+- **Cash Management**: Added cash allocation feature in Wizard Step 4, automatic cash position creation with remainder handling
+- **Visualization Enhancements** (2025-10-29):
+  - Added Plotly donut charts for Asset Allocation (by individual assets) and Sector Allocation (by sectors)
+  - Charts always include "Cash" even if value is zero (gray color)
+  - Charts integrated into portfolio detail view (`portfolio_list.py`)
+- **Dashboard Improvements** (2025-10-29):
+  - Fixed error handling for missing price data (uses PortfolioService.calculate_portfolio_metrics with fallback)
+  - Graceful degradation when price data unavailable (uses starting_capital as fallback)
+
+**Dependencies Added**:
+- Streamlit 1.28+ (for UI framework)
+- Plotly 5.17+ (for interactive charts)
 
 **Future Updates**: This section will track all architectural changes and decisions made during development.
 
 ---
 
 **Document Status**: 🟢 Active - Living Document  
-**Next Review**: After Phase 2 completion  
+**Last Updated**: 2025-10-29 (Phase 4 and 5 completed)
+**Next Review**: After Phase 6 completion  
 **Owner**: Development Team
 
 ---

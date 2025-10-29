@@ -1,0 +1,184 @@
+/* Custom CSS styles for Portfolio Management System */
+
+/* Color Palette */
+:root {
+    --bg-primary: #0D1015;
+    --bg-secondary: #1A1E29;
+    --bg-tertiary: #2A2E39;
+    --primary: #BF9FFB;
+    --secondary: #74F174;
+    --error: #FAA1A4;
+    --text-primary: #FFFFFF;
+    --text-secondary: #D1D4DC;
+    --border: #3A3E49;
+}
+
+/* Main container */
+.main {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* Sidebar */
+.css-1d391kg {
+    background-color: var(--bg-secondary);
+}
+
+[data-testid="stSidebar"] {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
+    color: var(--text-primary);
+}
+
+/* Headers */
+h1, h2, h3 {
+    color: var(--primary);
+}
+
+/* Buttons */
+.stButton > button {
+    background-color: var(--primary);
+    color: var(--text-primary);
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+}
+
+.stButton > button:hover {
+    background-color: #A685EB;
+}
+
+button[data-baseweb="button"][kind="primary"] {
+    background-color: var(--primary);
+    color: var(--text-primary);
+}
+
+button[data-baseweb="button"][kind="secondary"] {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+
+/* Metrics */
+[data-testid="stMetricValue"] {
+    color: var(--text-primary);
+}
+
+[data-testid="stMetricDelta"] {
+    color: var(--secondary);
+}
+
+/* DataFrames */
+.dataframe {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* Input fields */
+.stTextInput > div > div > input {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.stNumberInput > div > div > input {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.stSelectbox > div > div > select {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.stTextArea > div > div > textarea {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+/* Cards and containers */
+[data-testid="stExpander"] {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+/* Info boxes */
+.stInfo {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-left: 4px solid var(--primary);
+}
+
+.stSuccess {
+    background-color: var(--bg-secondary);
+    color: var(--secondary);
+    border-left: 4px solid var(--secondary);
+}
+
+.stError {
+    background-color: var(--bg-secondary);
+    color: var(--error);
+    border-left: 4px solid var(--error);
+}
+
+.stWarning {
+    background-color: var(--bg-secondary);
+    color: var(--error);
+    border-left: 4px solid var(--error);
+}
+
+/* Radio buttons */
+.stRadio > div {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+
+/* Divider */
+.stDivider {
+    border-color: var(--border);
+}
+
+/* Markdown */
+.stMarkdown {
+    color: var(--text-secondary);
+}
+
+.stMarkdown strong {
+    color: var(--text-primary);
+}
+
+/* Tables */
+[data-testid="stDataFrame"] {
+    background-color: var(--bg-secondary);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
+

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from core.exceptions import PortfolioNotFoundError
@@ -15,7 +16,7 @@ from services.schemas import (
     UpdatePortfolioRequest,
     UpdatePositionRequest,
 )
-from streamlit_app.utils.formatters import format_currency, format_percentage
+from streamlit_app.utils.formatters import format_currency
 
 logger = logging.getLogger(__name__)
 
@@ -364,12 +365,14 @@ def render_portfolio_details() -> None:
             metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
 
             try:
-                metrics = portfolio_service.calculate_portfolio_metrics(portfolio.id)
-                total_value = metrics.get("current_value", portfolio.starting_capital)
-                weights = metrics.get("weights", {})
+                metrics = portfolio_service.calculate_portfolio_metrics(
+                    portfolio.id
+                )
+                total_value = metrics.get(
+                    "current_value", portfolio.starting_capital
+                )
             except Exception:
                 total_value = portfolio.starting_capital
-                weights = {}
 
             with metrics_col1:
                 st.metric("Total Assets", len(portfolio.get_all_positions()))
@@ -378,56 +381,207 @@ def render_portfolio_details() -> None:
             with metrics_col3:
                 st.metric("Currency", portfolio.base_currency)
             with metrics_col4:
-                st.metric("Starting Capital", format_currency(portfolio.starting_capital))
+                created_date = (
+                    portfolio.created_date.strftime('%Y-%m-%d')
+                    if hasattr(portfolio, 'created_date') and portfolio.created_date
+                    else "Unknown"
+                )
+                st.metric("Created", created_date)
 
             # Description
             if portfolio.description:
                 st.info(f"**Description:** {portfolio.description}")
 
-            # Positions table
+            # Asset Holdings Table and Allocation Charts
             if portfolio.get_all_positions():
                 positions = portfolio.get_all_positions()
                 position_data = []
+                asset_weights = {}
+                sector_weights = {}
 
                 data_service: DataService = st.session_state.data_service
 
+                # Calculate total value for correct weights
+                total_value = 0.0
+                position_values = {}
                 for pos in positions:
-                    try:
-                        current_price = data_service.fetch_current_price(pos.ticker)
-                        current_value = pos.shares * current_price
-                        weight = weights.get(pos.ticker, 0.0)
-                        purchase_value = (
-                            pos.shares * pos.purchase_price
-                            if pos.purchase_price
-                            else None
-                        )
-                        gain_loss = (
-                            current_value - purchase_value
-                            if purchase_value
-                            else None
-                        )
+                    ticker = pos.ticker
+                    if ticker == "CASH":
+                        price = 1.0
+                        value = pos.shares * price
+                    else:
+                        try:
+                            price = data_service.fetch_current_price(ticker)
+                            value = pos.shares * price if price > 0 else 0.0
+                        except Exception:
+                            price = pos.purchase_price or 0.0
+                            value = pos.shares * price if price > 0 else 0.0
+                    position_values[ticker] = value
+                    total_value += value
 
-                        position_data.append({
-                            'Ticker': pos.ticker,
-                            'Shares': f"{pos.shares:.2f}",
-                            'Current Price': format_currency(current_price),
-                            'Current Value': format_currency(current_value),
-                            'Weight': format_percentage(weight),
-                            'Gain/Loss': format_currency(gain_loss) if gain_loss else "N/A"
-                        })
-                    except Exception as e:
-                        logger.warning(f"Error fetching price for {pos.ticker}: {e}")
-                        position_data.append({
-                            'Ticker': pos.ticker,
-                            'Shares': f"{pos.shares:.2f}",
-                            'Current Price': "N/A",
-                            'Current Value': "N/A",
-                            'Weight': format_percentage(weights.get(pos.ticker, 0.0)),
-                            'Gain/Loss': "N/A"
-                        })
+                # Prepare data for table and charts
+                for pos in positions:
+                    ticker = pos.ticker
+                    value = position_values.get(ticker, 0.0)
 
-                st.subheader("Positions")
-                st.dataframe(pd.DataFrame(position_data), hide_index=True, use_container_width=True)
+                    if ticker == "CASH":
+                        price = 1.0
+                        company_name = "Cash Position"
+                        sector = "Cash"
+                        shares_display = f"${pos.shares:,.2f}"
+                        weight = (value / total_value) if total_value > 0 else 0.0
+                    else:
+                        try:
+                            price = data_service.fetch_current_price(ticker)
+                            if price <= 0:
+                                price = pos.purchase_price or 0.0
+                            value = pos.shares * price if price > 0 else 0.0
+                            weight = (value / total_value) if total_value > 0 else (pos.weight_target or 0.0)
+                        except Exception as e:
+                            logger.warning(f"Error fetching price for {ticker}: {e}")
+                            price = pos.purchase_price or 0.0
+                            value = pos.shares * price if price > 0 else 0.0
+                            weight = (value / total_value) if total_value > 0 else (pos.weight_target or 0.0)
+
+                        # Get company name and sector
+                        try:
+                            ticker_info = data_service.get_ticker_info(ticker)
+                            company_name = ticker_info.name if ticker_info.name else ticker
+                            sector = ticker_info.sector if ticker_info.sector else "Other"
+                        except Exception:
+                            company_name = ticker
+                            sector = "Other"
+
+                        shares_display = f"{pos.shares:,.2f}"
+
+                    # Store weights for charts
+                    asset_weights[ticker] = weight
+                    if sector in sector_weights:
+                        sector_weights[sector] += weight
+                    else:
+                        sector_weights[sector] = weight
+
+                    # Table data
+                    position_data.append({
+                        'Ticker': ticker,
+                        'Name': company_name,
+                        'Weight': f"{weight:.1%}",
+                        'Shares': shares_display,
+                        'Price': format_currency(price),
+                        'Value': format_currency(value),
+                        'Sector': sector
+                    })
+
+                # Layout: Table on left, Charts on right
+                st.subheader("Asset Holdings:")
+                table_col, chart_cols = st.columns([2, 2])
+
+                with table_col:
+                    df = pd.DataFrame(position_data)
+                    st.dataframe(
+                        df,
+                        hide_index=True,
+                        use_container_width=True,
+                        height=400
+                    )
+
+                with chart_cols:
+                    # Two charts side by side
+                    chart1_col, chart2_col = st.columns(2)
+
+                    with chart1_col:
+                        # Asset Allocation Chart: By Assets
+                        st.markdown("**Asset Allocation:**")
+                        st.markdown("*By Assets*")
+
+                        try:
+                            # Prepare data - ensure CASH is always included
+                            chart_asset_labels = list(asset_weights.keys())
+                            chart_asset_values = list(asset_weights.values())
+
+                            # Assign colors - CASH always gray
+                            asset_colors = []
+                            default_colors = [
+                                '#636EFA', '#EF553B', '#00CC96', '#AB63FA',
+                                '#FFA15A', '#19D3F3', '#FF6692', '#B6E880'
+                            ]
+                            for i, ticker in enumerate(chart_asset_labels):
+                                if ticker == "CASH":
+                                    asset_colors.append('#C8C8C8')  # Gray for CASH
+                                else:
+                                    color_idx = (i % len(default_colors))
+                                    asset_colors.append(default_colors[color_idx])
+
+                            fig_assets = go.Figure(data=[go.Pie(
+                                labels=chart_asset_labels,
+                                values=chart_asset_values,
+                                hole=0.3,  # Donut chart
+                                marker_colors=asset_colors,
+                                textinfo='label+percent',
+                                textfont_size=10
+                            )])
+
+                            fig_assets.update_layout(
+                                title="",
+                                height=400,
+                                margin=dict(l=0, r=0, t=0, b=0),
+                                showlegend=True,
+                                legend=dict(font=dict(size=9), orientation="v")
+                            )
+                            st.plotly_chart(fig_assets, use_container_width=True)
+
+                        except Exception as e:
+                            logger.error(f"Error creating asset chart: {e}")
+                            st.error("Error creating asset allocation chart")
+
+                    with chart2_col:
+                        # Sector Allocation Chart: By Sectors
+                        st.markdown("**Sector Allocation:**")
+                        st.markdown("*By Sectors*")
+
+                        try:
+                            # Ensure Cash sector is always included
+                            # in chart, even if 0%
+                            if "Cash" not in sector_weights:
+                                sector_weights["Cash"] = 0.0
+
+                            chart_sector_labels = list(sector_weights.keys())
+                            chart_sector_values = list(sector_weights.values())
+
+                            # Assign colors - Cash always gray
+                            sector_colors = []
+                            default_colors = [
+                                '#636EFA', '#EF553B', '#00CC96', '#AB63FA',
+                                '#FFA15A', '#19D3F3', '#FF6692', '#B6E880'
+                            ]
+                            for i, sector in enumerate(chart_sector_labels):
+                                if sector == "Cash":
+                                    sector_colors.append('#C8C8C8')  # Gray for Cash
+                                else:
+                                    color_idx = (i % len(default_colors))
+                                    sector_colors.append(default_colors[color_idx])
+
+                            fig_sectors = go.Figure(data=[go.Pie(
+                                labels=chart_sector_labels,
+                                values=chart_sector_values,
+                                hole=0.3,  # Donut chart
+                                marker_colors=sector_colors,
+                                textinfo='none',  # No labels on chart
+                                textfont_size=10
+                            )])
+
+                            fig_sectors.update_layout(
+                                title="",
+                                height=400,
+                                margin=dict(l=0, r=0, t=0, b=0),
+                                showlegend=True,
+                                legend=dict(font=dict(size=9), orientation="v")
+                            )
+                            st.plotly_chart(fig_sectors, use_container_width=True)
+
+                        except Exception as e:
+                            logger.error(f"Error creating sector chart: {e}")
+                            st.error("Error creating sector allocation chart")
 
     except PortfolioNotFoundError:
         st.error("Portfolio not found")
