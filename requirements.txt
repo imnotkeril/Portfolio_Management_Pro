@@ -1,0 +1,23 @@
+# Core dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
+statsmodels>=0.14.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Database
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+
+# Data fetching
+yfinance>=0.2.0
+requests>=2.31.0
+
+# Utilities
+python-dotenv>=1.0.0
+
+# UI Framework
+streamlit>=1.28.0
+plotly>=5.17.0
+
