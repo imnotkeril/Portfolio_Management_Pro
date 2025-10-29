@@ -82,10 +82,14 @@ def render_portfolio_analysis() -> None:
             )
 
         with col3:
+            help_text = (
+                "Enter a benchmark ticker for comparison "
+                "(e.g., SPY for S&P 500)"
+            )
             benchmark_ticker = st.text_input(
                 "Benchmark Ticker (Optional)",
                 placeholder="SPY",
-                help="Enter a benchmark ticker for comparison (e.g., SPY for S&P 500)",
+                help=help_text,
             ).strip().upper() or None
 
         if start_date >= end_date:
