@@ -34,7 +34,10 @@ logger = logging.getLogger(__name__)
 def render_portfolio_analysis() -> None:
     """Render the portfolio analysis page."""
     # Get portfolio ID from session state or query params
-    portfolio_id = st.session_state.get("selected_portfolio_id") or st.query_params.get("id")
+    portfolio_id = (
+        st.session_state.get("selected_portfolio_id")
+        or st.query_params.get("id")
+    )
 
     if not portfolio_id:
         st.error("No portfolio selected")
@@ -103,7 +106,8 @@ def render_portfolio_analysis() -> None:
         metrics_key = f"metrics_{portfolio_id}"
         if metrics_key in st.session_state:
             # Create tabs for Metrics and Charts
-            tabs = st.tabs(["Metrics", "Charts"])
+            tab_names = ["Metrics", "Charts"]
+            tabs = st.tabs(tab_names)
 
             with tabs[0]:
                 _display_metrics(
@@ -166,10 +170,11 @@ def _calculate_and_display_metrics(
 
     except InsufficientDataError as e:
         st.error(f"Insufficient data for analysis: {e}")
-        st.info(
-            "Please ensure the portfolio has positions with sufficient price history "
-            "for the selected date range."
+        info_msg = (
+            "Please ensure the portfolio has positions with "
+            "sufficient price history for the selected date range."
         )
+        st.info(info_msg)
     except Exception as e:
         logger.error(f"Error calculating metrics: {e}", exc_info=True)
         st.error(f"Error calculating metrics: {e}")
@@ -266,10 +271,10 @@ def _display_metrics(metrics: dict, portfolio_id: str) -> None:
     }
 
     # Display sections
-        if performance_metrics:
-            render_metrics_section(
-                performance_metrics, "Performance Metrics", columns=3
-            )
+    if performance_metrics:
+        render_metrics_section(
+            performance_metrics, "Performance Metrics", columns=3
+        )
 
     if risk_metrics:
         st.markdown("---")
@@ -277,11 +282,15 @@ def _display_metrics(metrics: dict, portfolio_id: str) -> None:
 
     if ratio_metrics:
         st.markdown("---")
-        render_metrics_section(ratio_metrics, "Risk-Adjusted Ratios", columns=3)
+        render_metrics_section(
+            ratio_metrics, "Risk-Adjusted Ratios", columns=3
+        )
 
     if market_metrics:
         st.markdown("---")
-        render_metrics_section(market_metrics, "Market-Related Metrics", columns=3)
+        render_metrics_section(
+            market_metrics, "Market-Related Metrics", columns=3
+        )
 
     # Export option
     st.markdown("---")
@@ -324,9 +333,8 @@ def _display_charts(
     try:
         with st.spinner("Preparing chart data..."):
             # Fetch portfolio data using AnalyticsService
-            portfolio = analytics_service._portfolio_service.get_portfolio(
-                portfolio_id
-            )
+            portfolio_service = analytics_service._portfolio_service
+            portfolio = portfolio_service.get_portfolio(portfolio_id)
             positions = portfolio.get_all_positions()
             tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
 
@@ -359,15 +367,13 @@ def _display_charts(
             benchmark_returns = None
             if benchmark_ticker:
                 try:
-                    benchmark_prices = (
                     data_service = analytics_service._data_service
                     benchmark_prices = data_service.fetch_historical_prices(
                         benchmark_ticker,
-                            start_date,
-                            end_date,
-                            use_cache=True,
-                            save_to_db=True,
-                        )
+                        start_date,
+                        end_date,
+                        use_cache=True,
+                        save_to_db=True,
                     )
 
                     has_data = (
