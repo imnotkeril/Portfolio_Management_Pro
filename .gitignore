@@ -1,0 +1,152 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+ENV/
+env/
+.venv/
+.ENV/
+.env/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# pytest
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.cache
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Logs
+logs/
+*.log
+*.log.*
+log/
+
+# Data Files (Local Data - should not be committed)
+data/portfolios/
+data/cache/
+data/prices/
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.swo
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Alembic (keep migrations, ignore compiled)
+*.pyc
+
+# Reports (user-generated)
+reports/
+*.pdf
+!docs/*.pdf
+
+# Exports (user-generated)
+exports/
+*.xlsx
+!docs/*.xlsx
+
+# API Keys and Secrets (additional safety)
+*.key
+*.pem
+*.p12
+secrets/
+.secrets/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Local Configuration Overrides
+config.local.py
+settings.local.py
+
+# Backup Files
+*.backup
+*.bak
+*~
+
+# Performance Profiling
+*.prof
+*.lprof
+
+# Memory Dumps
+*.hprof
+
+# Coverage Reports
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
