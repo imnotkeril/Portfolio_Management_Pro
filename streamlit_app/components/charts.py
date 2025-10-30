@@ -49,7 +49,7 @@ def plot_cumulative_returns(
                 y=data["benchmark"].values * 100,  # Convert to percentage
                 mode="lines",
                 name="Benchmark",
-                line=dict(color=COLORS["secondary"], width=2, dash="dash"),
+                line=dict(color=COLORS["secondary"], width=2),
             )
         )
 
@@ -401,7 +401,7 @@ def plot_rolling_sharpe(
                 y=data["benchmark"].values,
                 mode="lines",
                 name="Benchmark",
-                line=dict(color=COLORS["secondary"], width=2, dash="dash"),
+                line=dict(color=COLORS["secondary"], width=2),
             )
         )
 
@@ -530,7 +530,7 @@ def plot_underwater(
                 x=benchmark_underwater.index,
                 y=benchmark_underwater.values,
                 mode="lines",
-                line=dict(color=COLORS["secondary"], width=2, dash="dash"),
+                line=dict(color=COLORS["secondary"], width=2),
                 name="Benchmark",
             )
         )

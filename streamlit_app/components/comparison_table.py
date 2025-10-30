@@ -49,27 +49,18 @@ def render_comparison_table(
 
             benchmark_formatted = ""
             diff_formatted = ""
-            better_formatted = ""
             if benchmark_metrics and metric in benchmark_metrics:
                 benchmark_value = benchmark_metrics[metric]
                 benchmark_formatted = _format_metric(metric, benchmark_value)
                 if isinstance(portfolio_value, (int, float)) and isinstance(benchmark_value, (int, float)):
                     diff = portfolio_value - benchmark_value
                     diff_formatted = _format_difference(metric, diff)
-                    better = _is_better(metric, portfolio_value, benchmark_value)
-                    if better is True:
-                        better_formatted = "✓"
-                    elif better is False:
-                        better_formatted = "✗"
-                    else:
-                        better_formatted = "~"
 
             comparison_data.append({
                 "Metric": _format_metric_name(metric),
                 "Portfolio": portfolio_formatted,
                 "Benchmark": benchmark_formatted,
                 "Difference": diff_formatted,
-                "Better": better_formatted,
             })
 
     df = pd.DataFrame(comparison_data)
@@ -85,7 +76,6 @@ def render_comparison_table(
             "Portfolio": st.column_config.TextColumn("Portfolio", width="small"),
             "Benchmark": st.column_config.TextColumn("Benchmark", width="small"),
             "Difference": st.column_config.TextColumn("Δ", width="small"),
-            "Better": st.column_config.TextColumn("Better", width="small"),
         },
     )
 
