@@ -302,6 +302,14 @@ class AnalyticsService:
         # Combine all price data
         combined = pd.concat(all_prices, ignore_index=True)
 
+        # Ensure Date column exists and is tz-naive before pivot
+        if "Date" in combined.columns:
+            combined["Date"] = pd.to_datetime(combined["Date"], errors="coerce")
+            try:
+                combined["Date"] = combined["Date"].dt.tz_localize(None)
+            except Exception:
+                pass
+
         # Pivot to have dates as index, tickers as columns
         if "Adjusted_Close" in combined.columns:
             pivot_df = combined.pivot_table(
@@ -321,6 +329,11 @@ class AnalyticsService:
             # Filter by date range (inclusive)
             start_ts = pd.Timestamp(start_date)
             end_ts = pd.Timestamp(end_date)
+            try:
+                start_ts = start_ts.tz_localize(None)
+                end_ts = end_ts.tz_localize(None)
+            except Exception:
+                pass
             pivot_df = pivot_df[(pivot_df.index >= start_ts) & (pivot_df.index <= end_ts)]
 
             return pivot_df
