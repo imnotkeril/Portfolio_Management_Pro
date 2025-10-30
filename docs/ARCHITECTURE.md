@@ -1094,6 +1094,7 @@ This document will be **updated during development** with:
   - `services/analytics_service.py`: comparison series now aligned by strict intersection of dates (removed ffill alignment) to prevent artificial deltas for identical portfolios and ETFs. Returned series are tz-naive.
   - `streamlit_app/pages/portfolio_analysis.py`: benchmark metrics computed on strict date intersection; plotting windows normalize tz to avoid "tz-naive vs tz-aware" errors.
   - Effect: identical portfolios show zero deltas; index ETF comparison loads independently of initial UI date; no timezone comparison errors.
+  - Date normalization: before pivoting combined prices, `Date` is coerced to tz-naive; pivot index and filter boundaries are also normalized to tz-naive to prevent `Cannot compare tz-naive and tz-aware timestamps`.
 
 ### Phase 5 Implementation Details (2025-10-29)
 
