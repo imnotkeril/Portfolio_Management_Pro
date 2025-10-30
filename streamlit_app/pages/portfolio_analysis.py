@@ -56,12 +56,32 @@ def show():
     # === ANALYSIS PARAMETERS SECTION ===
     st.subheader("Analysis Parameters")
 
-    # Row 1: Portfolio + Start Date
+    # Row 1: Start Date (left) + End Date (right)
     col1, col2 = st.columns([2, 2])
 
     portfolio_names = {p.name: p.id for p in portfolios}
     default_end = date.today()
     default_start = default_end - timedelta(days=365)
+
+    with col1:
+        start_date = st.date_input(
+            "Start Date",
+            value=default_start,
+            max_value=default_end,
+            key="start_date_input",
+        )
+
+    with col2:
+        end_date = st.date_input(
+            "End Date",
+            value=default_end,
+            min_value=start_date,
+            max_value=default_end,
+            key="end_date_input",
+        )
+
+    # Row 2: Portfolio (left) + Comparison selector (right)
+    col1, col2 = st.columns([2, 2])
 
     with col1:
         selected_name = st.selectbox(
@@ -70,26 +90,6 @@ def show():
             key="portfolio_analysis_selector",
         )
         portfolio_id = portfolio_names[selected_name]
-
-    with col2:
-        start_date = st.date_input(
-            "Start Date",
-            value=default_start,
-            max_value=default_end,
-            key="start_date_input",
-        )
-
-    # Row 2: End Date + Comparison selector
-    col1, col2 = st.columns([2, 2])
-
-    with col1:
-        end_date = st.date_input(
-            "End Date",
-            value=default_end,
-            min_value=start_date,
-            max_value=default_end,
-            key="end_date_input",
-        )
 
     with col2:
         st.markdown("**Comparison**")
