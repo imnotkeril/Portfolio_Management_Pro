@@ -364,3 +364,432 @@ def plot_monthly_heatmap(
     fig.update_layout(**layout)
     return fig
 
+
+def plot_rolling_sharpe(
+    data: Dict[str, pd.Series],
+    window: int = 126,
+) -> go.Figure:
+    """
+    Plot rolling Sharpe ratio with benchmark comparison.
+
+    Args:
+        data: Dictionary with 'portfolio' and optionally 'benchmark' Series
+        window: Rolling window size in days
+
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+
+    # Portfolio rolling Sharpe
+    if "portfolio" in data and not data["portfolio"].empty:
+        fig.add_trace(
+            go.Scatter(
+                x=data["portfolio"].index,
+                y=data["portfolio"].values,
+                mode="lines",
+                name="Portfolio",
+                line=dict(color=COLORS["primary"], width=2),
+            )
+        )
+
+    # Benchmark rolling Sharpe
+    if "benchmark" in data and not data["benchmark"].empty:
+        fig.add_trace(
+            go.Scatter(
+                x=data["benchmark"].index,
+                y=data["benchmark"].values,
+                mode="lines",
+                name="Benchmark",
+                line=dict(color=COLORS["secondary"], width=2, dash="dash"),
+            )
+        )
+
+    # Reference line (Sharpe = 1.0)
+    fig.add_hline(
+        y=1.0,
+        line_dash="dot",
+        line_color=COLORS["warning"],
+        annotation_text="Sharpe = 1.0",
+    )
+
+    layout = get_chart_layout(
+        title=f"Rolling Sharpe Ratio ({window}-day window)",
+        yaxis=dict(title="Sharpe Ratio", tickformat=",.2f"),
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_rolling_beta_alpha(
+    data: Dict[str, pd.Series],
+    window: int = 126,
+) -> go.Figure:
+    """
+    Plot rolling Beta and Alpha.
+
+    Args:
+        data: Dictionary with 'beta' and 'alpha' Series
+        window: Rolling window size in days
+
+    Returns:
+        Plotly Figure (dual y-axis)
+    """
+    fig = go.Figure()
+
+    # Beta on primary y-axis
+    if "beta" in data and not data["beta"].empty:
+        fig.add_trace(
+            go.Scatter(
+                x=data["beta"].index,
+                y=data["beta"].values,
+                mode="lines",
+                name="Beta",
+                line=dict(color=COLORS["primary"], width=2),
+                yaxis="y",
+            )
+        )
+
+    # Alpha on secondary y-axis
+    if "alpha" in data and not data["alpha"].empty:
+        fig.add_trace(
+            go.Scatter(
+                x=data["alpha"].index,
+                y=data["alpha"].values,
+                mode="lines",
+                name="Alpha",
+                line=dict(color=COLORS["success"], width=2),
+                yaxis="y2",
+            )
+        )
+
+    # Beta reference line at 1.0
+    fig.add_hline(
+        y=1.0,
+        line_dash="dot",
+        line_color=COLORS["warning"],
+        annotation_text="Beta = 1.0",
+    )
+
+    layout = get_chart_layout(
+        title=f"Rolling Beta & Alpha ({window}-day window)",
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+
+    # Add dual y-axis
+    layout["yaxis"] = dict(title="Beta", side="left", tickformat=",.2f")
+    layout["yaxis2"] = dict(
+        title="Alpha (%)",
+        side="right",
+        overlaying="y",
+        tickformat=",.2f",
+    )
+
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_underwater(
+    data: Dict[str, pd.Series],
+) -> go.Figure:
+    """
+    Plot underwater plot (drawdown from peak).
+
+    Args:
+        data: Dictionary with 'underwater' Series and optionally 'benchmark' Series
+
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+
+    underwater_series = data.get("underwater", pd.Series())
+
+    if not underwater_series.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=underwater_series.index,
+                y=underwater_series.values,
+                mode="lines",
+                fill="tozeroy",
+                fillcolor="rgba(250, 161, 164, 0.3)",
+                line=dict(color=COLORS["danger"], width=2),
+                name="Portfolio",
+            )
+        )
+
+    # Benchmark underwater (if available)
+    benchmark_underwater = data.get("benchmark", pd.Series())
+    if not benchmark_underwater.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=benchmark_underwater.index,
+                y=benchmark_underwater.values,
+                mode="lines",
+                line=dict(color=COLORS["secondary"], width=2, dash="dash"),
+                name="Benchmark",
+            )
+        )
+
+    layout = get_chart_layout(
+        title="Underwater Plot (Drawdown from Peak)",
+        yaxis=dict(title="Drawdown (%)", tickformat=",.1f"),
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_yearly_returns(
+    data: Dict[str, pd.DataFrame],
+) -> go.Figure:
+    """
+    Plot yearly returns comparison bar chart.
+
+    Args:
+        data: Dictionary with 'yearly' DataFrame
+
+    Returns:
+        Plotly Figure
+    """
+    yearly_df = data.get("yearly", pd.DataFrame())
+
+    if yearly_df.empty:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No data available",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+        return fig
+
+    fig = go.Figure()
+
+    # Portfolio bars
+    if "Portfolio" in yearly_df.columns:
+        fig.add_trace(
+            go.Bar(
+                x=yearly_df.index,
+                y=yearly_df["Portfolio"],
+                name="Portfolio",
+                marker_color=COLORS["primary"],
+            )
+        )
+
+    # Benchmark bars
+    if "Benchmark" in yearly_df.columns:
+        fig.add_trace(
+            go.Bar(
+                x=yearly_df.index,
+                y=yearly_df["Benchmark"],
+                name="Benchmark",
+                marker_color=COLORS["secondary"],
+            )
+        )
+
+    layout = get_chart_layout(
+        title="Yearly Returns Comparison",
+        yaxis=dict(title="Return (%)", tickformat=",.1f"),
+        xaxis=dict(title="Year"),
+        barmode="group",
+        hovermode="x unified",
+    )
+
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_best_worst_periods(
+    data: Dict[str, pd.DataFrame],
+    period_type: str = "days",
+) -> go.Figure:
+    """
+    Plot best and worst periods side by side.
+
+    Args:
+        data: Dictionary with 'best_days' and 'worst_days' DataFrames
+        period_type: 'days', 'weeks', or 'months'
+
+    Returns:
+        Plotly Figure
+    """
+    best = data.get("best_days", pd.DataFrame())
+    worst = data.get("worst_days", pd.DataFrame())
+
+    fig = go.Figure()
+
+    # Best periods (green)
+    if not best.empty:
+        fig.add_trace(
+            go.Bar(
+                x=best.index.astype(str),
+                y=best["Return"],
+                name=f"Best {period_type}",
+                marker_color=COLORS["success"],
+            )
+        )
+
+    # Worst periods (red)
+    if not worst.empty:
+        fig.add_trace(
+            go.Bar(
+                x=worst.index.astype(str),
+                y=worst["Return"],
+                name=f"Worst {period_type}",
+                marker_color=COLORS["danger"],
+            )
+        )
+
+    layout = get_chart_layout(
+        title=f"Best & Worst {period_type.title()}",
+        yaxis=dict(title="Return (%)", tickformat=",.2f"),
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_asset_allocation(
+    asset_data: Dict[str, float],
+) -> go.Figure:
+    """
+    Plot asset allocation pie chart.
+
+    Args:
+        asset_data: Dictionary mapping asset ticker to weight (%)
+
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+
+    if not asset_data:
+        fig.add_annotation(
+            text="No data available",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+        return fig
+
+    # Filter out 0% items and build color map (CASH always gray)
+    labels = []
+    values = []
+    colors = []
+    has_cash = False
+    for k, v in asset_data.items():
+        val = float(v) if v is not None else 0.0
+        if str(k).upper() == "CASH":
+            has_cash = True
+            if val <= 0:
+                val = 1e-6  # show tiny slice for 0%
+            labels.append(k)
+            values.append(val)
+            colors.append("#9E9E9E")
+        elif val and abs(val) > 1e-6:
+            labels.append(k)
+            values.append(val)
+            colors.append(None)
+    if not has_cash:
+        labels.append("CASH")
+        values.append(1e-6)
+        colors.append("#9E9E9E")
+
+    fig.add_trace(
+        go.Pie(
+            labels=labels,
+            values=values,
+            textinfo="label+percent",
+            hovertemplate="<b>%{label}</b><br>%{value:.2f}%<extra></extra>",
+            hole=0.5,
+            marker=dict(colors=colors),
+        )
+    )
+
+    layout = get_chart_layout(
+        title="Asset Allocation",
+    )
+    layout["height"] = 320
+
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_sector_allocation(
+    sector_data: Dict[str, float],
+) -> go.Figure:
+    """
+    Plot sector allocation pie chart.
+
+    Args:
+        sector_data: Dictionary mapping sector to weight (%)
+
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+
+    if not sector_data:
+        fig.add_annotation(
+            text="No sector data available",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+        return fig
+
+    labels = []
+    values = []
+    colors = []
+    has_cash_sector = False
+    for k, v in sector_data.items():
+        val = float(v) if v is not None else 0.0
+        if str(k).lower() == "cash":
+            has_cash_sector = True
+            if val <= 0:
+                val = 1e-6
+            labels.append(k)
+            values.append(val)
+            colors.append("#9E9E9E")
+        elif val and abs(val) > 1e-6:
+            labels.append(k)
+            values.append(val)
+            colors.append(None)
+    if not has_cash_sector:
+        labels.append("Cash")
+        values.append(1e-6)
+        colors.append("#9E9E9E")
+
+    fig.add_trace(
+        go.Pie(
+            labels=labels,
+            values=values,
+            textinfo="label+percent",
+            hovertemplate="<b>%{label}</b><br>%{value:.2f}%<extra></extra>",
+            hole=0.5,
+            marker=dict(colors=colors),
+        )
+    )
+
+    layout = get_chart_layout(
+        title="Sector Allocation",
+    )
+    layout["height"] = 320
+
+    fig.update_layout(**layout)
+    return fig

@@ -145,6 +145,11 @@ class AnalyticsEngine:
             "benchmark_provided": benchmark_returns is not None,
         }
 
+        # Add raw data for frontend charts
+        results["portfolio_returns"] = portfolio_returns
+        results["benchmark_returns"] = benchmark_returns
+        results["portfolio_values"] = portfolio_values
+
         logger.info(
             f"Metrics calculation completed in {calculation_time:.3f}s"
         )

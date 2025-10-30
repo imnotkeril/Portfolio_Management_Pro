@@ -37,6 +37,11 @@ class DataService:
         self._cache = cache or Cache()
         self._price_manager = price_manager or PriceManager(cache=self._cache)
         self._ticker_validator = ticker_validator or TickerValidator(cache=self._cache)
+        # Only these tickers are persisted in DB (benchmarks/indices & common ETFs)
+        self._db_cached_tickers = {
+            "SPY", "QQQ", "VTI", "DIA", "IWM",  # Benchmarks from UI
+            "^GSPC", "^NDX", "^DJI", "^RUT",     # Index symbols (in case)
+        }
 
     def validate_ticker(self, ticker: str) -> bool:
         """
@@ -113,12 +118,52 @@ class DataService:
         """
         ticker = ticker.strip().upper()
 
-        # Check database first
-        if use_cache:
+        # Decide whether to use DB caching: indices only (benchmarks)
+        use_db_cache = ticker in self._db_cached_tickers
+
+        # Check database first (and backfill gaps if needed)
+        if use_cache and use_db_cache:
             db_data = self._get_prices_from_db(ticker, start_date, end_date)
             if db_data is not None and not db_data.empty:
-                logger.info(f"Loaded {len(db_data)} records from database for {ticker}")
-                return db_data
+                # If DB covers full requested range, return it
+                db_start = pd.to_datetime(db_data["Date"].min()).date()
+                db_end = pd.to_datetime(db_data["Date"].max()).date()
+                if db_start <= start_date and db_end >= end_date:
+                    logger.info(
+                        f"Loaded {len(db_data)} records from database for {ticker} (full range)"
+                    )
+                    return db_data
+                # Otherwise, fetch missing parts from API and merge
+                missing_segments: list[tuple[date, date]] = []
+                if db_start > start_date:
+                    missing_segments.append((start_date, min(db_start, end_date)))
+                if db_end < end_date:
+                    # add a day after db_end to avoid overlap
+                    from datetime import timedelta
+                    seg_start = min(end_date, db_end + timedelta(days=1))
+                    if seg_start <= end_date:
+                        missing_segments.append((seg_start, end_date))
+                merged = db_data.copy()
+                for seg_start, seg_end in missing_segments:
+                    try:
+                        if seg_start <= seg_end:
+                            api_df = self._price_manager.fetch_historical_prices(
+                                ticker, seg_start, seg_end, use_cache=use_cache
+                            )
+                            if not api_df.empty:
+                                if save_to_db:
+                                    self._save_prices_to_db(ticker, api_df)
+                                merged = pd.concat([merged, api_df], ignore_index=True)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to backfill prices for {ticker} {seg_start}..{seg_end}: {e}"
+                        )
+                # Deduplicate and sort
+                if not merged.empty:
+                    merged = (
+                        merged.drop_duplicates(subset=["Date"]).sort_values("Date").reset_index(drop=True)
+                    )
+                return merged
 
         # Fetch from API
         logger.info(f"Fetching prices from API for {ticker} ({start_date} to {end_date})")
@@ -126,8 +171,8 @@ class DataService:
             ticker, start_date, end_date, use_cache=use_cache
         )
 
-        # Save to database
-        if save_to_db and not df.empty:
+        # Save to database only for benchmark/index tickers
+        if save_to_db and use_db_cache and not df.empty:
             self._save_prices_to_db(ticker, df)
 
         return df
@@ -245,6 +290,13 @@ class DataService:
                     })
 
                 df = pd.DataFrame(data)
+                # Normalize Date to pandas Timestamp (tz-naive) for consistency
+                if not df.empty and "Date" in df.columns:
+                    try:
+                        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+                        df["Date"] = df["Date"].dt.tz_localize(None)
+                    except Exception:
+                        pass
                 return df
 
         except Exception as e:
@@ -263,6 +315,14 @@ class DataService:
             return
 
         try:
+            # Normalize and de-duplicate by date to avoid PK conflicts
+            if not df.empty and "Date" in df.columns:
+                df = df.copy()
+                try:
+                    df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date
+                except Exception:
+                    pass
+                df = df.drop_duplicates(subset=["Date"]).sort_values("Date").reset_index(drop=True)
             with get_db_session() as session:
                 # Check which records already exist
                 existing_dates = {
@@ -276,19 +336,20 @@ class DataService:
                 records = []
                 for _, row in df.iterrows():
                     price_date = row.get("Date")
-                    if price_date and price_date not in existing_dates:
-                        records.append(
-                            PriceHistory(
-                                ticker=ticker,
-                                date=price_date if isinstance(price_date, date) else price_date.date(),
-                                open=row.get("Open"),
-                                high=row.get("High"),
-                                low=row.get("Low"),
-                                close=row.get("Close"),
-                                adjusted_close=row.get("Adjusted_Close", row.get("Close")),
-                                volume=row.get("Volume"),
-                            )
+                    if not price_date or price_date in existing_dates:
+                        continue
+                    records.append(
+                        PriceHistory(
+                            ticker=ticker,
+                            date=price_date,
+                            open=row.get("Open"),
+                            high=row.get("High"),
+                            low=row.get("Low"),
+                            close=row.get("Close"),
+                            adjusted_close=row.get("Adjusted_Close", row.get("Close")),
+                            volume=row.get("Volume"),
                         )
+                    )
 
                 if records:
                     session.add_all(records)

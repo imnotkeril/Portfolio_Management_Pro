@@ -1,6 +1,6 @@
 """Metrics display component for showing portfolio metrics."""
 
-from typing import Dict
+from typing import Any, Dict
 
 import streamlit as st
 
@@ -8,7 +8,7 @@ from streamlit_app.utils.formatters import format_percentage
 
 
 def render_metrics_section(
-    metrics: Dict[str, any],
+    metrics: Dict[str, Any],
     category: str,
     columns: int = 3,
 ) -> None:

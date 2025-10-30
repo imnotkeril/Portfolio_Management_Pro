@@ -33,7 +33,6 @@ with st.sidebar:
             "Dashboard",
             "Create Portfolio",
             "Portfolio List",
-            "Portfolio Detail",
             "Portfolio Analysis",
         ],
         label_visibility="collapsed",
@@ -71,12 +70,7 @@ elif page == "Portfolio List":
 
     render_portfolio_list()
 
-elif page == "Portfolio Detail":
-    from streamlit_app.pages.portfolio_detail import render_portfolio_detail
-
-    render_portfolio_detail()
-
 elif page == "Portfolio Analysis":
-    from streamlit_app.pages.portfolio_analysis import render_portfolio_analysis
+    from streamlit_app.pages.portfolio_analysis import show
 
-    render_portfolio_analysis()
+    show()
