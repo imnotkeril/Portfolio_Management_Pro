@@ -386,6 +386,7 @@ User Request → Service Layer → Data Manager
 - ✅ `portfolio_service.py` - Portfolio CRUD orchestration (Phase 2)
 - ✅ `schemas.py` - Pydantic validation schemas (Phase 2)
 - ✅ `analytics_service.py` - Analytics calculation orchestration (Phase 3)
+- ✅ `report_service.py` - PDF report generation (Phase 4)
 - 🔲 `optimization_service.py` - Optimization orchestration (Phase 6)
 
 **Dependencies**:
@@ -1079,6 +1080,20 @@ This document will be **updated during development** with:
 | 1.2 | 2025-01-XX | System | Phase 2 implementation: Portfolio Core completed |
 | 1.1 | 2025-01-XX | System | Phase 1 implementation: Data Infrastructure completed |
 | 1.0 | 2025-10-29 | System | Initial architecture document created |
+
+#### Update 2025-10-30
+
+- Streamlit UI updates:
+  - `streamlit_app/pages/portfolio_analysis.py`: fixed indentation in Overview/Returns sections to prevent runtime `IndentationError` and ensured consistent block structure.
+  - `streamlit_app/pages/portfolio_list.py`: enhanced read-only portfolio view with a detailed positions table matching creation summary (columns: Ticker, Name, Sector, Weight, Shares, Price, Value). Added functional Edit view (basic metadata form) and kept donuts for asset/sector allocation.
+- No service/core changes; UI continues to call `PortfolioService`/`DataService` for data (prices, ticker info, sectors).
+
+#### Update 2025-10-31
+
+- Analytics comparison and timezone normalization fixes:
+  - `services/analytics_service.py`: comparison series now aligned by strict intersection of dates (removed ffill alignment) to prevent artificial deltas for identical portfolios and ETFs. Returned series are tz-naive.
+  - `streamlit_app/pages/portfolio_analysis.py`: benchmark metrics computed on strict date intersection; plotting windows normalize tz to avoid "tz-naive vs tz-aware" errors.
+  - Effect: identical portfolios show zero deltas; index ETF comparison loads independently of initial UI date; no timezone comparison errors.
 
 ### Phase 5 Implementation Details (2025-10-29)
 

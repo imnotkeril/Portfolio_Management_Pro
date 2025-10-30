@@ -53,6 +53,19 @@ def format_percentage(
     if value is None:
         return "-"
 
+    # Handle tuple values (some metrics return tuples)
+    if isinstance(value, (tuple, list)):
+        if len(value) > 0:
+            value = value[0]
+        else:
+            return "-"
+
+    # Convert to float if needed
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return "-"
+
     percentage = value * 100
 
     if show_sign and percentage > 0:

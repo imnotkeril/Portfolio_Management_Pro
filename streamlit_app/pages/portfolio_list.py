@@ -5,11 +5,15 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
-from core.exceptions import PortfolioNotFoundError
 from services.data_service import DataService
+from streamlit_app.components.position_table import render_position_table
+from streamlit_app.components.charts import (
+    plot_asset_allocation,
+    plot_sector_allocation,
+)
+from core.data_manager.ticker_validator import TickerValidator
 from services.portfolio_service import PortfolioService
 from services.schemas import (
     AddPositionRequest,
@@ -44,10 +48,10 @@ def render_portfolio_list() -> None:
         st.session_state.management_view = "list"
 
     # Main interface
-    if 'viewing_portfolio' in st.session_state:
-        render_portfolio_details()
-    elif st.session_state.management_view == "edit":
+    if st.session_state.management_view == "edit":
         render_portfolio_editor()
+    elif st.session_state.management_view == "view":
+        render_portfolio_view()
     else:
         render_portfolio_list_view()
 
@@ -294,20 +298,23 @@ def render_individual_actions(portfolios: List[Dict]) -> None:
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
 
             with btn_col1:
-                if st.button("View", key=f"view_{i}", use_container_width=True):
-                    view_portfolio(portfolio)
-
-            with btn_col2:
                 if st.button("Edit", key=f"edit_{i}", use_container_width=True):
                     edit_portfolio(portfolio)
 
-            with btn_col3:
-                if st.button("Clone", key=f"clone_{i}", use_container_width=True):
-                    clone_portfolio(portfolio)
+            with btn_col2:
+                if st.button("View", key=f"view_{i}", use_container_width=True):
+                    st.session_state.view_portfolio_id = portfolio['id']
+                    st.session_state.management_view = "view"
+                    st.rerun()
 
-            with btn_col4:
+            with btn_col3:
                 if st.button("Delete", key=f"delete_{i}", type="secondary", use_container_width=True):
                     delete_portfolio_confirmed(portfolio)
+
+            with btn_col4:
+                if st.button("Analyze", key=f"analyze_{i}", use_container_width=True):
+                    st.query_params["id"] = portfolio['id']
+                    st.switch_page("pages/portfolio_analysis.py")
 
 
 def render_bulk_operations() -> None:
@@ -331,268 +338,6 @@ def render_bulk_operations() -> None:
                 bulk_delete_portfolios()
 
 
-def view_portfolio(portfolio_info: Dict) -> None:
-    """Set portfolio for detailed view."""
-    st.session_state.viewing_portfolio = portfolio_info
-    st.rerun()
-
-
-def render_portfolio_details() -> None:
-    """Render full-width portfolio details view."""
-    try:
-        portfolio_info = st.session_state.viewing_portfolio
-        portfolio_service: PortfolioService = st.session_state.portfolio_service
-
-        portfolio = portfolio_info.get('portfolio_object')
-        if not portfolio:
-            portfolio = portfolio_service.get_portfolio(portfolio_info['id'])
-
-        # Full-width container for details
-        with st.container(border=True):
-            # Header with close button
-            header_col1, header_col2 = st.columns([3, 1])
-
-            with header_col1:
-                st.markdown(f"### Portfolio Details: {portfolio.name}")
-
-            with header_col2:
-                if st.button("Close", use_container_width=True):
-                    if 'viewing_portfolio' in st.session_state:
-                        del st.session_state.viewing_portfolio
-                    st.rerun()
-
-            # Basic metrics
-            metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
-
-            try:
-                metrics = portfolio_service.calculate_portfolio_metrics(
-                    portfolio.id
-                )
-                total_value = metrics.get(
-                    "current_value", portfolio.starting_capital
-                )
-            except Exception:
-                total_value = portfolio.starting_capital
-
-            with metrics_col1:
-                st.metric("Total Assets", len(portfolio.get_all_positions()))
-            with metrics_col2:
-                st.metric("Total Value", format_currency(total_value))
-            with metrics_col3:
-                st.metric("Currency", portfolio.base_currency)
-            with metrics_col4:
-                created_date = (
-                    portfolio.created_date.strftime('%Y-%m-%d')
-                    if hasattr(portfolio, 'created_date') and portfolio.created_date
-                    else "Unknown"
-                )
-                st.metric("Created", created_date)
-
-            # Description
-            if portfolio.description:
-                st.info(f"**Description:** {portfolio.description}")
-
-            # Asset Holdings Table and Allocation Charts
-            if portfolio.get_all_positions():
-                positions = portfolio.get_all_positions()
-                position_data = []
-                asset_weights = {}
-                sector_weights = {}
-
-                data_service: DataService = st.session_state.data_service
-
-                # Calculate total value for correct weights
-                total_value = 0.0
-                position_values = {}
-                for pos in positions:
-                    ticker = pos.ticker
-                    if ticker == "CASH":
-                        price = 1.0
-                        value = pos.shares * price
-                    else:
-                        try:
-                            price = data_service.fetch_current_price(ticker)
-                            value = pos.shares * price if price > 0 else 0.0
-                        except Exception:
-                            price = pos.purchase_price or 0.0
-                            value = pos.shares * price if price > 0 else 0.0
-                    position_values[ticker] = value
-                    total_value += value
-
-                # Prepare data for table and charts
-                for pos in positions:
-                    ticker = pos.ticker
-                    value = position_values.get(ticker, 0.0)
-
-                    if ticker == "CASH":
-                        price = 1.0
-                        company_name = "Cash Position"
-                        sector = "Cash"
-                        shares_display = f"${pos.shares:,.2f}"
-                        weight = (value / total_value) if total_value > 0 else 0.0
-                    else:
-                        try:
-                            price = data_service.fetch_current_price(ticker)
-                            if price <= 0:
-                                price = pos.purchase_price or 0.0
-                            value = pos.shares * price if price > 0 else 0.0
-                            weight = (value / total_value) if total_value > 0 else (pos.weight_target or 0.0)
-                        except Exception as e:
-                            logger.warning(f"Error fetching price for {ticker}: {e}")
-                            price = pos.purchase_price or 0.0
-                            value = pos.shares * price if price > 0 else 0.0
-                            weight = (value / total_value) if total_value > 0 else (pos.weight_target or 0.0)
-
-                        # Get company name and sector
-                        try:
-                            ticker_info = data_service.get_ticker_info(ticker)
-                            company_name = ticker_info.name if ticker_info.name else ticker
-                            sector = ticker_info.sector if ticker_info.sector else "Other"
-                        except Exception:
-                            company_name = ticker
-                            sector = "Other"
-
-                        shares_display = f"{pos.shares:,.2f}"
-
-                    # Store weights for charts
-                    asset_weights[ticker] = weight
-                    if sector in sector_weights:
-                        sector_weights[sector] += weight
-                    else:
-                        sector_weights[sector] = weight
-
-                    # Table data
-                    position_data.append({
-                        'Ticker': ticker,
-                        'Name': company_name,
-                        'Weight': f"{weight:.1%}",
-                        'Shares': shares_display,
-                        'Price': format_currency(price),
-                        'Value': format_currency(value),
-                        'Sector': sector
-                    })
-
-                # Layout: Table on left, Charts on right
-                st.subheader("Asset Holdings:")
-                table_col, chart_cols = st.columns([2, 2])
-
-                with table_col:
-                    df = pd.DataFrame(position_data)
-                    st.dataframe(
-                        df,
-                        hide_index=True,
-                        use_container_width=True,
-                        height=400
-                    )
-
-                with chart_cols:
-                    # Two charts side by side
-                    chart1_col, chart2_col = st.columns(2)
-
-                    with chart1_col:
-                        # Asset Allocation Chart: By Assets
-                        st.markdown("**Asset Allocation:**")
-                        st.markdown("*By Assets*")
-
-                        try:
-                            # Prepare data - ensure CASH is always included
-                            chart_asset_labels = list(asset_weights.keys())
-                            chart_asset_values = list(asset_weights.values())
-
-                            # Assign colors - CASH always gray
-                            asset_colors = []
-                            default_colors = [
-                                '#636EFA', '#EF553B', '#00CC96', '#AB63FA',
-                                '#FFA15A', '#19D3F3', '#FF6692', '#B6E880'
-                            ]
-                            for i, ticker in enumerate(chart_asset_labels):
-                                if ticker == "CASH":
-                                    asset_colors.append('#C8C8C8')  # Gray for CASH
-                                else:
-                                    color_idx = (i % len(default_colors))
-                                    asset_colors.append(default_colors[color_idx])
-
-                            fig_assets = go.Figure(data=[go.Pie(
-                                labels=chart_asset_labels,
-                                values=chart_asset_values,
-                                hole=0.3,  # Donut chart
-                                marker_colors=asset_colors,
-                                textinfo='label+percent',
-                                textfont_size=10
-                            )])
-
-                            fig_assets.update_layout(
-                                title="",
-                                height=400,
-                                margin=dict(l=0, r=0, t=0, b=0),
-                                showlegend=True,
-                                legend=dict(font=dict(size=9), orientation="v")
-                            )
-                            st.plotly_chart(fig_assets, use_container_width=True)
-
-                        except Exception as e:
-                            logger.error(f"Error creating asset chart: {e}")
-                            st.error("Error creating asset allocation chart")
-
-                    with chart2_col:
-                        # Sector Allocation Chart: By Sectors
-                        st.markdown("**Sector Allocation:**")
-                        st.markdown("*By Sectors*")
-
-                        try:
-                            # Ensure Cash sector is always included
-                            # in chart, even if 0%
-                            if "Cash" not in sector_weights:
-                                sector_weights["Cash"] = 0.0
-
-                            chart_sector_labels = list(sector_weights.keys())
-                            chart_sector_values = list(sector_weights.values())
-
-                            # Assign colors - Cash always gray
-                            sector_colors = []
-                            default_colors = [
-                                '#636EFA', '#EF553B', '#00CC96', '#AB63FA',
-                                '#FFA15A', '#19D3F3', '#FF6692', '#B6E880'
-                            ]
-                            for i, sector in enumerate(chart_sector_labels):
-                                if sector == "Cash":
-                                    sector_colors.append('#C8C8C8')  # Gray for Cash
-                                else:
-                                    color_idx = (i % len(default_colors))
-                                    sector_colors.append(default_colors[color_idx])
-
-                            fig_sectors = go.Figure(data=[go.Pie(
-                                labels=chart_sector_labels,
-                                values=chart_sector_values,
-                                hole=0.3,  # Donut chart
-                                marker_colors=sector_colors,
-                                textinfo='none',  # No labels on chart
-                                textfont_size=10
-                            )])
-
-                            fig_sectors.update_layout(
-                                title="",
-                                height=400,
-                                margin=dict(l=0, r=0, t=0, b=0),
-                                showlegend=True,
-                                legend=dict(font=dict(size=9), orientation="v")
-                            )
-                            st.plotly_chart(fig_sectors, use_container_width=True)
-
-                        except Exception as e:
-                            logger.error(f"Error creating sector chart: {e}")
-                            st.error("Error creating sector allocation chart")
-
-    except PortfolioNotFoundError:
-        st.error("Portfolio not found")
-        if 'viewing_portfolio' in st.session_state:
-            del st.session_state.viewing_portfolio
-        st.rerun()
-    except Exception as e:
-        st.error(f"Error loading portfolio details: {str(e)}")
-        logger.error(f"Error loading portfolio details: {e}", exc_info=True)
-
-
 def edit_portfolio(portfolio_info: Dict) -> None:
     """Edit portfolio."""
     st.session_state.editing_portfolio = portfolio_info
@@ -614,117 +359,249 @@ def render_portfolio_editor() -> None:
 
     try:
         portfolio = portfolio_service.get_portfolio(portfolio_info['id'])
-        st.subheader(f"Edit Portfolio: {portfolio.name}")
-
-        # Basic information editing
-        with st.form("edit_portfolio_form", clear_on_submit=False):
-            # Basic info
-            basic_col1, basic_col2 = st.columns(2)
-
-            with basic_col1:
-                new_name = st.text_input("Portfolio Name", value=portfolio.name)
-                new_currency = st.selectbox(
-                    "Currency",
-                    options=["USD", "EUR", "GBP", "JPY", "CAD", "AUD"],
-                    index=["USD", "EUR", "GBP", "JPY", "CAD", "AUD"].index(
-                        portfolio.base_currency
-                    ) if portfolio.base_currency in ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"] else 0
-                )
-
-            with basic_col2:
-                new_description = st.text_area(
-                    "Description",
-                    value=portfolio.description or "",
-                    height=100
-                )
-                new_starting_capital = st.number_input(
-                    "Starting Capital",
-                    min_value=0.01,
-                    value=portfolio.starting_capital,
-                    step=1000.0
-                )
-
-            # Form buttons
-            button_col1, button_col2, button_col3 = st.columns(3)
-
-            with button_col1:
-                save_changes = st.form_submit_button("Save Changes", type="primary", use_container_width=True)
-
-            with button_col2:
-                cancel_edit = st.form_submit_button("Cancel", use_container_width=True)
-
-            with button_col3:
-                delete_portfolio = st.form_submit_button("Delete Portfolio", type="secondary", use_container_width=True)
-
-        # Handle form submissions
-        if save_changes:
-            save_portfolio_changes(portfolio, new_name, new_description, new_currency, new_starting_capital)
-
-        if cancel_edit:
-            st.session_state.management_view = "list"
-            if 'editing_portfolio' in st.session_state:
-                del st.session_state.editing_portfolio
-            st.rerun()
-
-        if delete_portfolio:
-            delete_portfolio_confirmed(portfolio_info)
-
-        # Positions editing section
-        st.subheader("Positions")
-        positions = portfolio.get_all_positions()
-
-        if positions:
-            position_data = []
-            for pos in positions:
-                position_data.append({
-                    'Ticker': pos.ticker,
-                    'Shares': pos.shares,
-                    'Weight Target': pos.weight_target * 100 if pos.weight_target else 0,
-                    'Purchase Price': pos.purchase_price or 0,
-                })
-
-            edited_positions = st.data_editor(
-                pd.DataFrame(position_data),
-                column_config={
-                    'Ticker': st.column_config.TextColumn('Ticker', disabled=True),
-                    'Shares': st.column_config.NumberColumn('Shares', step=0.01),
-                    'Weight Target': st.column_config.NumberColumn('Weight Target (%)', step=0.1),
-                    'Purchase Price': st.column_config.NumberColumn('Purchase Price', step=0.01),
-                },
-                hide_index=True,
-                use_container_width=True,
-                key="edit_positions_table"
-            )
-
-            if st.button("Update Positions", type="primary"):
-                update_positions(portfolio.id, edited_positions)
-
-        # Add new position
-        with st.expander("Add New Position"):
-            with st.form("add_position_form"):
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    new_ticker = st.text_input("Ticker")
-                with col2:
-                    new_shares = st.number_input("Shares", min_value=0.01, value=1.0)
-                with col3:
-                    new_weight = st.number_input("Weight Target (%)", min_value=0.0, max_value=100.0, value=10.0)
-
-                if st.form_submit_button("Add Position"):
-                    if new_ticker:
-                        add_position_to_portfolio(portfolio.id, new_ticker, new_shares, new_weight / 100)
-
-    except PortfolioNotFoundError:
-        st.error("Portfolio not found")
-        if 'editing_portfolio' in st.session_state:
-            del st.session_state.editing_portfolio
-        st.rerun()
     except Exception as e:
-        st.error(f"Error loading portfolio for editing: {str(e)}")
-        logger.error(f"Error loading portfolio for editing: {e}", exc_info=True)
+        st.error(f"Failed to load portfolio for edit: {e}")
         if st.button("Back to List"):
             st.session_state.management_view = "list"
             st.rerun()
+        return
+
+    st.subheader(f"Edit Portfolio: {portfolio.name}")
+
+    with st.form("edit_portfolio_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            new_name = st.text_input("Name", value=portfolio.name)
+            currency_options = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+            try:
+                currency_index = currency_options.index(portfolio.base_currency)
+            except Exception:
+                currency_index = 0
+            new_currency = st.selectbox("Currency", currency_options, index=currency_index)
+        with col2:
+            new_description = st.text_area("Description", value=portfolio.description or "")
+            new_starting_capital = st.number_input(
+                "Starting Capital",
+                min_value=1.0,
+                value=float(portfolio.starting_capital or 0.0),
+                step=100.0,
+            )
+
+        colb1, colb2 = st.columns(2)
+        with colb1:
+            submitted = st.form_submit_button("Save", type="primary", use_container_width=True)
+        with colb2:
+            cancel = st.form_submit_button("Cancel", use_container_width=True)
+
+    if 'cancel' in locals() and cancel:
+        st.session_state.management_view = "list"
+        st.rerun()
+
+    if 'submitted' in locals() and submitted:
+        save_portfolio_changes(
+            portfolio,
+            new_name=new_name,
+            new_description=new_description,
+            new_currency=new_currency,
+            new_starting_capital=new_starting_capital,
+        )
+
+    # Positions editor (inline editable grid)
+    st.markdown("---")
+    st.subheader("Positions")
+
+    positions = portfolio.get_all_positions()
+    pos_rows = []
+    for pos in positions:
+        pos_rows.append({
+            "Ticker": pos.ticker,
+            "Shares": float(pos.shares or 0.0),
+            "Weight Target": float(pos.weight_target * 100.0) if pos.weight_target else 0.0,
+            "Purchase Price": float(pos.purchase_price or 0.0),
+            "Remove": False,
+        })
+    import pandas as pd
+    edited_df = st.data_editor(
+        pd.DataFrame(pos_rows),
+        column_config={
+            "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
+            "Shares": st.column_config.NumberColumn("Shares", step=0.01),
+            "Weight Target": st.column_config.NumberColumn("Weight Target (%)", step=0.1),
+            "Purchase Price": st.column_config.NumberColumn("Purchase Price", step=0.01),
+            "Remove": st.column_config.CheckboxColumn("Remove"),
+        },
+        hide_index=True,
+        use_container_width=True,
+        key="positions_editor",
+    )
+
+    colu1, colu2 = st.columns(2)
+    with colu1:
+        if st.button("Save Positions", type="primary", use_container_width=True):
+            update_positions(portfolio.id, edited_df)
+    with colu2:
+        if st.button("Remove Selected", use_container_width=True):
+            # Remove positions flagged in edited_df
+            to_remove = [row["Ticker"] for _, row in edited_df.iterrows() if row.get("Remove")]
+            if to_remove:
+                try:
+                    portfolio_service: PortfolioService = st.session_state.portfolio_service
+                    for tkr in to_remove:
+                        portfolio_service.remove_position(portfolio.id, tkr)
+                    st.success(f"Removed {len(to_remove)} positions")
+                    clear_portfolio_cache()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to remove positions: {e}")
+
+    # Add position form
+    st.markdown("---")
+    st.subheader("Add Position")
+    with st.form("add_position_form", clear_on_submit=True):
+        ac1, ac2, ac3 = st.columns([2, 1, 1])
+        with ac1:
+            add_ticker = st.text_input("Ticker", placeholder="AAPL")
+        with ac2:
+            add_shares = st.number_input("Shares", min_value=0.0, value=0.0, step=0.01)
+        with ac3:
+            add_weight = st.number_input("Weight Target (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+        add_submit = st.form_submit_button("Add", type="primary")
+    if add_submit and add_ticker:
+        add_position_to_portfolio(
+            portfolio.id,
+            ticker=add_ticker,
+            shares=float(add_shares),
+            weight=float(add_weight) / 100.0 if add_weight > 0 else 0.0,
+        )
+
+
+def render_portfolio_view() -> None:
+    """Read-only view: positions table + two donuts (assets, sectors)."""
+    portfolio_id = st.session_state.get("view_portfolio_id")
+    if not portfolio_id:
+        st.warning("No portfolio selected.")
+        if st.button("Back"):
+            st.session_state.management_view = "list"
+            st.rerun()
+        return
+
+    portfolio_service: PortfolioService = st.session_state.portfolio_service
+    try:
+        portfolio = portfolio_service.get_portfolio(portfolio_id)
+    except Exception as e:
+        st.error(f"Failed to load portfolio: {e}")
+        return
+
+    st.subheader(f"Portfolio: {portfolio.name}")
+
+    positions = portfolio.get_all_positions()
+
+    # Build detailed positions table similar to creation result, plus Sector
+    try:
+        data_service: DataService = st.session_state.data_service
+        validator = TickerValidator()
+
+        tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
+        prices = {}
+        company_names = {}
+        sectors = {}
+        if tickers:
+            try:
+                prices = data_service.get_latest_prices(tickers)
+            except Exception:
+                prices = {}
+            for t in tickers:
+                try:
+                    info = data_service.get_ticker_info(t)
+                    company_names[t] = info.name or t
+                    sectors[t] = info.sector or "Other"
+                except Exception:
+                    company_names[t] = t
+                    sectors[t] = "Other"
+
+        # Calculate values first
+        total_value = 0.0
+        values_by_ticker = {}
+        for pos in positions:
+            if pos.ticker == "CASH":
+                price = 1.0
+                value = pos.shares * price
+            else:
+                price = prices.get(pos.ticker, pos.purchase_price or 0.0)
+                value = pos.shares * price if price > 0 else 0.0
+            values_by_ticker[pos.ticker] = value
+            total_value += value
+
+        table_rows = []
+        for pos in positions:
+            t = pos.ticker
+            value = values_by_ticker.get(t, 0.0)
+            price = 1.0 if t == "CASH" else prices.get(t, pos.purchase_price or 0.0)
+            name = "Cash Position" if t == "CASH" else company_names.get(t, t)
+            sector = "Cash" if t == "CASH" else sectors.get(t, "Other")
+            shares_display = f"${pos.shares:,.2f}" if t == "CASH" else f"{pos.shares:,.2f}"
+            weight = (value / total_value) if total_value > 0 else (pos.weight_target or 0.0)
+
+            table_rows.append({
+                "Ticker": t,
+                "Name": name,
+                "Sector": sector,
+                "Weight": f"{weight:.1%}",
+                "Shares": shares_display,
+                "Price": f"${price:,.2f}",
+                "Value": f"${value:,.2f}",
+            })
+
+        if table_rows:
+            df = pd.DataFrame(table_rows)
+            st.dataframe(df, hide_index=True, use_container_width=True)
+        else:
+            st.info("No positions to display")
+    except Exception as e:
+        logger.warning(f"Error rendering positions table: {e}")
+        render_position_table(positions)
+
+    col1, col2 = st.columns(2)
+
+    # Asset allocation donut
+    with col1:
+        st.markdown("**Asset Allocation**")
+        weights = []
+        for pos in positions:
+            if hasattr(pos, 'weight_target') and pos.weight_target is not None:
+                weights.append(pos.weight_target)
+            else:
+                weights.append(1.0 / len(positions) if len(positions) > 0 else 0.0)
+        total_weight = sum(weights) or 1.0
+        alloc = {}
+        for pos, w in zip(positions, weights):
+            pct = (w / total_weight * 100)
+            alloc[pos.ticker] = alloc.get(pos.ticker, 0.0) + pct
+        fig = plot_asset_allocation(alloc)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Sector allocation donut
+    with col2:
+        st.markdown("**Sector Allocation**")
+        validator = TickerValidator()
+        sector_map: dict[str, float] = {}
+        for pos, w in zip(positions, weights):
+            pct = (w / total_weight * 100)
+            sector = "Cash" if pos.ticker == "CASH" else None
+            if sector is None:
+                try:
+                    info = validator.get_ticker_info(pos.ticker)
+                    sector = info.sector or "Other"
+                except Exception:
+                    sector = "Other"
+            sector_map[sector] = sector_map.get(sector, 0.0) + pct
+        fig = plot_sector_allocation(sector_map)
+        st.plotly_chart(fig, use_container_width=True)
+
+    if st.button("Back to List"):
+        st.session_state.management_view = "list"
+        st.rerun()
+        return
 
 
 def save_portfolio_changes(
@@ -812,26 +689,6 @@ def add_position_to_portfolio(portfolio_id: str, ticker: str, shares: float, wei
     except Exception as e:
         st.error(f"Error adding position: {str(e)}")
         logger.error(f"Error adding position: {e}", exc_info=True)
-
-
-def clone_portfolio(portfolio_info: Dict) -> None:
-    """Clone portfolio."""
-    try:
-        portfolio_service: PortfolioService = st.session_state.portfolio_service
-        portfolio = portfolio_service.get_portfolio(portfolio_info['id'])
-
-        new_name = f"{portfolio.name} (Copy)"
-
-        with st.spinner("Cloning portfolio..."):
-            cloned = portfolio_service.clone_portfolio(portfolio.id, new_name)
-
-        st.success(f"Portfolio cloned: {cloned.name}")
-        clear_portfolio_cache()
-        st.rerun()
-
-    except Exception as e:
-        st.error(f"Error cloning portfolio: {str(e)}")
-        logger.error(f"Error cloning portfolio: {e}", exc_info=True)
 
 
 def delete_portfolio_confirmed(portfolio_info: Dict) -> None:

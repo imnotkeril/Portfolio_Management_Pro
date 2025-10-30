@@ -307,9 +307,18 @@ class PriceManager:
                 # Use Close as Adjusted_Close if not available
                 result["Adjusted_Close"] = df["Close"]
 
-        # Ensure Date column exists
+        # Ensure Date column exists and is tz-naive
         if "Date" not in result.columns and "Date" in df.columns:
             result["Date"] = df["Date"]
+
+        if "Date" in result.columns:
+            result["Date"] = pd.to_datetime(result["Date"], errors="coerce")
+            try:
+                # Drop timezone info to avoid comparison issues
+                result["Date"] = result["Date"].dt.tz_localize(None)
+            except Exception:
+                # If already tz-naive or conversion fails, continue
+                pass
 
         # Sort by date
         if "Date" in result.columns:

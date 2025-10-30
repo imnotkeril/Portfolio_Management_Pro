@@ -38,33 +38,51 @@ def render_position_table(
     # Prepare DataFrame
     data = []
     for pos in positions:
-        ticker = pos.get("ticker", "-")
+        # Handle both dict and Position object
+        if isinstance(pos, dict):
+            ticker = pos.get("ticker", "-")
+            shares = pos.get('shares', 0)
+            current_price = pos.get("current_price")
+            current_value = pos.get("current_value")
+            weight = pos.get("weight")
+            gain_loss = pos.get("gain_loss")
+        else:
+            # Position object (from core/data_manager/portfolio.py)
+            ticker = getattr(pos, "ticker", "-")
+            shares = getattr(pos, "shares", 0)
+            # Position objects don't have current_price/value, use weight_target instead
+            current_price = getattr(pos, "purchase_price", None)
+            current_value = None
+            weight = getattr(pos, "weight_target", None)
+            gain_loss = None
+        
         # For cash, show shares as dollar amount
         if ticker == "CASH":
-            shares_display = format_currency(pos.get('shares', 0))
+            shares_display = format_currency(shares)
         else:
-            shares_display = f"{pos.get('shares', 0):.2f}"
+            shares_display = f"{shares:.2f}"
+        
         row = {
             "Ticker": ticker,
             "Shares": shares_display,
             "Price": (
-                format_currency(pos.get("current_price", 0))
-                if pos.get("current_price")
+                format_currency(current_price)
+                if current_price
                 else ("$1.00" if ticker == "CASH" else "-")
             ),
             "Value": (
-                format_currency(pos.get("current_value", 0))
-                if pos.get("current_value")
+                format_currency(current_value)
+                if current_value
                 else "-"
             ),
             "Weight": (
-                format_percentage(pos.get("weight", 0))
-                if pos.get("weight") is not None
+                format_percentage(weight)
+                if weight is not None
                 else "-"
             ),
             "P&L": (
-                format_currency(pos.get("gain_loss", 0))
-                if pos.get("gain_loss") is not None
+                format_currency(gain_loss)
+                if gain_loss is not None
                 else "-"
             ),
         }
