@@ -335,7 +335,7 @@ def _render_overview_tab(
     except Exception:
         pass
 
-    # Row 1: Main metrics
+    # Row 1: Total Return, CAGR, Volatility, Max Drawdown
     metrics_row1 = [
         {
             "label": "Total Return",
@@ -352,11 +352,11 @@ def _render_overview_tab(
             "higher_is_better": True,
         },
         {
-            "label": "Sharpe Ratio",
-            "portfolio_value": portfolio_metrics_flat.get("sharpe_ratio", 0),
-            "benchmark_value": bm_for_cards.get("sharpe_ratio"),
-            "format": "ratio",
-            "higher_is_better": True,
+            "label": "Volatility",
+            "portfolio_value": portfolio_metrics_flat.get("volatility", 0),
+            "benchmark_value": bm_for_cards.get("volatility"),
+            "format": "percent",
+            "higher_is_better": False,
         },
         {
             "label": "Max Drawdown",
@@ -367,16 +367,23 @@ def _render_overview_tab(
         },
     ]
     render_metric_cards_row(metrics_row1, columns_per_row=4)
-    
-    # Row 2: Risk metrics
+
+    # Row 2: Sharpe Ratio, Sortino Ratio, Beta, Alpha
     st.markdown("---")
     metrics_row2 = [
         {
-            "label": "Volatility",
-            "portfolio_value": portfolio_metrics_flat.get("volatility", 0),
-            "benchmark_value": bm_for_cards.get("volatility"),
-            "format": "percent",
-            "higher_is_better": False,
+            "label": "Sharpe Ratio",
+            "portfolio_value": portfolio_metrics_flat.get("sharpe_ratio", 0),
+            "benchmark_value": bm_for_cards.get("sharpe_ratio"),
+            "format": "ratio",
+            "higher_is_better": True,
+        },
+        {
+            "label": "Sortino Ratio",
+            "portfolio_value": ratios.get("sortino_ratio", 0),
+            "benchmark_value": bm_for_cards.get("sortino_ratio"),
+            "format": "ratio",
+            "higher_is_better": True,
         },
         {
             "label": "Beta",
@@ -390,13 +397,6 @@ def _render_overview_tab(
             "portfolio_value": market.get("alpha", 0),
             "benchmark_value": 0.0,
             "format": "percent",
-            "higher_is_better": True,
-        },
-        {
-            "label": "Sortino Ratio",
-            "portfolio_value": ratios.get("sortino_ratio", 0),
-            "benchmark_value": bm_for_cards.get("sortino_ratio"),
-            "format": "ratio",
             "higher_is_better": True,
         },
     ]
