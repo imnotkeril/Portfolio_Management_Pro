@@ -17,7 +17,18 @@ from core.analytics_engine.chart_data import (
     get_rolling_beta_alpha_data,
     get_underwater_plot_data,
     get_yearly_returns_data,
-    get_best_worst_periods_data,
+    get_period_returns_comparison_data,
+    get_three_month_rolling_periods_data,
+    get_seasonal_analysis_data,
+    get_monthly_active_returns_data,
+    get_win_rate_statistics_data,
+    get_outlier_analysis_data,
+    get_statistical_tests_data,
+    get_qq_plot_data,
+)
+from core.analytics_engine.advanced_metrics import (
+    calculate_expected_returns,
+    calculate_common_performance_periods,
 )
 from streamlit_app.components.charts import (
     plot_cumulative_returns,
@@ -27,9 +38,15 @@ from streamlit_app.components.charts import (
     plot_rolling_beta_alpha,
     plot_underwater,
     plot_yearly_returns,
-    plot_best_worst_periods,
     plot_asset_allocation,
     plot_sector_allocation,
+    plot_active_returns_area,
+    plot_period_returns_bar,
+    plot_qq_plot,
+    plot_return_quantiles_box,
+    plot_seasonal_bar,
+    plot_outlier_scatter,
+    plot_rolling_win_rate,
 )
 from streamlit_app.components.position_table import render_position_table
 from streamlit_app.components.metric_card_comparison import render_metric_cards_row
@@ -208,7 +225,7 @@ def show():
     # === TAB 2: PERFORMANCE ===
     with tab2:
         _render_performance_tab(
-            perf, portfolio_returns, benchmark_returns,
+            perf, portfolio_returns, benchmark_returns, portfolio_values,
             risk_free_rate, start_date, end_date
         )
     
@@ -621,7 +638,7 @@ def _render_overview_tab(
         st.markdown(metadata_text)
 
 
-def _render_performance_tab(perf, portfolio_returns, benchmark_returns, risk_free_rate, start_date, end_date):
+def _render_performance_tab(perf, portfolio_returns, benchmark_returns, portfolio_values, risk_free_rate, start_date, end_date):
     """Render Performance tab with sub-tabs."""
     sub_tab1, sub_tab2, sub_tab3 = st.tabs([
         "Returns Analysis",
@@ -629,8 +646,15 @@ def _render_performance_tab(perf, portfolio_returns, benchmark_returns, risk_fre
         "Distribution"
     ])
     
+    # Calculate benchmark values if needed
+    benchmark_values = None
+    if benchmark_returns is not None and not benchmark_returns.empty and portfolio_values is not None:
+        aligned_bench = benchmark_returns.reindex(portfolio_values.index, method="ffill").fillna(0)
+        initial_value = float(portfolio_values.iloc[0])
+        benchmark_values = (1 + aligned_bench).cumprod() * initial_value
+    
     with sub_tab1:
-        _render_returns_analysis(perf, portfolio_returns, benchmark_returns, risk_free_rate)
+        _render_returns_analysis(perf, portfolio_returns, benchmark_returns, portfolio_values, benchmark_values)
     
     with sub_tab2:
         _render_periodic_analysis(portfolio_returns, benchmark_returns)
@@ -639,56 +663,29 @@ def _render_performance_tab(perf, portfolio_returns, benchmark_returns, risk_fre
         _render_distribution_analysis(portfolio_returns, benchmark_returns)
 
 
-def _render_returns_analysis(perf, portfolio_returns, benchmark_returns, risk_free_rate):
+def _render_returns_analysis(perf, portfolio_returns, benchmark_returns, portfolio_values, benchmark_values):
     """Sub-tab 2.1: Returns Analysis."""
     if portfolio_returns is None or portfolio_returns.empty:
         st.warning("No portfolio returns data available")
         return
 
-    # Cumulative Returns (expanded)
+    # Graph 2.1.1: Cumulative Returns
     st.subheader("Cumulative Returns")
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        cum_data = get_cumulative_returns_data(portfolio_returns, benchmark_returns)
-        if cum_data:
-            fig = plot_cumulative_returns(cum_data)
-            st.plotly_chart(fig, use_container_width=True, key="returns_cumulative")
-    with col2:
-        st.markdown("**View Options:**")
-        use_log = st.checkbox("Log Scale", value=False)
-        # Note: log scale toggle would need chart update
+    cum_data = get_cumulative_returns_data(portfolio_returns, benchmark_returns)
+    if cum_data:
+        fig = plot_cumulative_returns(cum_data)
+        st.plotly_chart(fig, use_container_width=True, key="returns_cumulative")
     
-    # Daily Active Returns
+    # Graph 2.1.2: Daily Active Returns (Area Chart)
     st.markdown("---")
     st.subheader("Daily Active Returns")
     if benchmark_returns is not None and not benchmark_returns.empty:
         aligned = benchmark_returns.reindex(portfolio_returns.index, method="ffill").fillna(0)
         active_returns = portfolio_returns - aligned
         
-        active_df = pd.DataFrame({
-            "Date": active_returns.index,
-            "Active Return": active_returns.values * 100,
-        })
-        active_df["Color"] = active_df["Active Return"].apply(
-            lambda x: "#4CAF50" if x >= 0 else "#F44336"
-        )
-        
-        import plotly.graph_objects as go
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=active_df["Date"],
-            y=active_df["Active Return"],
-            marker_color=active_df["Color"],
-            name="Active Return",
-        ))
-        fig.add_hline(y=0, line_dash="dash", line_color="white")
-        fig.update_layout(
-            title="Daily Active Returns (Portfolio - Benchmark)",
-            xaxis_title="Date",
-            yaxis_title="Active Return (%)",
-            template="plotly_dark",
-        )
-        st.plotly_chart(fig, use_container_width=True, key="returns_active_returns")
+        # Area chart
+        fig = plot_active_returns_area(active_returns)
+        st.plotly_chart(fig, use_container_width=True, key="returns_active_returns_area")
 
         # Stats box
         pos_days = (active_returns > 0).sum()
@@ -701,34 +698,143 @@ def _render_returns_analysis(perf, portfolio_returns, benchmark_returns, risk_fr
 **Min Daily Alpha:** {active_returns.min()*100:.2f}%
         """)
     
-    # Return by Periods
+    # Table 2.1.3: Return by Periods
     st.markdown("---")
     st.subheader("Return by Periods")
-    # Calculate period returns (placeholder - needs proper calculation)
-    periods_data = {
-        "MTD": (perf.get("mtd_return", 0), 0),
-        "YTD": (perf.get("ytd_return", 0), 0),
-        "1M": (perf.get("one_month_return", 0), 0),
-        "3M": (perf.get("three_month_return", 0), 0),
-        "6M": (perf.get("six_month_return", 0), 0),
-        "1Y": (perf.get("total_return", 0), 0),
-    }
+    periods_data = get_period_returns_comparison_data(
+        portfolio_returns, benchmark_returns, portfolio_values, benchmark_values
+    )
+    if periods_data.get("periods") is not None:
+        periods_df = periods_data["periods"].copy()
+        
+        # Format for display (keep original values for calculations)
+        from streamlit_app.components.comparison_table import (
+            _calculate_percentage_change,
+        )
+        
+        display_data = []
+        for _, row in periods_df.iterrows():
+            port_val = row["Portfolio"]
+            bench_val = row["Benchmark"]
+            
+            # Format values (already in decimal format)
+            port_formatted = f"{port_val * 100:.2f}%" if pd.notna(port_val) else "—"
+            bench_formatted = f"{bench_val * 100:.2f}%" if pd.notna(bench_val) else "—"
+            
+            # Calculate relative difference like in comparison_table
+            diff_formatted = "—"
+            if pd.notna(port_val) and pd.notna(bench_val):
+                # Use same logic as comparison_table for returns
+                diff_pct = _calculate_percentage_change(
+                    "total_return", port_val, bench_val
+                )
+                # Format without emoji circles
+                if abs(diff_pct) < 0.01:
+                    diff_formatted = "—"
+                else:
+                    sign = "+" if diff_pct > 0 else ""
+                    diff_formatted = f"{sign}{diff_pct:.2f}%"
+            
+            display_data.append({
+                "Period": row["Period"],
+                "Portfolio": port_formatted,
+                "Benchmark": bench_formatted,
+                "Difference": diff_formatted,
+            })
+        
+        display_df = pd.DataFrame(display_data)
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        
+        # Bar chart (use original values, not multiplied)
+        fig = plot_period_returns_bar(periods_df)
+        st.plotly_chart(fig, use_container_width=True, key="returns_periods_bar")
     
-    periods_df = pd.DataFrame({
-        "Period": list(periods_data.keys()),
-        "Portfolio": [v[0]*100 for v in periods_data.values()],
-        "Benchmark": [v[1]*100 for v in periods_data.values()],
-    })
-    periods_df["Difference"] = periods_df["Portfolio"] - periods_df["Benchmark"]
-    st.dataframe(periods_df, use_container_width=True, hide_index=True)
-    
-    # Best/Worst Periods
+    # Table 2.1.4: Expected Returns
     st.markdown("---")
-    st.subheader("Best and Worst Periods")
-    periods_data_chart = get_best_worst_periods_data(portfolio_returns, top_n=10)
-    if periods_data_chart:
-        fig = plot_best_worst_periods(periods_data_chart)
-        st.plotly_chart(fig, use_container_width=True, key="returns_best_worst")
+    st.subheader("Expected Returns (Mean Historical)")
+    expected_port = calculate_expected_returns(portfolio_returns)
+    expected_bench = None
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        expected_bench = calculate_expected_returns(benchmark_returns)
+    
+    if expected_port:
+        timeframes = ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly"]
+        port_vals = [
+            expected_port.get("expected_daily", 0) * 100,
+            expected_port.get("expected_weekly", 0) * 100,
+            expected_port.get("expected_monthly", 0) * 100,
+            expected_port.get("expected_quarterly", 0) * 100,
+            expected_port.get("expected_yearly", 0) * 100,
+        ]
+        bench_vals = [0.0] * 5
+        if expected_bench:
+            bench_vals = [
+                expected_bench.get("expected_daily", 0) * 100,
+                expected_bench.get("expected_weekly", 0) * 100,
+                expected_bench.get("expected_monthly", 0) * 100,
+                expected_bench.get("expected_quarterly", 0) * 100,
+                expected_bench.get("expected_yearly", 0) * 100,
+            ]
+        
+        expected_df = pd.DataFrame({
+            "Timeframe": timeframes,
+            "Portfolio": [f"{v:.2f}%" for v in port_vals],
+            "Benchmark": [f"{v:.2f}%" for v in bench_vals],
+            "Difference": [f"{p - b:.2f}%" for p, b in zip(port_vals, bench_vals)],
+        })
+        st.dataframe(expected_df, use_container_width=True, hide_index=True)
+        st.caption("Note: Based on arithmetic mean of historical returns")
+    
+    # Metric 2.1.5: Common Performance Periods (CPP)
+    st.markdown("---")
+    st.subheader("Common Performance Periods (CPP)")
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        cpp_data = calculate_common_performance_periods(portfolio_returns, benchmark_returns)
+        if cpp_data:
+            same_dir_pct = cpp_data.get("same_direction_pct", 0) * 100
+            cpp_index = cpp_data.get("cpp_index", 0)
+            st.info(f"""
+**Same Direction:** {same_dir_pct:.1f}% of days  
+(Portfolio and Benchmark moved in same direction)  
+
+**CPP Index:** {cpp_index:.2f}  
+(Correlation of directional moves)  
+
+**Interpretation:** Portfolio is {'highly' if cpp_index > 0.7 else 'moderately' if cpp_index > 0.4 else 'lowly'} correlated with market direction
+            """)
+    
+    # Table 2.1.6: Best/Worst Periods (3-month rolling)
+    st.markdown("---")
+    st.subheader("The Best and Worst Periods")
+    
+    # Best 3-Month Periods
+    st.markdown("**Best 3-Month Periods:**")
+    rolling_periods = get_three_month_rolling_periods_data(
+        portfolio_returns, benchmark_returns, top_n=3
+    )
+    if rolling_periods.get("best") is not None and not rolling_periods["best"].empty:
+        best_df = rolling_periods["best"].copy()
+        best_df["#"] = range(1, len(best_df) + 1)
+        best_df["Portfolio"] = best_df["Portfolio"].apply(lambda x: f"{x*100:.2f}%")
+        best_df["Benchmark"] = best_df["Benchmark"].apply(lambda x: f"{x*100:.2f}%")
+        best_df["Difference"] = best_df["Difference"].apply(lambda x: f"{x*100:.2f}%")
+        best_df["Start"] = best_df["Start"].apply(lambda x: x.strftime("%Y-%m-%d") if hasattr(x, 'strftime') else str(x))
+        best_df["End"] = best_df["End"].apply(lambda x: x.strftime("%Y-%m-%d") if hasattr(x, 'strftime') else str(x))
+        display_best = best_df[["#", "Start", "End", "Portfolio", "Benchmark", "Difference"]]
+        st.dataframe(display_best, use_container_width=True, hide_index=True)
+    
+    # Worst 3-Month Periods
+    st.markdown("**Worst 3-Month Periods:**")
+    if rolling_periods.get("worst") is not None and not rolling_periods["worst"].empty:
+        worst_df = rolling_periods["worst"].copy()
+        worst_df["#"] = range(1, len(worst_df) + 1)
+        worst_df["Portfolio"] = worst_df["Portfolio"].apply(lambda x: f"{x*100:.2f}%")
+        worst_df["Benchmark"] = worst_df["Benchmark"].apply(lambda x: f"{x*100:.2f}%")
+        worst_df["Difference"] = worst_df["Difference"].apply(lambda x: f"{x*100:.2f}%")
+        worst_df["Start"] = worst_df["Start"].apply(lambda x: x.strftime("%Y-%m-%d") if hasattr(x, 'strftime') else str(x))
+        worst_df["End"] = worst_df["End"].apply(lambda x: x.strftime("%Y-%m-%d") if hasattr(x, 'strftime') else str(x))
+        display_worst = worst_df[["#", "Start", "End", "Portfolio", "Benchmark", "Difference"]]
+        st.dataframe(display_worst, use_container_width=True, hide_index=True)
 
 
 def _render_periodic_analysis(portfolio_returns, benchmark_returns):
@@ -737,25 +843,49 @@ def _render_periodic_analysis(portfolio_returns, benchmark_returns):
         st.warning("No portfolio returns data available")
         return
     
-    # Annual Returns
-    st.subheader("Annual Returns Comparison")
+    # Graph 2.2.1: Annual Returns (EOY)
+    st.subheader("Annual Returns (EOY)")
     yearly_data = get_yearly_returns_data(portfolio_returns, benchmark_returns)
     if yearly_data.get("yearly") is not None and not yearly_data["yearly"].empty:
-        fig = plot_yearly_returns(yearly_data["yearly"])
+        fig = plot_yearly_returns({"yearly": yearly_data["yearly"]})
         st.plotly_chart(fig, use_container_width=True, key="periodic_yearly")
     
-    # Monthly Returns Calendar
+    # Heatmap 2.2.2: Monthly Returns Calendar
     st.markdown("---")
-    st.subheader("Monthly Returns Calendar")
+    st.subheader("Monthly Returns Calendar (%)")
     heatmap_data = get_monthly_heatmap_data(portfolio_returns)
     if heatmap_data.get("heatmap") is not None and not heatmap_data["heatmap"].empty:
-        fig = plot_monthly_heatmap(heatmap_data["heatmap"])
+        fig = plot_monthly_heatmap({"heatmap": heatmap_data["heatmap"]})
         st.plotly_chart(fig, use_container_width=True, key="periodic_monthly")
     
-    # Seasonal Analysis
+    # Heatmap 2.2.3: Monthly Active Returns
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        st.markdown("---")
+        st.subheader("Monthly Active Returns (%) - Portfolio vs Benchmark")
+        active_heatmap_data = get_monthly_active_returns_data(portfolio_returns, benchmark_returns)
+        if active_heatmap_data.get("heatmap") is not None and not active_heatmap_data["heatmap"].empty:
+            fig = plot_monthly_heatmap({"heatmap": active_heatmap_data["heatmap"]})
+            st.plotly_chart(fig, use_container_width=True, key="periodic_monthly_active")
+    
+    # Charts 2.2.4: Seasonal Analysis
     st.markdown("---")
     st.subheader("Seasonal Analysis")
-    st.info("Seasonal analysis (day of week, month, quarter) coming soon...")
+    seasonal_data = get_seasonal_analysis_data(portfolio_returns, benchmark_returns)
+    
+    if seasonal_data.get("day_of_week") is not None and not seasonal_data["day_of_week"].empty:
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            fig = plot_seasonal_bar(seasonal_data["day_of_week"], "Avg Return by Day of Week (%)")
+            st.plotly_chart(fig, use_container_width=True, key="seasonal_day")
+        
+        with col2:
+            fig = plot_seasonal_bar(seasonal_data["month"], "Avg Return by Month (%)")
+            st.plotly_chart(fig, use_container_width=True, key="seasonal_month")
+        
+        with col3:
+            fig = plot_seasonal_bar(seasonal_data["quarter"], "Avg Return by Quarter (%)")
+            st.plotly_chart(fig, use_container_width=True, key="seasonal_quarter")
 
 
 def _render_distribution_analysis(portfolio_returns, benchmark_returns):
@@ -764,28 +894,238 @@ def _render_distribution_analysis(portfolio_returns, benchmark_returns):
         st.warning("No portfolio returns data available")
         return
     
-    # Return Distributions
-    st.subheader("Distribution of Returns")
-    dist_data = get_return_distribution_data(portfolio_returns)
-    if dist_data:
-        fig = plot_return_distribution(dist_data)
-        st.plotly_chart(fig, use_container_width=True, key="distribution_returns")
-
-    # Q-Q Plot
+    # Charts 2.3.1: Return Distributions
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Distribution of Daily Returns")
+        dist_data_daily = get_return_distribution_data(portfolio_returns, bins=50)
+        if dist_data_daily:
+            fig = plot_return_distribution(dist_data_daily, bar_color="blue")
+            st.plotly_chart(fig, use_container_width=True, key="distribution_daily")
+    
+    with col2:
+        st.subheader("Distribution of Monthly Returns")
+        monthly_returns = portfolio_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+        if not monthly_returns.empty:
+            dist_data_monthly = get_return_distribution_data(monthly_returns, bins=30)
+            if dist_data_monthly:
+                fig = plot_return_distribution(dist_data_monthly, bar_color="blue")
+                st.plotly_chart(fig, use_container_width=True, key="distribution_monthly")
+    
+    # Chart 2.3.2: Q-Q Plot
     st.markdown("---")
     st.subheader("Q-Q Plot")
-    st.info("Q-Q plot implementation coming soon...")
+    qq_data = get_qq_plot_data(portfolio_returns)
+    if qq_data:
+        fig = plot_qq_plot(qq_data)
+        st.plotly_chart(fig, use_container_width=True, key="distribution_qq")
+        st.caption("Points closer to line = more normal distribution. Deviation shows fat tails / skewness.")
     
-    # Win Rate Statistics
+    # Chart 2.3.3: Return Quantiles Box Plots
     st.markdown("---")
-    st.subheader("Win Rate Statistics")
-    pos_days = (portfolio_returns > 0).sum()
-    total_days = len(portfolio_returns)
-    win_rate = pos_days / total_days * 100 if total_days > 0 else 0
+    st.subheader("Return Quantiles Box Plots")
+    fig = plot_return_quantiles_box(portfolio_returns, benchmark_returns)
+    st.plotly_chart(fig, use_container_width=True, key="distribution_box")
     
-    st.metric("Win Days %", f"{win_rate:.1f}%")
-    st.metric("Win Weeks %", "Coming soon...")
-    st.metric("Win Months %", "Coming soon...")
+    # Table 2.3.4: Win Rate Statistics (Comprehensive)
+    st.markdown("---")
+    st.subheader("Win Rate Statistics - Comprehensive")
+    win_rate_data = get_win_rate_statistics_data(portfolio_returns, benchmark_returns)
+    
+    if win_rate_data.get("stats"):
+        stats = win_rate_data["stats"]
+        port_stats = stats.get("portfolio", {})
+        bench_stats = stats.get("benchmark", {})
+        
+        # Build benchmark and difference columns
+        bench_values = [
+            f"{bench_stats.get('win_rate_daily', 0)*100:.1f}%" if bench_stats.get('win_rate_daily') is not None else "N/A",
+            f"{bench_stats.get('win_rate_weekly', 0)*100:.1f}%" if bench_stats.get('win_rate_weekly') is not None else "N/A",
+            f"{bench_stats.get('win_rate_monthly', 0)*100:.1f}%" if bench_stats.get('win_rate_monthly') is not None else "N/A",
+            f"{bench_stats.get('win_rate_quarterly', 0)*100:.1f}%" if bench_stats.get('win_rate_quarterly') is not None else "N/A",
+            f"{bench_stats.get('win_rate_yearly', 0)*100:.1f}%" if bench_stats.get('win_rate_yearly') is not None else "N/A",
+            f"{bench_stats.get('avg_win_daily', 0)*100:.2f}%" if bench_stats.get('avg_win_daily') is not None else "N/A",
+            f"{bench_stats.get('avg_loss_daily', 0)*100:.2f}%" if bench_stats.get('avg_loss_daily') is not None else "N/A",
+            f"{bench_stats.get('avg_win_monthly', 0)*100:.2f}%" if bench_stats.get('avg_win_monthly') is not None else "N/A",
+            f"{bench_stats.get('avg_loss_monthly', 0)*100:.2f}%" if bench_stats.get('avg_loss_monthly') is not None else "N/A",
+            f"{bench_stats.get('best_daily', 0)*100:.2f}%" if bench_stats.get('best_daily') is not None else "N/A",
+            f"{bench_stats.get('worst_daily', 0)*100:.2f}%" if bench_stats.get('worst_daily') is not None else "N/A",
+            f"{bench_stats.get('best_monthly', 0)*100:.2f}%" if bench_stats.get('best_monthly') is not None else "N/A",
+            f"{bench_stats.get('worst_monthly', 0)*100:.2f}%" if bench_stats.get('worst_monthly') is not None else "N/A",
+        ]
+        
+        # Calculate differences
+        diff_values = []
+        port_vals = [
+            port_stats.get('win_days_pct', 0),
+            port_stats.get('win_weeks_pct', 0),
+            port_stats.get('win_months_pct', 0),
+            port_stats.get('win_quarters_pct', 0),
+            port_stats.get('win_years_pct', 0),
+            port_stats.get('avg_up_day', 0),
+            port_stats.get('avg_down_day', 0),
+            port_stats.get('avg_up_month', 0),
+            port_stats.get('avg_down_month', 0),
+            port_stats.get('best_day', 0),
+            port_stats.get('worst_day', 0),
+            port_stats.get('best_month', 0),
+            port_stats.get('worst_month', 0),
+        ]
+        bench_vals = [
+            bench_stats.get('win_rate_daily', 0) * 100 if bench_stats.get('win_rate_daily') is not None else None,
+            bench_stats.get('win_rate_weekly', 0) * 100 if bench_stats.get('win_rate_weekly') is not None else None,
+            bench_stats.get('win_rate_monthly', 0) * 100 if bench_stats.get('win_rate_monthly') is not None else None,
+            bench_stats.get('win_rate_quarterly', 0) * 100 if bench_stats.get('win_rate_quarterly') is not None else None,
+            bench_stats.get('win_rate_yearly', 0) * 100 if bench_stats.get('win_rate_yearly') is not None else None,
+            bench_stats.get('avg_win_daily', 0) * 100 if bench_stats.get('avg_win_daily') is not None else None,
+            bench_stats.get('avg_loss_daily', 0) * 100 if bench_stats.get('avg_loss_daily') is not None else None,
+            bench_stats.get('avg_win_monthly', 0) * 100 if bench_stats.get('avg_win_monthly') is not None else None,
+            bench_stats.get('avg_loss_monthly', 0) * 100 if bench_stats.get('avg_loss_monthly') is not None else None,
+            bench_stats.get('best_daily', 0) * 100 if bench_stats.get('best_daily') is not None else None,
+            bench_stats.get('worst_daily', 0) * 100 if bench_stats.get('worst_daily') is not None else None,
+            bench_stats.get('best_monthly', 0) * 100 if bench_stats.get('best_monthly') is not None else None,
+            bench_stats.get('worst_monthly', 0) * 100 if bench_stats.get('worst_monthly') is not None else None,
+        ]
+        
+        for p, b in zip(port_vals, bench_vals):
+            if b is not None:
+                diff = p - b
+                diff_values.append(f"{diff:+.2f}%")
+            else:
+                diff_values.append("N/A")
+        
+        win_rate_df = pd.DataFrame({
+            "Timeframe": ["Win Days %", "Win Weeks %", "Win Months %", "Win Quarters %", "Win Years %",
+                          "Avg Up Day", "Avg Down Day", "Avg Up Month", "Avg Down Month",
+                          "Best Day", "Worst Day", "Best Month", "Worst Month"],
+            "Portfolio": [
+                f"{port_stats.get('win_days_pct', 0):.1f}%",
+                f"{port_stats.get('win_weeks_pct', 0):.1f}%",
+                f"{port_stats.get('win_months_pct', 0):.1f}%",
+                f"{port_stats.get('win_quarters_pct', 0):.1f}%",
+                f"{port_stats.get('win_years_pct', 0):.1f}%",
+                f"{port_stats.get('avg_up_day', 0):.2f}%",
+                f"{port_stats.get('avg_down_day', 0):.2f}%",
+                f"{port_stats.get('avg_up_month', 0):.2f}%",
+                f"{port_stats.get('avg_down_month', 0):.2f}%",
+                f"{port_stats.get('best_day', 0):.2f}%",
+                f"{port_stats.get('worst_day', 0):.2f}%",
+                f"{port_stats.get('best_month', 0):.2f}%",
+                f"{port_stats.get('worst_month', 0):.2f}%",
+            ],
+            "Benchmark": bench_values,
+            "Difference": diff_values,
+        })
+        # Calculate required height (13 rows + header)
+        row_height = 35  # Approximate height per row
+        header_height = 40
+        total_height = 13 * row_height + header_height
+        st.dataframe(win_rate_df, use_container_width=True, hide_index=True, height=total_height)
+        
+        # 12-Month Rolling Win Rate Chart
+        rolling_win_rate = win_rate_data.get("rolling", pd.Series())
+        if not rolling_win_rate.empty:
+            bench_rolling = None
+            if benchmark_returns is not None:
+                # Calculate benchmark rolling win rate
+                bench_win_rate_data = get_win_rate_statistics_data(benchmark_returns)
+                bench_rolling = bench_win_rate_data.get("rolling", pd.Series())
+            
+            fig = plot_rolling_win_rate(rolling_win_rate, bench_rolling)
+            st.plotly_chart(fig, use_container_width=True, key="distribution_rolling_win_rate")
+    
+    # Section 2.3.5: Outlier Analysis
+    st.markdown("---")
+    st.subheader("Outlier Analysis - Tail Events")
+    outlier_data = get_outlier_analysis_data(portfolio_returns, outlier_threshold=2.0)
+    
+    if outlier_data.get("stats"):
+        stats = outlier_data["stats"]
+        st.info(f"""
+**Outlier Definition:** Beyond 2 standard deviations  
+
+**Outlier Win Ratio:** {stats.get('outlier_win_ratio', 0):.2f}  
+(Avg outlier win / Avg normal win)  
+
+**Outlier Loss Ratio:** {stats.get('outlier_loss_ratio', 0):.2f}  
+(Avg outlier loss / Avg normal loss)  
+
+**Interpretation:**  
+{'✓' if stats.get('outlier_win_ratio', 0) > 0 else '✗'} Big wins are {stats.get('outlier_win_ratio', 0):.2f}x larger than typical wins  
+{'✓' if stats.get('outlier_loss_ratio', 0) > 0 else '✗'} Big losses are {stats.get('outlier_loss_ratio', 0):.2f}x larger than typical losses
+        """)
+        
+        # Outlier Scatter Plot
+        fig = plot_outlier_scatter(portfolio_returns, outlier_data)
+        st.plotly_chart(fig, use_container_width=True, key="distribution_outlier_scatter")
+    
+    # Table 2.3.6: Statistical Tests
+    st.markdown("---")
+    st.subheader("Statistical Tests - Distribution Analysis")
+    stats_tests = get_statistical_tests_data(portfolio_returns)
+    
+    if stats_tests:
+        shapiro = stats_tests.get("shapiro_wilk", {})
+        jb = stats_tests.get("jarque_bera", {})
+        skewness = stats_tests.get("skewness", 0)
+        kurtosis = stats_tests.get("kurtosis", 0)
+        sample_size = stats_tests.get("sample_size", 0)
+        
+        # Format p-values more accurately
+        def format_pvalue(p):
+            if p < 0.0001:
+                return f"{p:.2e}"  # Scientific notation
+            else:
+                return f"{p:.4f}"
+        
+        tests_df = pd.DataFrame({
+            "Test": ["Shapiro-Wilk", "Jarque-Bera", "Skewness", "Kurtosis (Excess)"],
+            "Statistic": [
+                f"{shapiro.get('statistic', 0):.4f}",
+                f"{jb.get('statistic', 0):.4f}",
+                f"{skewness:.3f}",
+                f"{kurtosis:+.3f}",
+            ],
+            "p-value": [
+                format_pvalue(shapiro.get('pvalue', 1)),
+                format_pvalue(jb.get('pvalue', 1)),
+                "-",
+                "-",
+            ],
+        })
+        st.dataframe(tests_df, use_container_width=True, hide_index=True)
+        
+        # Show sample size info
+        shapiro_sample = shapiro.get('sample_size', sample_size)
+        if sample_size > 1000:
+            st.caption(f"ℹ️ Sample size: {sample_size:,} observations" + 
+                      (f" (Shapiro-Wilk used random sample of {shapiro_sample:,})" if shapiro_sample < sample_size else ""))
+        
+        # Interpretation
+        shapiro_p = shapiro.get("pvalue", 1.0)
+        jb_p = jb.get("pvalue", 1.0)
+        is_normal = shapiro_p >= 0.05 and jb_p >= 0.05
+        
+        skew_interpretation = "Slight negative skew" if skewness < -0.1 else "Slight positive skew" if skewness > 0.1 else "Symmetric"
+        kurtosis_interpretation = "Leptokurtic (fat tails)" if kurtosis > 0.5 else "Platykurtic (thin tails)" if kurtosis < -0.5 else "Normal tails"
+        
+        # Add note about large sample sensitivity
+        interpretation_text = f"""
+**Interpretation:**  
+{'✅' if is_normal else '❌'} **Shapiro-Wilk:** Distribution is {'NOT' if shapiro_p < 0.05 else ''} normal (p {'<' if shapiro_p < 0.05 else '≥'} 0.05)  
+{'✅' if is_normal else '❌'} **Jarque-Bera:** Distribution is {'NOT' if jb_p < 0.05 else ''} normal (p {'<' if jb_p < 0.05 else '≥'} 0.05)  
+⚠ **Skewness:** {skew_interpretation} ({skewness:.3f})  
+⚠ **Kurtosis:** {kurtosis_interpretation} ({kurtosis:+.3f})
+"""
+        
+        if sample_size > 1000 and not is_normal:
+            interpretation_text += """
+**Note:** Large samples (>1000) make normality tests very sensitive - they detect even minor deviations.  
+Financial returns typically show fat tails and slight skewness, so rejection of normality is expected and not necessarily a concern.
+"""
+        
+        st.info(interpretation_text)
 
 
 def _render_risk_tab(risk, ratios, market, portfolio_returns, benchmark_returns, portfolio_values, risk_free_rate, start_date, end_date):

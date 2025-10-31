@@ -155,10 +155,15 @@ def get_return_distribution_data(
     skewness = float(portfolio_returns.skew())
     kurtosis = float(portfolio_returns.kurtosis())
 
-    # Calculate VaR levels
+    # Calculate VaR levels (lower tail - negative)
     var_90 = float(np.percentile(returns_array, 10))
     var_95 = float(np.percentile(returns_array, 5))
     var_99 = float(np.percentile(returns_array, 1))
+    
+    # Calculate positive VaR (upper tail)
+    var_90_pos = float(np.percentile(returns_array, 90))
+    var_95_pos = float(np.percentile(returns_array, 95))
+    var_99_pos = float(np.percentile(returns_array, 99))
 
     return {
         "counts": counts,
@@ -170,6 +175,10 @@ def get_return_distribution_data(
         "var_90": var_90,
         "var_95": var_95,
         "var_99": var_99,
+        "var_90_pos": var_90_pos,
+        "var_95_pos": var_95_pos,
+        "var_99_pos": var_99_pos,
+        "returns_array": returns_array,  # For percentile calculations
     }
 
 
@@ -233,6 +242,11 @@ def get_monthly_heatmap_data(
     if portfolio_returns.empty:
         return {"heatmap": pd.DataFrame()}
 
+    # Ensure index is DatetimeIndex
+    if not isinstance(portfolio_returns.index, pd.DatetimeIndex):
+        portfolio_returns = portfolio_returns.copy()
+        portfolio_returns.index = pd.to_datetime(portfolio_returns.index)
+
     # Convert returns to DataFrame with date index
     df = pd.DataFrame({"returns": portfolio_returns})
 
@@ -241,13 +255,15 @@ def get_monthly_heatmap_data(
     df["month"] = df.index.month
 
     # Calculate monthly returns
-    # (sum of daily returns for each month)
+    # (compound daily returns for each month)
     monthly_returns = (
-        df.groupby(["year", "month"])["returns"].sum() * 100
-    )  # Convert to %
+        (1 + df["returns"]).groupby([df["year"], df["month"]]).prod() - 1
+    ) * 100  # Convert to %
 
     # Pivot to create heatmap (years as rows, months as columns)
     heatmap = monthly_returns.unstack(level=1)
+    heatmap.columns.name = "Month"
+    heatmap.index.name = "Year"
 
     return {"heatmap": heatmap}
 
@@ -539,19 +555,674 @@ def get_yearly_returns_data(
     if portfolio_returns.empty:
         return {"yearly": pd.DataFrame()}
 
+    # Ensure index is DatetimeIndex
+    if not isinstance(portfolio_returns.index, pd.DatetimeIndex):
+        portfolio_returns = portfolio_returns.copy()
+        portfolio_returns.index = pd.to_datetime(portfolio_returns.index)
+
     df = pd.DataFrame({"Portfolio": portfolio_returns})
     df['Year'] = df.index.year
 
-    # Calculate yearly returns
+    # Calculate yearly returns (compound daily returns for each year)
     yearly_portfolio = ((1 + df['Portfolio']).groupby(df['Year']).prod() - 1) * 100
 
     result_df = pd.DataFrame({"Portfolio": yearly_portfolio})
+    result_df.index.name = "Year"
 
     if benchmark_returns is not None and not benchmark_returns.empty:
+        # Ensure index is DatetimeIndex
+        if not isinstance(benchmark_returns.index, pd.DatetimeIndex):
+            benchmark_returns = benchmark_returns.copy()
+            benchmark_returns.index = pd.to_datetime(benchmark_returns.index)
+
         bench_df = pd.DataFrame({"Benchmark": benchmark_returns})
         bench_df['Year'] = bench_df.index.year
         yearly_benchmark = ((1 + bench_df['Benchmark']).groupby(bench_df['Year']).prod() - 1) * 100
-        result_df['Benchmark'] = yearly_benchmark
+        # Align indices
+        result_df['Benchmark'] = yearly_benchmark.reindex(result_df.index)
         result_df['Difference'] = result_df['Portfolio'] - result_df['Benchmark']
 
     return {"yearly": result_df}
+
+
+def get_period_returns_comparison_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: Optional[pd.Series] = None,
+    portfolio_values: Optional[pd.Series] = None,
+    benchmark_values: Optional[pd.Series] = None,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Calculate returns for various periods (MTD, YTD, 1M, 3M, 6M, 1Y, 3Y, 5Y).
+    
+    Args:
+        portfolio_returns: Portfolio returns series
+        benchmark_returns: Optional benchmark returns series
+        portfolio_values: Optional portfolio values series (for period returns)
+        benchmark_values: Optional benchmark values series
+        
+    Returns:
+        DataFrame with period returns for portfolio and benchmark
+    """
+    from core.analytics_engine.performance import calculate_period_returns
+    
+    periods = ["MTD", "YTD", "1M", "3M", "6M", "1Y", "3Y", "5Y"]
+    period_map = {
+        "MTD": "mtd",
+        "YTD": "ytd",
+        "1M": "1m",
+        "3M": "3m",
+        "6M": "6m",
+        "1Y": "1y",
+        "3Y": "3y",
+        "5Y": "5y",
+    }
+    
+    portfolio_periods = {}
+    benchmark_periods = {}
+    
+    # Calculate portfolio periods from values if available, else from returns
+    if portfolio_values is not None and not portfolio_values.empty:
+        try:
+            port_periods = calculate_period_returns(portfolio_values)
+            for display_name, key in period_map.items():
+                val = port_periods.get(key, None)
+                portfolio_periods[display_name] = val if val is not None else None
+        except Exception as e:
+            logger.warning(f"Error calculating portfolio periods from values: {e}")
+            portfolio_periods = {p: None for p in periods}
+    else:
+        # Fallback: calculate from returns (less accurate)
+        end_date_ts = pd.to_datetime(portfolio_returns.index[-1])
+        end_date = end_date_ts.date()
+        
+        for display_name, key in period_map.items():
+            if key == "mtd":
+                from datetime import date as dt_date
+                start_date = dt_date(end_date.year, end_date.month, 1)
+            elif key == "ytd":
+                from datetime import date as dt_date
+                start_date = dt_date(end_date.year, 1, 1)
+            elif key == "1m":
+                start_date = (end_date_ts - pd.DateOffset(months=1)).date()
+            elif key == "3m":
+                start_date = (end_date_ts - pd.DateOffset(months=3)).date()
+            elif key == "6m":
+                start_date = (end_date_ts - pd.DateOffset(months=6)).date()
+            elif key == "1y":
+                start_date = (end_date_ts - pd.DateOffset(years=1)).date()
+            elif key == "3y":
+                start_date = (end_date_ts - pd.DateOffset(years=3)).date()
+            elif key == "5y":
+                start_date = (end_date_ts - pd.DateOffset(years=5)).date()
+            else:
+                start_date = None
+            
+            if start_date:
+                # Normalize index to date for comparison
+                try:
+                    idx_normalized = pd.to_datetime(portfolio_returns.index).normalize()
+                    start_ts = pd.Timestamp(start_date)
+                    mask = idx_normalized >= start_ts
+                    period_returns = portfolio_returns[mask]
+                    if len(period_returns) > 0:
+                        portfolio_periods[display_name] = float((1 + period_returns).prod() - 1)
+                    else:
+                        portfolio_periods[display_name] = None
+                except Exception as e:
+                    logger.warning(f"Error calculating {key} for portfolio: {e}")
+                    portfolio_periods[display_name] = None
+            else:
+                portfolio_periods[display_name] = None
+    
+    # Calculate benchmark periods
+    if benchmark_values is not None and not benchmark_values.empty:
+        try:
+            bench_periods = calculate_period_returns(benchmark_values)
+            for display_name, key in period_map.items():
+                val = bench_periods.get(key, None)
+                benchmark_periods[display_name] = val if val is not None else None
+        except Exception as e:
+            logger.warning(f"Error calculating benchmark periods from values: {e}")
+            benchmark_periods = {p: None for p in periods}
+    elif benchmark_returns is not None and not benchmark_returns.empty:
+        end_date_ts = pd.to_datetime(benchmark_returns.index[-1])
+        end_date = end_date_ts.date()
+        
+        for display_name, key in period_map.items():
+            if key == "mtd":
+                from datetime import date as dt_date
+                start_date = dt_date(end_date.year, end_date.month, 1)
+            elif key == "ytd":
+                from datetime import date as dt_date
+                start_date = dt_date(end_date.year, 1, 1)
+            elif key == "1m":
+                start_date = (end_date_ts - pd.DateOffset(months=1)).date()
+            elif key == "3m":
+                start_date = (end_date_ts - pd.DateOffset(months=3)).date()
+            elif key == "6m":
+                start_date = (end_date_ts - pd.DateOffset(months=6)).date()
+            elif key == "1y":
+                start_date = (end_date_ts - pd.DateOffset(years=1)).date()
+            elif key == "3y":
+                start_date = (end_date_ts - pd.DateOffset(years=3)).date()
+            elif key == "5y":
+                start_date = (end_date_ts - pd.DateOffset(years=5)).date()
+            else:
+                start_date = None
+            
+            if start_date:
+                # Normalize index to date for comparison
+                try:
+                    idx_normalized = pd.to_datetime(benchmark_returns.index).normalize()
+                    start_ts = pd.Timestamp(start_date)
+                    mask = idx_normalized >= start_ts
+                    period_returns = benchmark_returns[mask]
+                    if len(period_returns) > 0:
+                        benchmark_periods[display_name] = float((1 + period_returns).prod() - 1)
+                    else:
+                        benchmark_periods[display_name] = None
+                except Exception as e:
+                    logger.warning(f"Error calculating {key} for benchmark: {e}")
+                    benchmark_periods[display_name] = None
+            else:
+                benchmark_periods[display_name] = None
+    else:
+        benchmark_periods = {p: None for p in periods}
+    
+    # Build DataFrame
+    data = {
+        "Period": periods,
+        "Portfolio": [portfolio_periods.get(p, None) for p in periods],
+        "Benchmark": [benchmark_periods.get(p, None) for p in periods],
+    }
+    df = pd.DataFrame(data)
+    # Calculate difference (only where both are not None)
+    df["Difference"] = df.apply(
+        lambda row: (row["Portfolio"] - row["Benchmark"]) 
+        if pd.notna(row["Portfolio"]) and pd.notna(row["Benchmark"]) 
+        else None, axis=1
+    )
+    df["Better"] = df["Difference"] > 0
+    
+    return {"periods": df}
+
+
+def get_three_month_rolling_periods_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: Optional[pd.Series] = None,
+    top_n: int = 3,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Calculate best and worst 3-month rolling periods.
+    
+    Args:
+        portfolio_returns: Portfolio returns series
+        benchmark_returns: Optional benchmark returns
+        top_n: Number of top/bottom periods to return
+        
+    Returns:
+        Dictionary with best and worst DataFrames
+    """
+    if portfolio_returns.empty:
+        return {"best": pd.DataFrame(), "worst": pd.DataFrame()}
+    
+    # Calculate 3-month rolling returns (63 trading days)
+    window = 63
+    portfolio_rolling = portfolio_returns.rolling(window).apply(lambda x: (1 + x).prod() - 1, raw=True)
+    
+    results = []
+    
+    for i in range(window - 1, len(portfolio_rolling)):
+        if pd.isna(portfolio_rolling.iloc[i]):
+            continue
+            
+        start_idx = i - window + 1
+        end_idx = i
+        
+        start_date = portfolio_returns.index[start_idx]
+        end_date = portfolio_returns.index[end_idx]
+        port_return = float(portfolio_rolling.iloc[i])
+        
+        bench_return = 0.0
+        if benchmark_returns is not None and not benchmark_returns.empty:
+            try:
+                # Align benchmark dates
+                aligned_bench = benchmark_returns.loc[
+                    (benchmark_returns.index >= start_date) & 
+                    (benchmark_returns.index <= end_date)
+                ]
+                if len(aligned_bench) > 0:
+                    bench_return = float((1 + aligned_bench).prod() - 1)
+            except Exception:
+                pass
+        
+        results.append({
+            "Start": start_date,
+            "End": end_date,
+            "Portfolio": port_return,
+            "Benchmark": bench_return,
+            "Difference": port_return - bench_return,
+        })
+    
+    if not results:
+        return {"best": pd.DataFrame(), "worst": pd.DataFrame()}
+    
+    df = pd.DataFrame(results)
+    
+    def filter_non_overlapping(df_sorted, top_n):
+        """Filter out overlapping periods."""
+        selected = []
+        df_sorted = df_sorted.copy()
+        
+        while len(selected) < top_n and len(df_sorted) > 0:
+            # Take the best/worst remaining
+            current = df_sorted.iloc[0]
+            selected.append(current)
+            
+            # Remove overlapping periods (periods that overlap with current)
+            current_start = pd.to_datetime(current["Start"])
+            current_end = pd.to_datetime(current["End"])
+            
+            # Remove periods that overlap with current
+            mask = df_sorted.apply(
+                lambda row: not (
+                    (pd.to_datetime(row["Start"]) <= current_end and 
+                     pd.to_datetime(row["End"]) >= current_start)
+                ),
+                axis=1
+            )
+            df_sorted = df_sorted[mask]
+        
+        if selected:
+            return pd.DataFrame(selected)[["Start", "End", "Portfolio", "Benchmark", "Difference"]]
+        else:
+            return pd.DataFrame(columns=["Start", "End", "Portfolio", "Benchmark", "Difference"])
+    
+    # Sort by Portfolio return
+    best_sorted = df.nlargest(len(df), "Portfolio")
+    worst_sorted = df.nsmallest(len(df), "Portfolio")
+    
+    best_df = filter_non_overlapping(best_sorted, top_n)
+    worst_df = filter_non_overlapping(worst_sorted, top_n)
+    
+    return {"best": best_df, "worst": worst_df}
+
+
+def get_seasonal_analysis_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: Optional[pd.Series] = None,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Calculate seasonal analysis (day of week, month, quarter).
+    
+    Args:
+        portfolio_returns: Portfolio returns
+        benchmark_returns: Optional benchmark returns
+        
+    Returns:
+        Dictionary with DataFrames for day of week, month, quarter
+    """
+    if portfolio_returns.empty:
+        return {
+            "day_of_week": pd.DataFrame(),
+            "month": pd.DataFrame(),
+            "quarter": pd.DataFrame(),
+        }
+    
+    # Day of week (0=Monday, 6=Sunday)
+    portfolio_returns_df = pd.DataFrame({"returns": portfolio_returns})
+    portfolio_returns_df["day_of_week"] = portfolio_returns_df.index.dayofweek
+    portfolio_returns_df["month"] = portfolio_returns_df.index.month
+    portfolio_returns_df["quarter"] = portfolio_returns_df.index.quarter
+    
+    day_avg_port = portfolio_returns_df.groupby("day_of_week")["returns"].mean() * 100
+    month_avg_port = portfolio_returns_df.groupby("month")["returns"].mean() * 100
+    quarter_avg_port = portfolio_returns_df.groupby("quarter")["returns"].mean() * 100
+    
+    day_df = pd.DataFrame({"Portfolio": day_avg_port})
+    month_df = pd.DataFrame({"Portfolio": month_avg_port})
+    quarter_df = pd.DataFrame({"Portfolio": quarter_avg_port})
+    
+    # Add benchmark if available
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        bench_df = pd.DataFrame({"returns": benchmark_returns})
+        bench_df["day_of_week"] = bench_df.index.dayofweek
+        bench_df["month"] = bench_df.index.month
+        bench_df["quarter"] = bench_df.index.quarter
+        
+        day_avg_bench = bench_df.groupby("day_of_week")["returns"].mean() * 100
+        month_avg_bench = bench_df.groupby("month")["returns"].mean() * 100
+        quarter_avg_bench = bench_df.groupby("quarter")["returns"].mean() * 100
+        
+        day_df["Benchmark"] = day_avg_bench
+        month_df["Benchmark"] = month_avg_bench
+        quarter_df["Benchmark"] = quarter_avg_bench
+    
+    # Map day numbers to names
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    day_df.index = [day_names[i] for i in day_df.index]
+    
+    # Map month numbers to names
+    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    month_df.index = [month_names[i-1] for i in month_df.index]
+    
+    # Map quarter numbers
+    quarter_df.index = [f"Q{i}" for i in quarter_df.index]
+    
+    return {
+        "day_of_week": day_df,
+        "month": month_df,
+        "quarter": quarter_df,
+    }
+
+
+def get_monthly_active_returns_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Calculate monthly active returns (portfolio - benchmark).
+    
+    Args:
+        portfolio_returns: Portfolio returns
+        benchmark_returns: Benchmark returns
+        
+    Returns:
+        DataFrame for heatmap (similar to monthly heatmap)
+    """
+    if portfolio_returns.empty or benchmark_returns.empty:
+        return {"heatmap": pd.DataFrame()}
+    
+    # Ensure indices are DatetimeIndex
+    if not isinstance(portfolio_returns.index, pd.DatetimeIndex):
+        portfolio_returns = portfolio_returns.copy()
+        portfolio_returns.index = pd.to_datetime(portfolio_returns.index)
+    if not isinstance(benchmark_returns.index, pd.DatetimeIndex):
+        benchmark_returns = benchmark_returns.copy()
+        benchmark_returns.index = pd.to_datetime(benchmark_returns.index)
+    
+    # Align series
+    aligned = pd.DataFrame({
+        "portfolio": portfolio_returns,
+        "benchmark": benchmark_returns
+    }).dropna()
+    
+    if aligned.empty:
+        return {"heatmap": pd.DataFrame()}
+    
+    # Calculate active returns
+    aligned["active"] = aligned["portfolio"] - aligned["benchmark"]
+    
+    # Extract year and month
+    aligned["year"] = aligned.index.year
+    aligned["month"] = aligned.index.month
+    
+    # Calculate monthly active returns (sum of daily active returns)
+    monthly_active = aligned.groupby([aligned["year"], aligned["month"]])["active"].sum() * 100
+    
+    # Pivot to create heatmap
+    heatmap = monthly_active.unstack(level=1)
+    heatmap.columns.name = "Month"
+    heatmap.index.name = "Year"
+    
+    return {"heatmap": heatmap}
+
+
+def get_win_rate_statistics_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: Optional[pd.Series] = None,
+) -> Dict[str, any]:
+    """
+    Calculate comprehensive win rate statistics.
+    
+    Args:
+        portfolio_returns: Portfolio returns
+        benchmark_returns: Optional benchmark returns
+        
+    Returns:
+        Dictionary with win rate metrics and rolling chart data
+    """
+    if portfolio_returns.empty:
+        return {"stats": {}, "rolling": pd.Series()}
+    
+    from core.analytics_engine.advanced_metrics import calculate_win_rate_stats
+    
+    # Daily win rate
+    daily_stats = calculate_win_rate_stats(portfolio_returns, "daily")
+    
+    # Weekly win rate
+    weekly_returns = portfolio_returns.resample("W").apply(lambda x: (1 + x).prod() - 1)
+    weekly_stats = calculate_win_rate_stats(weekly_returns, "weekly") if not weekly_returns.empty else {}
+    
+    # Monthly win rate
+    monthly_returns = portfolio_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+    monthly_stats = calculate_win_rate_stats(monthly_returns, "monthly") if not monthly_returns.empty else {}
+    
+    # Quarterly win rate
+    quarterly_returns = portfolio_returns.resample("Q").apply(lambda x: (1 + x).prod() - 1)
+    quarterly_stats = calculate_win_rate_stats(quarterly_returns, "quarterly") if not quarterly_returns.empty else {}
+    
+    # Yearly win rate
+    yearly_returns = portfolio_returns.resample("Y").apply(lambda x: (1 + x).prod() - 1)
+    yearly_stats = calculate_win_rate_stats(yearly_returns, "yearly") if not yearly_returns.empty else {}
+    
+    # Calculate rolling 12-month win rate
+    # Use daily returns with 252-day window (~12 months), then calculate monthly win rate
+    rolling_win_rate = pd.Series(dtype=float, index=portfolio_returns.index)
+    window_days = 252  # ~12 months of trading days
+    
+    # Pre-calculate monthly returns for efficiency
+    monthly_returns_full = portfolio_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+    
+    # For each day, get returns from last 12 months (252 trading days)
+    for i in range(len(portfolio_returns)):
+        date_idx = portfolio_returns.index[i]
+        
+        # Get returns from the past 252 trading days (or all available if less)
+        window_start_idx = max(0, i - window_days + 1)
+        window_returns = portfolio_returns.iloc[window_start_idx : i + 1]
+        
+        if len(window_returns) >= 20:  # At least 20 days to have meaningful data
+            # Calculate monthly returns in this window
+            monthly_in_window = window_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+            
+            # Need at least 3 months to calculate meaningful win rate
+            if len(monthly_in_window) >= 3:
+                win_rate = (monthly_in_window > 0).sum() / len(monthly_in_window) * 100
+                rolling_win_rate.iloc[i] = win_rate
+    
+    # Benchmark comparison - calculate all metrics
+    bench_stats = {}
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        bench_daily = calculate_win_rate_stats(benchmark_returns, "daily")
+        bench_weekly_returns = benchmark_returns.resample("W").apply(lambda x: (1 + x).prod() - 1)
+        bench_weekly = calculate_win_rate_stats(bench_weekly_returns, "weekly") if not bench_weekly_returns.empty else {}
+        bench_monthly_returns = benchmark_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+        bench_monthly = calculate_win_rate_stats(bench_monthly_returns, "monthly") if not bench_monthly_returns.empty else {}
+        bench_quarterly_returns = benchmark_returns.resample("Q").apply(lambda x: (1 + x).prod() - 1)
+        bench_quarterly = calculate_win_rate_stats(bench_quarterly_returns, "quarterly") if not bench_quarterly_returns.empty else {}
+        bench_yearly_returns = benchmark_returns.resample("Y").apply(lambda x: (1 + x).prod() - 1)
+        bench_yearly = calculate_win_rate_stats(bench_yearly_returns, "yearly") if not bench_yearly_returns.empty else {}
+        
+        bench_stats = {
+            "win_rate_daily": bench_daily.get("win_rate_daily", 0) if bench_daily else 0,
+            "win_rate_weekly": bench_weekly.get("win_rate_weekly", 0) if bench_weekly else 0,
+            "win_rate_monthly": bench_monthly.get("win_rate_monthly", 0) if bench_monthly else 0,
+            "win_rate_quarterly": bench_quarterly.get("win_rate_quarterly", 0) if bench_quarterly else 0,
+            "win_rate_yearly": bench_yearly.get("win_rate_yearly", 0) if bench_yearly else 0,
+            "avg_win_daily": bench_daily.get("avg_win_daily", 0) if bench_daily else 0,
+            "avg_loss_daily": bench_daily.get("avg_loss_daily", 0) if bench_daily else 0,
+            "avg_win_monthly": bench_monthly.get("avg_win_monthly", 0) if bench_monthly else 0,
+            "avg_loss_monthly": bench_monthly.get("avg_loss_monthly", 0) if bench_monthly else 0,
+            "best_daily": bench_daily.get("best_daily", 0) if bench_daily else 0,
+            "worst_daily": bench_daily.get("worst_daily", 0) if bench_daily else 0,
+            "best_monthly": bench_monthly.get("best_monthly", 0) if bench_monthly else 0,
+            "worst_monthly": bench_monthly.get("worst_monthly", 0) if bench_monthly else 0,
+        }
+    
+    stats = {
+        "portfolio": {
+            "win_days_pct": daily_stats.get("win_rate_daily", 0) * 100 if daily_stats and daily_stats.get("win_rate_daily") is not None else 0,
+            "win_weeks_pct": weekly_stats.get("win_rate_weekly", 0) * 100 if weekly_stats and weekly_stats.get("win_rate_weekly") is not None else 0,
+            "win_months_pct": monthly_stats.get("win_rate_monthly", 0) * 100 if monthly_stats and monthly_stats.get("win_rate_monthly") is not None else 0,
+            "win_quarters_pct": quarterly_stats.get("win_rate_quarterly", 0) * 100 if quarterly_stats and quarterly_stats.get("win_rate_quarterly") is not None else 0,
+            "win_years_pct": yearly_stats.get("win_rate_yearly", 0) * 100 if yearly_stats and yearly_stats.get("win_rate_yearly") is not None else 0,
+            "avg_up_day": daily_stats.get("avg_win_daily", 0) * 100 if daily_stats and daily_stats.get("avg_win_daily") is not None else 0,
+            "avg_down_day": daily_stats.get("avg_loss_daily", 0) * 100 if daily_stats and daily_stats.get("avg_loss_daily") is not None else 0,
+            "avg_up_month": monthly_stats.get("avg_win_monthly", 0) * 100 if monthly_stats and monthly_stats.get("avg_win_monthly") is not None else 0,
+            "avg_down_month": monthly_stats.get("avg_loss_monthly", 0) * 100 if monthly_stats and monthly_stats.get("avg_loss_monthly") is not None else 0,
+            "best_day": daily_stats.get("best_daily", 0) * 100 if daily_stats and daily_stats.get("best_daily") is not None else 0,
+            "worst_day": daily_stats.get("worst_daily", 0) * 100 if daily_stats and daily_stats.get("worst_daily") is not None else 0,
+            "best_month": monthly_stats.get("best_monthly", 0) * 100 if monthly_stats and monthly_stats.get("best_monthly") is not None else 0,
+            "worst_month": monthly_stats.get("worst_monthly", 0) * 100 if monthly_stats and monthly_stats.get("worst_monthly") is not None else 0,
+        },
+        "benchmark": bench_stats,
+    }
+    
+    return {"stats": stats, "rolling": rolling_win_rate}
+
+
+def get_outlier_analysis_data(
+    portfolio_returns: pd.Series,
+    outlier_threshold: float = 2.0,
+) -> Dict[str, any]:
+    """
+    Analyze outliers in returns (beyond N standard deviations).
+    
+    Args:
+        portfolio_returns: Portfolio returns
+        outlier_threshold: Number of standard deviations for outlier definition
+        
+    Returns:
+        Dictionary with outlier statistics and scatter plot data
+    """
+    if portfolio_returns.empty:
+        return {
+            "stats": {},
+            "outliers": pd.DataFrame(),
+        }
+    
+    mean_return = portfolio_returns.mean()
+    std_return = portfolio_returns.std()
+    
+    if std_return == 0:
+        return {
+            "stats": {},
+            "outliers": pd.DataFrame(),
+        }
+    
+    # Identify outliers
+    z_scores = (portfolio_returns - mean_return) / std_return
+    outliers_mask = abs(z_scores) > outlier_threshold
+    
+    outlier_returns = portfolio_returns[outliers_mask]
+    
+    # Separate wins and losses
+    outlier_wins = outlier_returns[outlier_returns > 0]
+    outlier_losses = outlier_returns[outlier_returns < 0]
+    
+    # Normal returns
+    normal_returns = portfolio_returns[~outliers_mask]
+    normal_wins = normal_returns[normal_returns > 0]
+    normal_losses = normal_returns[normal_returns < 0]
+    
+    # Calculate ratios
+    outlier_win_ratio = 0.0
+    outlier_loss_ratio = 0.0
+    
+    if len(normal_wins) > 0 and len(outlier_wins) > 0:
+        avg_outlier_win = outlier_wins.mean()
+        avg_normal_win = normal_wins.mean()
+        outlier_win_ratio = avg_outlier_win / avg_normal_win if avg_normal_win != 0 else 0.0
+    
+    if len(normal_losses) > 0 and len(outlier_losses) > 0:
+        avg_outlier_loss = abs(outlier_losses.mean())
+        avg_normal_loss = abs(normal_losses.mean())
+        outlier_loss_ratio = avg_outlier_loss / avg_normal_loss if avg_normal_loss != 0 else 0.0
+    
+    # Prepare scatter plot data
+    outlier_df = pd.DataFrame({
+        "Date": outlier_returns.index,
+        "Return": outlier_returns.values * 100,
+        "ZScore": z_scores[outliers_mask].values,
+    })
+    
+    stats = {
+        "outlier_win_ratio": float(outlier_win_ratio),
+        "outlier_loss_ratio": float(outlier_loss_ratio),
+        "outlier_count": int(outliers_mask.sum()),
+        "total_count": len(portfolio_returns),
+        "mean": float(mean_return),
+        "std": float(std_return),
+        "threshold": outlier_threshold,
+    }
+    
+    return {
+        "stats": stats,
+        "outliers": outlier_df,
+        "z_scores": z_scores,
+        "mean": mean_return,
+        "std": std_return,
+    }
+
+
+def get_statistical_tests_data(
+    portfolio_returns: pd.Series,
+) -> Dict[str, any]:
+    """
+    Calculate statistical tests for distribution normality.
+    
+    Args:
+        portfolio_returns: Portfolio returns
+        
+    Returns:
+        Dictionary with test results including sample size
+    """
+    if portfolio_returns.empty:
+        return {
+            "shapiro_wilk": {"statistic": 0.0, "pvalue": 1.0},
+            "jarque_bera": {"statistic": 0.0, "pvalue": 1.0},
+            "skewness": 0.0,
+            "kurtosis": 0.0,
+            "sample_size": 0,
+        }
+    
+    returns_array = portfolio_returns.dropna().values
+    total_size = len(returns_array)
+    
+    if total_size < 3:
+        return {
+            "shapiro_wilk": {"statistic": 0.0, "pvalue": 1.0},
+            "jarque_bera": {"statistic": 0.0, "pvalue": 1.0},
+            "skewness": 0.0,
+            "kurtosis": 0.0,
+            "sample_size": total_size,
+        }
+    
+    # Shapiro-Wilk test (max 5000 samples, use random sampling if needed)
+    sample_size = min(total_size, 5000)
+    if total_size > 5000:
+        # Use random sampling instead of first N elements
+        rng = np.random.default_rng(42)  # Fixed seed for reproducibility
+        sample_indices = rng.choice(total_size, size=sample_size, replace=False)
+        sample_data = returns_array[sample_indices]
+    else:
+        sample_data = returns_array
+    
+    shapiro_stat, shapiro_p = stats.shapiro(sample_data)
+    
+    # Jarque-Bera test (uses all data)
+    jb_stat, jb_p = stats.jarque_bera(returns_array)
+    
+    # Skewness and Kurtosis
+    skewness = float(stats.skew(returns_array))
+    kurtosis = float(stats.kurtosis(returns_array))
+    
+    return {
+        "shapiro_wilk": {"statistic": float(shapiro_stat), "pvalue": float(shapiro_p), "sample_size": sample_size},
+        "jarque_bera": {"statistic": float(jb_stat), "pvalue": float(jb_p)},
+        "skewness": skewness,
+        "kurtosis": kurtosis,
+        "sample_size": total_size,
+    }
