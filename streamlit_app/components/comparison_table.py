@@ -284,6 +284,10 @@ def _is_better(
         if metric in higher_is_better:
             return portfolio_value > benchmark_value
         if metric in lower_is_better:
+            # For Max Drawdown (negative values): less negative is better
+            # portfolio > benchmark (closer to 0) = better
+            if metric == "max_drawdown":
+                return portfolio_value > benchmark_value
             return portfolio_value < benchmark_value
         # Neutral metrics (beta ~ 1, alpha higher better)
         if metric == "beta":

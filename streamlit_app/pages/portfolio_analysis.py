@@ -383,7 +383,7 @@ def _render_overview_tab(
             "portfolio_value": market.get("beta", 0),
             "benchmark_value": 1.0 if benchmark_returns is not None else None,
             "format": "ratio",
-            "higher_is_better": True,
+            "higher_is_better": None,  # Special: closer to 1.0 is better
         },
         {
             "label": "Alpha",

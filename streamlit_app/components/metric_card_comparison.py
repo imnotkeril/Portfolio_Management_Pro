@@ -1,7 +1,7 @@
 """Metric card component with comparison to benchmark."""
 
 import streamlit as st
-from typing import Optional
+from typing import Optional, Union
 
 
 def render_metric_cards_row(
@@ -39,7 +39,7 @@ def render_metric_card(
     portfolio_value: float,
     benchmark_value: Optional[float] = None,
     format_type: str = "percent",
-    higher_is_better: bool = True,
+    higher_is_better: Union[bool, None] = True,
 ) -> None:
     """
     Render single metric card with comparison.
@@ -49,7 +49,8 @@ def render_metric_card(
         portfolio_value: Portfolio metric value
         benchmark_value: Optional benchmark value for comparison
         format_type: 'percent', 'ratio', 'number', or 'days'
-        higher_is_better: Whether higher value is better (for coloring)
+        higher_is_better: Whether higher value is better (True/False),
+                         or None for special handling (e.g., Beta)
     """
     # Format portfolio value
     portfolio_formatted = _format_value(portfolio_value, format_type)
@@ -63,30 +64,50 @@ def render_metric_card(
         benchmark_formatted = _format_value(benchmark_value, format_type)
 
         # Determine if portfolio is better than benchmark
-        delta = portfolio_value - benchmark_value
-        percent_eps = 0.0001
-        ratio_eps = 0.001
-        number_eps = 0.001
-        if format_type == "percent":
-            eps = percent_eps
-        elif format_type == "ratio":
-            eps = ratio_eps
+        # Special handling for Beta (closer to 1.0 is better)
+        if label == "Beta":
+            # Compare absolute distance from 1.0
+            port_dist = abs(portfolio_value - 1.0)
+            bench_dist = abs(benchmark_value - 1.0)
+            is_better = port_dist < bench_dist
+        elif label == "Max Drawdown":
+            # For Max Drawdown: less negative is better
+            # Both are negative, so closer to 0 (higher value) is better
+            # portfolio > benchmark (less negative) = better
+            is_better = portfolio_value > benchmark_value
         else:
-            eps = number_eps
+            delta = portfolio_value - benchmark_value
+            percent_eps = 0.0001
+            ratio_eps = 0.001
+            number_eps = 0.001
+            if format_type == "percent":
+                eps = percent_eps
+            elif format_type == "ratio":
+                eps = ratio_eps
+            else:
+                eps = number_eps
 
-        if abs(delta) > eps:
-            is_better = (
-                (higher_is_better and delta > 0) or
-                (not higher_is_better and delta < 0)
-            )
-            color_indicator = "🟢" if is_better else "🔴"
+            if abs(delta) > eps:
+                is_better = (
+                    (higher_is_better and delta > 0) or
+                    (not higher_is_better and delta < 0)
+                )
+            else:
+                is_better = None
+
+        if is_better is True:
+            color_indicator = "🟢"
+        elif is_better is False:
+            color_indicator = "🔴"
         else:
             color_indicator = "⚪"
 
         st.markdown(f"{color_indicator} {benchmark_formatted}")
 
 
-def _format_value(value: float, format_type: str, include_sign: bool = False) -> str:
+def _format_value(
+    value: float, format_type: str, include_sign: bool = False
+) -> str:
     """Format value based on type."""
     if value is None:
         return "—"
