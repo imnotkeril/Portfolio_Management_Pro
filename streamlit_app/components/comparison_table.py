@@ -52,9 +52,14 @@ def render_comparison_table(
             if benchmark_metrics and metric in benchmark_metrics:
                 benchmark_value = benchmark_metrics[metric]
                 benchmark_formatted = _format_metric(metric, benchmark_value)
-                if isinstance(portfolio_value, (int, float)) and isinstance(benchmark_value, (int, float)):
-                    diff = portfolio_value - benchmark_value
-                    diff_formatted = _format_difference(metric, diff)
+                pv_is_num = isinstance(portfolio_value, (int, float))
+                bv_is_num = isinstance(benchmark_value, (int, float))
+                if pv_is_num and bv_is_num:
+                    # Calculate percentage change
+                    diff_pct = _calculate_percentage_change(
+                        metric, portfolio_value, benchmark_value
+                    )
+                    diff_formatted = _format_difference(metric, diff_pct)
 
             comparison_data.append({
                 "Metric": _format_metric_name(metric),
@@ -64,7 +69,7 @@ def render_comparison_table(
             })
 
     df = pd.DataFrame(comparison_data)
-    
+
     # Display table with custom styling
     st.dataframe(
         df,
@@ -73,8 +78,12 @@ def render_comparison_table(
         height=height or min(600, 40 * (len(df) + 1)),
         column_config={
             "Metric": st.column_config.TextColumn("Metric", width="medium"),
-            "Portfolio": st.column_config.TextColumn("Portfolio", width="small"),
-            "Benchmark": st.column_config.TextColumn("Benchmark", width="small"),
+            "Portfolio": st.column_config.TextColumn(
+                "Portfolio", width="small"
+            ),
+            "Benchmark": st.column_config.TextColumn(
+                "Benchmark", width="small"
+            ),
             "Difference": st.column_config.TextColumn("Δ", width="small"),
         },
     )
@@ -156,9 +165,58 @@ def _format_metric(metric: str, value) -> str:
         return str(value)
 
 
-def _format_difference(metric: str, diff: float) -> str:
-    """Format difference with color indicator."""
-    if abs(diff) < 0.001:
+def _calculate_percentage_change(
+    metric: str, portfolio_value: float, benchmark_value: float
+) -> float:
+    """
+    Calculate percentage change between portfolio and benchmark.
+
+    For returns/metrics stored as decimals (0.5164 = 51.64%):
+    Uses formula: ((portfolio - benchmark) / (1 + benchmark)) * 100
+
+    For ratios/metrics stored as-is:
+    Uses formula: ((portfolio - benchmark) / abs(benchmark)) * 100
+
+    Args:
+        metric: Metric name
+        portfolio_value: Portfolio value (decimal format)
+        benchmark_value: Benchmark value (decimal format)
+
+    Returns:
+        Percentage change as a number (e.g., -89.5 means -89.5%)
+    """
+    if abs(benchmark_value) < 1e-9:
+        return 0.0
+
+    # Percentage-based metrics (returns, volatility, drawdown, etc.)
+    # Stored as decimals: 0.5164 = 51.64%, 4.9405 = 494.05%
+    percent_metrics = [
+        "total_return", "annualized_return", "cagr",
+        "best_day", "worst_day", "best_month", "worst_month",
+        "volatility", "downside_deviation", "max_drawdown",
+        "var_95", "cvar_95", "up_capture", "down_capture", "alpha",
+    ]
+
+    if metric in percent_metrics:
+        # For returns: use relative change formula
+        # ((B - A) / (1 + A)) * 100 where A=benchmark, B=portfolio
+        if abs(1 + benchmark_value) < 1e-9:
+            return 0.0
+        return (
+            (portfolio_value - benchmark_value) /
+            (1 + abs(benchmark_value))
+        ) * 100
+    else:
+        # For ratios/metrics: use standard percentage change
+        return (
+            (portfolio_value - benchmark_value) /
+            abs(benchmark_value)
+        ) * 100
+
+
+def _format_difference(metric: str, diff_pct: float) -> str:
+    """Format percentage change difference with color indicator."""
+    if abs(diff_pct) < 0.01:
         return "—"
 
     # Metrics where higher is better
@@ -178,26 +236,17 @@ def _format_difference(metric: str, diff: float) -> str:
         "max_drawdown_duration",
     ]
 
-    # Determine color
+    # Determine color based on percentage change direction
     is_good = False
     if metric in higher_is_better:
-        is_good = diff > 0
+        is_good = diff_pct > 0  # Positive % change is good
     elif metric in lower_is_better:
-        is_good = diff < 0
+        # Negative % change is good (portfolio lower is better)
+        is_good = diff_pct < 0
 
     # Format with sign
-    sign = "+" if diff > 0 else ""
-    
-    # Percentage metrics
-    if metric in ["total_return", "annualized_return", "cagr",
-                  "best_day", "worst_day", "best_month", "worst_month",
-                  "volatility", "downside_deviation", "max_drawdown",
-                  "var_95", "cvar_95", "up_capture", "down_capture", "alpha"]:
-        formatted = f"{sign}{diff:.2f}%"
-    elif metric in ["max_drawdown_duration"]:
-        formatted = f"{sign}{int(diff)}"
-    else:
-        formatted = f"{sign}{diff:.3f}"
+    sign = "+" if diff_pct > 0 else ""
+    formatted = f"{sign}{diff_pct:.2f}%"
 
     # Color-code
     if is_good:
@@ -206,8 +255,13 @@ def _format_difference(metric: str, diff: float) -> str:
         return f"🔴 {formatted}"
 
 
-def _is_better(metric: str, portfolio_value: float, benchmark_value: float):
-    """Return True if portfolio better than benchmark, False if worse, None if neutral."""
+def _is_better(
+    metric: str, portfolio_value: float, benchmark_value: float
+):
+    """
+    Return True if portfolio better than benchmark,
+    False if worse, None if neutral.
+    """
     try:
         # Metrics where higher is better
         higher_is_better = {

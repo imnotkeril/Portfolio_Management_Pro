@@ -54,39 +54,36 @@ def render_metric_card(
     # Format portfolio value
     portfolio_formatted = _format_value(portfolio_value, format_type)
 
-    # Calculate delta if benchmark available
-    delta_text = None
-    delta_color = "off"
+    # Custom card layout: label, portfolio value, benchmark comparison
+    st.markdown(f"**{label}**")
+    st.markdown(f"### {portfolio_formatted}")
 
+    # Show benchmark value with colored indicator
     if benchmark_value is not None:
-        delta = portfolio_value - benchmark_value
-        delta_formatted = _format_value(delta, format_type, include_sign=True)
+        benchmark_formatted = _format_value(benchmark_value, format_type)
 
-        # Determine color
-        # Thresholds: suppress near-zero noise per type
-        percent_eps = 0.0001  # 0.01%
+        # Determine if portfolio is better than benchmark
+        delta = portfolio_value - benchmark_value
+        percent_eps = 0.0001
         ratio_eps = 0.001
         number_eps = 0.001
-        eps = percent_eps if format_type == "percent" else (ratio_eps if format_type == "ratio" else number_eps)
-
-        if abs(delta) <= eps:
-            # Hide delta when effectively zero
-            delta_text = None
-            delta_color = "off"
+        if format_type == "percent":
+            eps = percent_eps
+        elif format_type == "ratio":
+            eps = ratio_eps
         else:
-            if (higher_is_better and delta > 0) or (not higher_is_better and delta < 0):
-                delta_color = "normal"  # Green (good)
-            else:
-                delta_color = "inverse"  # Red (bad)
-            delta_text = f"vs Benchmark: {delta_formatted}"
+            eps = number_eps
 
-    # Render metric
-    st.metric(
-        label=label,
-        value=portfolio_formatted,
-        delta=delta_text,
-        delta_color=delta_color,
-    )
+        if abs(delta) > eps:
+            is_better = (
+                (higher_is_better and delta > 0) or
+                (not higher_is_better and delta < 0)
+            )
+            color_indicator = "🟢" if is_better else "🔴"
+        else:
+            color_indicator = "⚪"
+
+        st.markdown(f"{color_indicator} {benchmark_formatted}")
 
 
 def _format_value(value: float, format_type: str, include_sign: bool = False) -> str:
