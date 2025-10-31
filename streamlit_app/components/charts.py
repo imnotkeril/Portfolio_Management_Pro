@@ -173,12 +173,14 @@ def plot_rolling_metric(
 
 def plot_return_distribution(
     data: Dict[str, any],
+    bar_color: str = "blue",  # "blue" for daily, "green" for monthly
 ) -> go.Figure:
     """
     Plot return distribution histogram.
 
     Args:
         data: Dictionary with histogram data and statistics
+        bar_color: Color for bars ("blue" or "green")
 
     Returns:
         Plotly Figure
@@ -195,37 +197,169 @@ def plot_return_distribution(
         # Convert to percentage
         bin_centers = (edges[:-1] + edges[1:]) / 2 * 100
 
+        # Bar color based on parameter
+        if bar_color == "green":
+            bar_color_hex = "#00CC96"  # Green
+        else:
+            bar_color_hex = "#BF9FFB"  # Blue
+
         fig.add_trace(
             go.Bar(
                 x=bin_centers,
                 y=counts,
                 name="Return Distribution",
-                marker_color=COLORS["primary"],
+                marker_color=bar_color_hex,
                 opacity=0.7,
             )
         )
 
-        # Mean line
-        if mean != 0:
-            mean_pct = mean * 100
-            fig.add_vline(
-                x=mean_pct,
-                line_dash="dash",
-                line_color=COLORS["success"],
-                annotation_text=f"Mean: {mean_pct:.2f}%",
-            )
+        # Mean line (blue dashed)
+        mean_pct = mean * 100
+        fig.add_vline(
+            x=mean_pct,
+            line_dash="dash",
+            line_color="#90BFF9",  # Blue
+            annotation_text=f"Mean: {mean_pct:.2f}%",
+            annotation_position="top",
+        )
 
-        # VaR lines
+        # VaR lines (90%, 95%, 99%) - both negative and positive sides
+        var_90 = data.get("var_90")
         var_95 = data.get("var_95")
-        if var_95 is not None:
+        var_99 = data.get("var_99")
+        
+        # Positive VaR (upper tail)
+        var_90_pos = data.get("var_90_pos")
+        var_95_pos = data.get("var_95_pos")
+        var_99_pos = data.get("var_99_pos")
+        
+        # Negative VaR (lower tail) - percentage at bottom, value at top
+        if var_90 is not None:
+            var_90_val = var_90 * 100
+            # Add annotation at top with value
+            fig.add_annotation(
+                x=var_90_val,
+                y=1.0,
+                xref="x",
+                yref="paper",
+                text=f"{var_90_val:.2f}%",
+                showarrow=False,
+                font=dict(size=10, color=COLORS["danger"]),
+                bgcolor="rgba(0,0,0,0.7)",
+            )
+            # Add vline with percentage label at bottom
             fig.add_vline(
-                x=var_95 * 100,
+                x=var_90_val,
                 line_dash="dot",
                 line_color=COLORS["danger"],
-                annotation_text=f"VaR 95%: {var_95*100:.2f}%",
+                annotation_text="90%",
+                annotation_position="bottom",
+                line_width=1,
+            )
+        if var_95 is not None:
+            var_95_val = var_95 * 100
+            fig.add_annotation(
+                x=var_95_val,
+                y=1.0,
+                xref="x",
+                yref="paper",
+                text=f"{var_95_val:.2f}%",
+                showarrow=False,
+                font=dict(size=10, color=COLORS["danger"]),
+                bgcolor="rgba(0,0,0,0.7)",
+            )
+            fig.add_vline(
+                x=var_95_val,
+                line_dash="dot",
+                line_color=COLORS["danger"],
+                annotation_text="95%",
+                annotation_position="bottom",
+                line_width=1,
+            )
+        if var_99 is not None:
+            var_99_val = var_99 * 100
+            fig.add_annotation(
+                x=var_99_val,
+                y=1.0,
+                xref="x",
+                yref="paper",
+                text=f"{var_99_val:.2f}%",
+                showarrow=False,
+                font=dict(size=10, color=COLORS["danger"]),
+                bgcolor="rgba(0,0,0,0.7)",
+            )
+            fig.add_vline(
+                x=var_99_val,
+                line_dash="dot",
+                line_color=COLORS["danger"],
+                annotation_text="99%",
+                annotation_position="bottom",
+                line_width=1,
+            )
+        
+        # Positive VaR (upper tail) - percentage at bottom, value at top
+        if var_90_pos is not None:
+            var_90_pos_val = var_90_pos * 100
+            fig.add_annotation(
+                x=var_90_pos_val,
+                y=1.0,
+                xref="x",
+                yref="paper",
+                text=f"{var_90_pos_val:.2f}%",
+                showarrow=False,
+                font=dict(size=10, color=COLORS["success"]),
+                bgcolor="rgba(0,0,0,0.7)",
+            )
+            fig.add_vline(
+                x=var_90_pos_val,
+                line_dash="dot",
+                line_color=COLORS["success"],
+                annotation_text="90%",
+                annotation_position="bottom",
+                line_width=1,
+            )
+        if var_95_pos is not None:
+            var_95_pos_val = var_95_pos * 100
+            fig.add_annotation(
+                x=var_95_pos_val,
+                y=1.0,
+                xref="x",
+                yref="paper",
+                text=f"{var_95_pos_val:.2f}%",
+                showarrow=False,
+                font=dict(size=10, color=COLORS["success"]),
+                bgcolor="rgba(0,0,0,0.7)",
+            )
+            fig.add_vline(
+                x=var_95_pos_val,
+                line_dash="dot",
+                line_color=COLORS["success"],
+                annotation_text="95%",
+                annotation_position="bottom",
+                line_width=1,
+            )
+        if var_99_pos is not None:
+            var_99_pos_val = var_99_pos * 100
+            fig.add_annotation(
+                x=var_99_pos_val,
+                y=1.0,
+                xref="x",
+                yref="paper",
+                text=f"{var_99_pos_val:.2f}%",
+                showarrow=False,
+                font=dict(size=10, color=COLORS["success"]),
+                bgcolor="rgba(0,0,0,0.7)",
+            )
+            fig.add_vline(
+                x=var_99_pos_val,
+                line_dash="dot",
+                line_color=COLORS["success"],
+                annotation_text="99%",
+                annotation_position="bottom",
+                line_width=1,
             )
 
-        # Normal distribution overlay
+        # Normal distribution overlay (red dashed)
         if std > 0:
             x_norm = np.linspace(edges[0], edges[-1], 100) * 100
             pdf_values = stats.norm.pdf(x_norm / 100, loc=mean, scale=std)
@@ -236,7 +370,7 @@ def plot_return_distribution(
                     y=y_norm,
                     mode="lines",
                     name="Normal Distribution",
-                    line=dict(color=COLORS["secondary"], width=2, dash="dash"),
+                    line=dict(color="#EF553B", width=2, dash="dash"),  # Red
                 )
             )
 
@@ -279,11 +413,11 @@ def plot_qq_plot(
                 y=sample_pct,
                 mode="markers",
                 name="Data Points",
-                marker=dict(color=COLORS["primary"], size=4),
+                marker=dict(color="#BF9FFB", size=4),  # Blue dots
             )
         )
 
-        # 45-degree reference line
+        # 45-degree reference line (red)
         min_val = min(theoretical_pct.min(), sample_pct.min())
         max_val = max(theoretical_pct.max(), sample_pct.max())
         fig.add_trace(
@@ -292,7 +426,7 @@ def plot_qq_plot(
                 y=[min_val, max_val],
                 mode="lines",
                 name="45° Line (Normal)",
-                line=dict(color=COLORS["secondary"], width=2, dash="dash"),
+                line=dict(color="#EF553B", width=2, dash="dash"),  # Red
             )
         )
 
@@ -791,5 +925,437 @@ def plot_sector_allocation(
     )
     layout["height"] = 320
 
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_active_returns_area(
+    active_returns: pd.Series,
+) -> go.Figure:
+    """
+    Plot daily active returns as area chart.
+    
+    Args:
+        active_returns: Series of active returns (portfolio - benchmark)
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if active_returns.empty:
+        return fig
+    
+    # Separate positive and negative
+    positive = active_returns.copy()
+    positive[positive < 0] = 0
+    negative = active_returns.copy()
+    negative[negative > 0] = 0
+    
+    # Positive area (green)
+    fig.add_trace(
+        go.Scatter(
+            x=positive.index,
+            y=positive.values * 100,
+            mode="lines",
+            fill="tozeroy",
+            fillcolor="rgba(76, 175, 80, 0.3)",
+            line=dict(color="rgba(76, 175, 80, 0.5)", width=1),
+            name="Positive Alpha",
+            showlegend=False,
+        )
+    )
+    
+    # Negative area (red)
+    fig.add_trace(
+        go.Scatter(
+            x=negative.index,
+            y=negative.values * 100,
+            mode="lines",
+            fill="tozeroy",
+            fillcolor="rgba(244, 67, 54, 0.3)",
+            line=dict(color="rgba(244, 67, 54, 0.5)", width=1),
+            name="Negative Alpha",
+            showlegend=False,
+        )
+    )
+    
+    # Zero line
+    fig.add_hline(
+        y=0,
+        line_dash="dash",
+        line_color="white",
+        line_width=1,
+    )
+    
+    layout = get_chart_layout(
+        title="Daily Active Returns (Portfolio - Benchmark)",
+        yaxis=dict(title="Active Return (%)", tickformat=",.2f"),
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_period_returns_bar(
+    data: pd.DataFrame,
+) -> go.Figure:
+    """
+    Plot period returns comparison as side-by-side bar chart.
+    
+    Args:
+        data: DataFrame with Period, Portfolio, Benchmark columns
+        (values should be in decimal format, e.g., 0.15 = 15%)
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if data.empty:
+        return fig
+    
+    periods = data["Period"].values
+    # Convert to percentage (values are in decimal format)
+    portfolio = data["Portfolio"].fillna(0).values * 100
+    benchmark = data["Benchmark"].fillna(0).values * 100
+    
+    # Portfolio bars
+    fig.add_trace(
+        go.Bar(
+            x=periods,
+            y=portfolio,
+            name="Portfolio",
+            marker_color=COLORS["primary"],
+            text=[f"{v:.2f}%" for v in portfolio],
+            textposition="outside",
+        )
+    )
+    
+    # Benchmark bars
+    fig.add_trace(
+        go.Bar(
+            x=periods,
+            y=benchmark,
+            name="Benchmark",
+            marker_color=COLORS["secondary"],
+            text=[f"{v:.2f}%" for v in benchmark],
+            textposition="outside",
+        )
+    )
+    
+    layout = get_chart_layout(
+        title="Return by Periods",
+        yaxis=dict(title="Return (%)", tickformat=",.1f"),
+        xaxis=dict(title="Period"),
+        hovermode="x unified",
+        barmode="group",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+
+
+def plot_return_quantiles_box(
+    portfolio_returns: pd.Series,
+    benchmark_returns: Optional[pd.Series] = None,
+) -> go.Figure:
+    """
+    Plot side-by-side box plots for return quantiles.
+    
+    Args:
+        portfolio_returns: Portfolio returns
+        benchmark_returns: Optional benchmark returns
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if portfolio_returns.empty:
+        return fig
+    
+    # Portfolio box plot (blue)
+    fig.add_trace(
+        go.Box(
+            y=portfolio_returns.values * 100,
+            name="Portfolio",
+            marker_color="#BF9FFB",  # Blue
+            boxmean="sd",
+        )
+    )
+    
+    # Benchmark box plot (orange)
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        fig.add_trace(
+            go.Box(
+                y=benchmark_returns.values * 100,
+                name="Benchmark",
+                marker_color="#FFA15A",  # Orange
+                boxmean="sd",
+            )
+        )
+    
+    layout = get_chart_layout(
+        title="Return Quantiles - Portfolio vs Benchmark",
+        yaxis=dict(title="Return (%)", tickformat=",.2f"),
+        xaxis=dict(title=""),
+        hovermode="y",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_seasonal_bar(
+    data: pd.DataFrame,
+    title: str,
+) -> go.Figure:
+    """
+    Plot seasonal analysis bar chart (day of week, month, or quarter).
+    
+    Args:
+        data: DataFrame with Portfolio and optionally Benchmark columns
+        title: Chart title
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if data.empty:
+        return fig
+    
+    categories = data.index.values
+    portfolio = data["Portfolio"].values
+    
+    # Portfolio bars
+    fig.add_trace(
+        go.Bar(
+            x=categories,
+            y=portfolio,
+            name="Portfolio",
+            marker_color=COLORS["primary"],
+            text=[f"{v:.2f}%" for v in portfolio],
+            textposition="outside",
+        )
+    )
+    
+    # Benchmark bars if available
+    if "Benchmark" in data.columns:
+        benchmark = data["Benchmark"].values
+        fig.add_trace(
+            go.Bar(
+                x=categories,
+                y=benchmark,
+                name="Benchmark",
+                marker_color=COLORS["secondary"],
+                text=[f"{v:.2f}%" for v in benchmark],
+                textposition="outside",
+            )
+        )
+    
+    layout = get_chart_layout(
+        title=title,
+        yaxis=dict(title="Avg Return (%)", tickformat=",.2f"),
+        xaxis=dict(title=""),
+        hovermode="x unified",
+        barmode="group" if "Benchmark" in data.columns else "group",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_outlier_scatter(
+    portfolio_returns: pd.Series,
+    outlier_data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot outlier returns scatter plot with reference bands.
+    
+    Args:
+        portfolio_returns: Portfolio returns
+        outlier_data: Dictionary with outliers DataFrame, z_scores, mean, std
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if portfolio_returns.empty:
+        return fig
+    
+    mean = outlier_data.get("mean", 0)
+    std = outlier_data.get("std", 0)
+    
+    if std == 0:
+        return fig
+    
+    # Normal returns (not outliers)
+    z_scores = outlier_data.get("z_scores", pd.Series())
+    if isinstance(z_scores, pd.Series) and not z_scores.empty:
+        normal_mask = abs(z_scores) <= 2.0
+        normal_returns = portfolio_returns[normal_mask]
+        
+        if not normal_returns.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=normal_returns.index,
+                    y=normal_returns.values * 100,
+                    mode="markers",
+                    marker=dict(
+                        color="rgba(191, 159, 251, 0.5)",  # Slightly brighter
+                        size=4,
+                    ),
+                    name="Normal Returns",
+                )
+            )
+    
+    # Outliers
+    outliers_df = outlier_data.get("outliers", pd.DataFrame())
+    if not outliers_df.empty:
+        positive_outliers = outliers_df[outliers_df["Return"] > 0]
+        negative_outliers = outliers_df[outliers_df["Return"] < 0]
+        
+        if not positive_outliers.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=positive_outliers["Date"],
+                    y=positive_outliers["Return"],
+                    mode="markers",
+                    marker=dict(
+                        color="green",
+                        size=8,
+                        symbol="star",
+                    ),
+                    name="Positive Outliers",
+                )
+            )
+        
+        if not negative_outliers.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=negative_outliers["Date"],
+                    y=negative_outliers["Return"],
+                    mode="markers",
+                    marker=dict(
+                        color="red",
+                        size=8,
+                        symbol="star",
+                    ),
+                    name="Negative Outliers",
+                )
+            )
+    
+    # Reference bands (±1σ, ±2σ, ±3σ)
+    mean_pct = mean * 100
+    std_pct = std * 100
+    
+    for i, sigma in enumerate([1, 2, 3]):
+        color = ["rgba(255,255,255,0.3)", "rgba(255,255,255,0.5)", "rgba(255,255,255,0.7)"][i]
+        upper = mean_pct + sigma * std_pct
+        lower = mean_pct - sigma * std_pct
+        
+        # Upper band
+        fig.add_hline(
+            y=upper,
+            line_dash="dot",
+            line_color=color,
+            line_width=1,
+            annotation_text=f"+{sigma}σ",
+        )
+        
+        # Lower band
+        fig.add_hline(
+            y=lower,
+            line_dash="dot",
+            line_color=color,
+            line_width=1,
+            annotation_text=f"-{sigma}σ",
+        )
+    
+    # Mean line
+    fig.add_hline(
+        y=mean_pct,
+        line_dash="dash",
+        line_color="white",
+        line_width=1,
+        annotation_text="Mean",
+    )
+    
+    layout = get_chart_layout(
+        title="Outlier Returns Analysis",
+        yaxis=dict(title="Return (%)", tickformat=",.2f"),
+        xaxis=dict(title="Date"),
+        hovermode="closest",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_rolling_win_rate(
+    rolling_data: pd.Series,
+    benchmark_rolling: Optional[pd.Series] = None,
+) -> go.Figure:
+    """
+    Plot rolling 12-month win rate chart.
+    
+    Args:
+        rolling_data: Series of rolling win rate percentages
+        benchmark_rolling: Optional benchmark rolling win rate
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if rolling_data.empty:
+        return fig
+    
+    # Portfolio line
+    fig.add_trace(
+        go.Scatter(
+            x=rolling_data.index,
+            y=rolling_data.values,
+            mode="lines",
+            name="Portfolio",
+            line=dict(color=COLORS["primary"], width=2),
+        )
+    )
+    
+    # Benchmark line if available
+    if benchmark_rolling is not None and not benchmark_rolling.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=benchmark_rolling.index,
+                y=benchmark_rolling.values,
+                mode="lines",
+                name="Benchmark",
+                line=dict(color=COLORS["secondary"], width=2),
+            )
+        )
+    
+    # 50% reference line
+    fig.add_hline(
+        y=50,
+        line_dash="dash",
+        line_color="white",
+        line_width=1,
+        annotation_text="50%",
+    )
+    
+    layout = get_chart_layout(
+        title="12-Month Rolling Win Rate",
+        yaxis=dict(title="Win Rate (%)", tickformat=",.1f", range=[0, 100]),
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+    
     fig.update_layout(**layout)
     return fig

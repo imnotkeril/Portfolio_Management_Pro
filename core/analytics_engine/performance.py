@@ -128,16 +128,23 @@ def calculate_period_returns(
         }
 
     results: Dict[str, Optional[float]] = {}
-    end_date = portfolio_values.index[-1]
+    end_date_raw = portfolio_values.index[-1]
+    # Normalize end_date to date
+    if hasattr(end_date_raw, 'date'):
+        end_date = end_date_raw.date()
+    elif hasattr(end_date_raw, 'to_pydatetime'):
+        end_date = end_date_raw.to_pydatetime().date()
+    else:
+        end_date = pd.to_datetime(end_date_raw).date()
     end_value = float(portfolio_values.iloc[-1])
 
     # YTD (Year-to-Date)
     try:
         ytd_start = date(end_date.year, 1, 1)
-        if ytd_start in portfolio_values.index:
-            start_value = float(
-                portfolio_values.loc[ytd_start]
-            )
+        # Find closest date >= ytd_start
+        mask = portfolio_values.index >= pd.Timestamp(ytd_start)
+        if mask.any():
+            start_value = float(portfolio_values[mask].iloc[0])
             results["ytd"] = calculate_total_return(
                 start_value, end_value
             )
@@ -149,8 +156,10 @@ def calculate_period_returns(
     # MTD (Month-to-Date)
     try:
         mtd_start = date(end_date.year, end_date.month, 1)
-        if mtd_start in portfolio_values.index:
-            start_value = float(portfolio_values.loc[mtd_start])
+        # Find closest date >= mtd_start
+        mask = portfolio_values.index >= pd.Timestamp(mtd_start)
+        if mask.any():
+            start_value = float(portfolio_values[mask].iloc[0])
             results["mtd"] = calculate_total_return(
                 start_value, end_value
             )
@@ -163,8 +172,10 @@ def calculate_period_returns(
     try:
         quarter = (end_date.month - 1) // 3 + 1
         qtd_start = date(end_date.year, (quarter - 1) * 3 + 1, 1)
-        if qtd_start in portfolio_values.index:
-            start_value = float(portfolio_values.loc[qtd_start])
+        # Find closest date >= qtd_start
+        mask = portfolio_values.index >= pd.Timestamp(qtd_start)
+        if mask.any():
+            start_value = float(portfolio_values[mask].iloc[0])
             results["qtd"] = calculate_total_return(
                 start_value, end_value
             )
