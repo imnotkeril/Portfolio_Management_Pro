@@ -628,13 +628,14 @@ def plot_rolling_beta_alpha(
 
 
 def plot_underwater(
-    data: Dict[str, pd.Series],
+    data: Dict[str, any],
 ) -> go.Figure:
     """
     Plot underwater plot (drawdown from peak).
 
     Args:
-        data: Dictionary with 'underwater' Series and optionally 'benchmark' Series
+        data: Dictionary with 'underwater' Series, optionally 'benchmark' Series,
+              'max_drawdown' dict, and 'current_drawdown' dict
 
     Returns:
         Plotly Figure
@@ -669,11 +670,198 @@ def plot_underwater(
             )
         )
 
+    # Add zero line
+    if not underwater_series.empty:
+        fig.add_hline(
+            y=0,
+            line=dict(color="black", width=2),
+            annotation_text="Peak",
+            annotation_position="right"
+        )
+
+    # Annotate max drawdown
+    max_dd = data.get("max_drawdown")
+    if max_dd and "date" in max_dd and "value" in max_dd:
+        fig.add_annotation(
+            x=max_dd["date"],
+            y=max_dd["value"],
+            text=f"Max DD: {max_dd['value']:.1f}%",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor=COLORS["danger"],
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor=COLORS["danger"],
+            borderwidth=2,
+            font=dict(color="black", size=11)
+        )
+
+    # Highlight current drawdown (if exists)
+    current_dd = data.get("current_drawdown")
+    if current_dd and "date" in current_dd and "value" in current_dd:
+        fig.add_annotation(
+            x=current_dd["date"],
+            y=current_dd["value"],
+            text=f"Current: {current_dd['value']:.1f}%",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor=COLORS["warning"],
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor=COLORS["warning"],
+            borderwidth=2,
+            font=dict(color="black", size=11)
+        )
+
     layout = get_chart_layout(
         title="Underwater Plot (Drawdown from Peak)",
         yaxis=dict(title="Drawdown (%)", tickformat=",.1f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
+    )
+
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_drawdown_periods(
+    data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot drawdown periods with shaded zones.
+
+    Args:
+        data: Dictionary with 'cumulative_returns' Series and 'drawdown_zones' list
+
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+
+    cum_returns = data.get("cumulative_returns", pd.Series())
+    drawdown_zones = data.get("drawdown_zones", [])
+
+    # Plot cumulative returns line
+    if not cum_returns.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=cum_returns.index,
+                y=cum_returns.values,
+                mode="lines",
+                line=dict(color=COLORS["primary"], width=2),
+                name="Cumulative Return",
+            )
+        )
+
+    # Add shaded regions for drawdown periods
+    for zone in drawdown_zones:
+        # Add shaded region
+        fig.add_vrect(
+            x0=zone["start"],
+            x1=zone["end"],
+            fillcolor="rgba(255, 0, 0, 0.1)",
+            layer="below",
+            line_width=0,
+        )
+        
+        # Add label in the middle of the zone
+        mid_date = zone["start"] + (zone["end"] - zone["start"]) / 2
+        if mid_date in cum_returns.index:
+            mid_value = cum_returns.loc[mid_date]
+        else:
+            # Find closest date
+            closest_idx = cum_returns.index.get_indexer([mid_date], method="nearest")[0]
+            mid_value = cum_returns.iloc[closest_idx]
+        
+        fig.add_annotation(
+            x=mid_date,
+            y=mid_value,
+            text=f"{zone['depth']*100:.1f}%",
+            showarrow=False,
+            bgcolor="rgba(220, 53, 69, 0.8)",
+            bordercolor=COLORS["danger"],
+            borderwidth=2,
+            font=dict(size=11, color="white", family="Arial Black")
+        )
+
+    layout = get_chart_layout(
+        title="Drawdown Periods",
+        yaxis=dict(title="Cumulative Return (%)", tickformat=",.1f"),
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_drawdown_recovery(
+    drawdown_data: dict,
+) -> go.Figure:
+    """
+    Plot drawdown recovery timeline for a single drawdown.
+
+    Args:
+        drawdown_data: Dictionary with drawdown information
+
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+
+    start = drawdown_data["start_date"]
+    bottom = drawdown_data["bottom_date"]
+    recovery = drawdown_data["recovery_date"]
+    
+    # Create timeline points
+    dates = [start, bottom]
+    values = [0, drawdown_data["depth"] * 100]  # Convert to %
+    colors = ["green", "red"]
+    labels = ["Peak", f"Trough ({drawdown_data['duration_days']}d)"]
+    
+    if recovery:
+        dates.append(recovery)
+        values.append(0)
+        colors.append("yellow")
+        labels.append(f"Recovery ({drawdown_data['recovery_days']}d)")
+
+    # Plot timeline
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=values,
+            mode="lines+markers",
+            line=dict(color="gray", width=2),
+            marker=dict(size=12, color=colors, line=dict(width=2, color="white")),
+            showlegend=False,
+        )
+    )
+
+    # Add annotations for each point
+    for date, value, label in zip(dates, values, labels):
+        fig.add_annotation(
+            x=date,
+            y=value,
+            text=label,
+            showarrow=True,
+            arrowhead=2,
+            yshift=20 if value < 0 else -20,
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="gray",
+            borderwidth=1,
+            font=dict(color="black", size=11)
+        )
+
+    # Add zero line
+    fig.add_hline(
+        y=0,
+        line=dict(color="black", width=1, dash="dash"),
+    )
+
+    layout = get_chart_layout(
+        title=f"Drawdown #{drawdown_data['number']}: {start} to {recovery if recovery else 'Ongoing'}",
+        yaxis=dict(title="Drawdown (%)", tickformat=",.1f"),
+        xaxis=dict(title="Date"),
+        showlegend=False,
+        height=300,
     )
 
     fig.update_layout(**layout)
@@ -1355,6 +1543,178 @@ def plot_rolling_win_rate(
         yaxis=dict(title="Win Rate (%)", tickformat=",.1f", range=[0, 100]),
         xaxis=dict(title="Date"),
         hovermode="x unified",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_capture_ratio(
+    data: Dict[str, float],
+) -> go.Figure:
+    """
+    Plot capture ratio horizontal bar chart.
+    
+    Args:
+        data: Dictionary with 'up_capture', 'down_capture', 'capture_ratio'
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if not data:
+        fig.add_annotation(
+            text="No data available",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+        return fig
+    
+    up_capture = data.get("up_capture", 0.0) * 100  # Convert to percentage
+    down_capture = data.get("down_capture", 0.0) * 100
+    
+    # Add horizontal bars
+    fig.add_trace(
+        go.Bar(
+            y=["Up Capture"],
+            x=[up_capture],
+            orientation="h",
+            marker=dict(color=COLORS["success"]),
+            name="Up Capture",
+            text=[f"{up_capture:.1f}%"],
+            textposition="outside",
+        )
+    )
+    
+    fig.add_trace(
+        go.Bar(
+            y=["Down Capture"],
+            x=[down_capture],
+            orientation="h",
+            marker=dict(color=COLORS["danger"]),
+            name="Down Capture",
+            text=[f"{down_capture:.1f}%"],
+            textposition="outside",
+        )
+    )
+    
+    # Add reference line at 100%
+    fig.add_vline(
+        x=100,
+        line_dash="dash",
+        line_color="white",
+        line_width=1,
+        annotation_text="100%",
+        annotation_position="top",
+    )
+    
+    layout = get_chart_layout(
+        title="Capture Ratios - Asymmetry Analysis",
+        xaxis=dict(title="Capture (%)", tickformat=",.0f"),
+        yaxis=dict(title=""),
+        showlegend=False,
+        height=250,
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_risk_return_scatter(
+    data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot risk/return scatter chart with CML.
+    
+    Args:
+        data: Dictionary with portfolio, benchmark, and CML data
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if not data or "portfolio" not in data:
+        fig.add_annotation(
+            text="No data available",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+        return fig
+    
+    # Portfolio point
+    portfolio = data.get("portfolio", {})
+    fig.add_trace(
+        go.Scatter(
+            x=[portfolio.get("volatility", 0.0) * 100],
+            y=[portfolio.get("return", 0.0) * 100],
+            mode="markers+text",
+            name="Portfolio",
+            marker=dict(size=15, color=COLORS["primary"]),
+            text=["Portfolio"],
+            textposition="top center",
+            textfont=dict(size=12, color="white"),
+        )
+    )
+    
+    # Benchmark point if available
+    if "benchmark" in data:
+        benchmark = data["benchmark"]
+        fig.add_trace(
+            go.Scatter(
+                x=[benchmark.get("volatility", 0.0) * 100],
+                y=[benchmark.get("return", 0.0) * 100],
+                mode="markers+text",
+                name="Benchmark",
+                marker=dict(size=15, color=COLORS["secondary"]),
+                text=["Benchmark"],
+                textposition="top center",
+                textfont=dict(size=12, color="white"),
+            )
+        )
+    
+    # Capital Market Line (CML)
+    if "cml" in data:
+        cml = data["cml"]
+        vol_points = [v * 100 for v in cml.get("volatility", [])]
+        ret_points = [r * 100 for r in cml.get("return", [])]
+        fig.add_trace(
+            go.Scatter(
+                x=vol_points,
+                y=ret_points,
+                mode="lines",
+                name="Capital Market Line",
+                line=dict(color=COLORS["success"], width=2, dash="dash"),
+            )
+        )
+    
+    # Add risk-free rate point (0 volatility)
+    rf_rate = data.get("risk_free_rate", 0.0) * 100
+    fig.add_trace(
+        go.Scatter(
+            x=[0],
+            y=[rf_rate],
+            mode="markers",
+            name="Risk-Free Rate",
+            marker=dict(size=10, color="gray", symbol="diamond"),
+        )
+    )
+    
+    # Quadrant labels can be added here if needed in the future
+    # For now, chart is clean without annotations
+    layout = get_chart_layout(
+        title="Risk/Return Scatter",
+        xaxis=dict(title="Volatility (Annual, %)", tickformat=",.1f", rangemode="tozero"),
+        yaxis=dict(title="Annualized Return (%)", tickformat=",.1f"),
+        hovermode="closest",
+        height=500,
     )
     
     fig.update_layout(**layout)

@@ -5,6 +5,7 @@ import logging
 from datetime import date, timedelta
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 from services.portfolio_service import PortfolioService
 from services.analytics_service import AnalyticsService
@@ -25,10 +26,19 @@ from core.analytics_engine.chart_data import (
     get_outlier_analysis_data,
     get_statistical_tests_data,
     get_qq_plot_data,
+    get_capture_ratio_data,
+    get_risk_return_scatter_data,
+    get_drawdown_periods_data,
+    get_drawdown_recovery_data,
 )
 from core.analytics_engine.advanced_metrics import (
     calculate_expected_returns,
     calculate_common_performance_periods,
+    calculate_probabilistic_sharpe_ratio,
+    calculate_smart_sharpe,
+    calculate_smart_sortino,
+    calculate_kelly_criterion,
+    calculate_risk_of_ruin,
 )
 from streamlit_app.components.charts import (
     plot_cumulative_returns,
@@ -47,6 +57,10 @@ from streamlit_app.components.charts import (
     plot_seasonal_bar,
     plot_outlier_scatter,
     plot_rolling_win_rate,
+    plot_capture_ratio,
+    plot_risk_return_scatter,
+    plot_drawdown_periods,
+    plot_drawdown_recovery,
 )
 from streamlit_app.components.position_table import render_position_table
 from streamlit_app.components.metric_card_comparison import render_metric_cards_row
@@ -1137,11 +1151,18 @@ def _render_risk_tab(risk, ratios, market, portfolio_returns, benchmark_returns,
         "Rolling Risk Metrics"
     ])
     
+    # Calculate benchmark values if needed
+    benchmark_values = None
+    if benchmark_returns is not None and not benchmark_returns.empty and portfolio_values is not None:
+        aligned_bench = benchmark_returns.reindex(portfolio_values.index, method="ffill").fillna(0)
+        initial_value = float(portfolio_values.iloc[0])
+        benchmark_values = (1 + aligned_bench).cumprod() * initial_value
+    
     with sub_tab1:
         _render_risk_key_metrics(risk, ratios, market, benchmark_returns, portfolio_returns, risk_free_rate)
     
     with sub_tab2:
-        _render_drawdown_analysis(risk, portfolio_values, benchmark_returns)
+        _render_drawdown_analysis(risk, portfolio_values, benchmark_values, portfolio_returns, benchmark_returns)
     
     with sub_tab3:
         _render_var_analysis(risk)
@@ -1152,82 +1173,738 @@ def _render_risk_tab(risk, ratios, market, portfolio_returns, benchmark_returns,
 
 def _render_risk_key_metrics(risk, ratios, market, benchmark_returns, portfolio_returns, risk_free_rate):
     """Sub-tab 3.1: Key Risk Metrics."""
-    # Risk Metric Cards
+    if portfolio_returns is None or portfolio_returns.empty:
+        st.warning("No portfolio returns data available")
+        return
+    
+    # Recalculate portfolio risk metrics from returns to ensure correctness
+    from core.analytics_engine.risk_metrics import (
+        calculate_volatility,
+        calculate_max_drawdown,
+        calculate_var,
+        calculate_cvar,
+    )
+    
+    portfolio_vol = calculate_volatility(portfolio_returns)
+    portfolio_max_dd_tuple = calculate_max_drawdown(portfolio_returns)
+    portfolio_max_dd = portfolio_max_dd_tuple[0] if isinstance(portfolio_max_dd_tuple, tuple) else portfolio_max_dd_tuple
+    
+    # Calculate benchmark metrics for comparison
+    benchmark_risk_metrics = {}
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        try:
+            from core.analytics_engine.ratios import (
+                calculate_sortino_ratio,
+                calculate_calmar_ratio,
+            )
+            
+            bench_vol = calculate_volatility(benchmark_returns)
+            bench_vol_annual = bench_vol.get("annual", 0.0) if isinstance(bench_vol, dict) else bench_vol
+            bench_max_dd = calculate_max_drawdown(benchmark_returns)
+            bench_max_dd_val = bench_max_dd[0] if isinstance(bench_max_dd, tuple) else bench_max_dd
+            
+            benchmark_risk_metrics = {
+                "volatility": float(bench_vol_annual),
+                "max_drawdown": float(bench_max_dd_val),
+                "sortino_ratio": float(calculate_sortino_ratio(benchmark_returns, risk_free_rate) or 0),
+                "calmar_ratio": float(calculate_calmar_ratio(benchmark_returns) or 0),
+                "var_95": float(calculate_var(benchmark_returns, confidence_level=0.95, method="historical") or 0),
+                "cvar_95": float(calculate_cvar(benchmark_returns, confidence_level=0.95) or 0),
+                "up_capture": 1.0,
+                "down_capture": 1.0,
+            }
+        except Exception as e:
+            logger.warning(f"Error calculating benchmark risk metrics: {e}")
+    
+    # Section 3.1.1: Risk Metric Cards (8 cards in 2 rows)
     st.subheader("Risk Metrics")
     
+    # Use recalculated values
+    vol_annual = portfolio_vol.get("annual", 0.0) if isinstance(portfolio_vol, dict) else portfolio_vol
+    
+    # Row 1: Volatility, Max Drawdown, Sortino Ratio, Calmar Ratio
     risk_metrics_row1 = [
         {
             "label": "Volatility",
-            "portfolio_value": risk.get("volatility", 0),
+            "portfolio_value": float(vol_annual),
+            "benchmark_value": benchmark_risk_metrics.get("volatility"),
             "format": "percent",
             "higher_is_better": False,
         },
         {
             "label": "Max Drawdown",
-            "portfolio_value": risk.get("max_drawdown", 0),
+            "portfolio_value": float(portfolio_max_dd),
+            "benchmark_value": benchmark_risk_metrics.get("max_drawdown"),
             "format": "percent",
             "higher_is_better": False,
         },
         {
             "label": "Sortino Ratio",
             "portfolio_value": ratios.get("sortino_ratio", 0),
+            "benchmark_value": benchmark_risk_metrics.get("sortino_ratio"),
             "format": "ratio",
             "higher_is_better": True,
         },
         {
             "label": "Calmar Ratio",
             "portfolio_value": ratios.get("calmar_ratio", 0),
+            "benchmark_value": benchmark_risk_metrics.get("calmar_ratio"),
             "format": "ratio",
             "higher_is_better": True,
         },
     ]
     render_metric_cards_row(risk_metrics_row1, columns_per_row=4)
     
-    # All Risk Metrics Table
     st.markdown("---")
-    st.subheader("All Risk Metrics")
-    risk_df = pd.DataFrame({
-        "Metric": [
-            "Volatility (Annual)", "Max Drawdown", "VaR (95%)", "CVaR (95%)",
-            "Downside Deviation", "Ulcer Index", "Pain Index",
-            "Calmar Ratio", "Sortino Ratio"
+    
+    # Row 2: VaR (95%), CVaR (95%), Up Capture, Down Capture
+    risk_metrics_row2 = [
+        {
+            "label": "VaR (95%)",
+            "portfolio_value": risk.get("var_95", 0),
+            "benchmark_value": benchmark_risk_metrics.get("var_95"),
+            "format": "percent",
+            "higher_is_better": False,  # Less negative is better
+        },
+        {
+            "label": "CVaR (95%)",
+            "portfolio_value": risk.get("cvar_95", 0),
+            "benchmark_value": benchmark_risk_metrics.get("cvar_95"),
+            "format": "percent",
+            "higher_is_better": False,
+        },
+        {
+            "label": "Up Capture",
+            "portfolio_value": market.get("up_capture", 0),
+            "benchmark_value": 1.0 if benchmark_returns is not None else None,
+            "format": "percent",
+            "higher_is_better": True,
+        },
+        {
+            "label": "Down Capture",
+            "portfolio_value": market.get("down_capture", 0),
+            "benchmark_value": 1.0 if benchmark_returns is not None else None,
+            "format": "percent",
+            "higher_is_better": False,  # Lower is better
+        },
+    ]
+    render_metric_cards_row(risk_metrics_row2, columns_per_row=4)
+    
+    # Section 3.1.2: Probabilistic Sharpe Ratio
+    st.markdown("---")
+    st.subheader("Probabilistic Sharpe Ratio")
+    
+    psr_95 = calculate_probabilistic_sharpe_ratio(portfolio_returns, risk_free_rate, benchmark_sharpe=1.0)
+    psr_99 = calculate_probabilistic_sharpe_ratio(portfolio_returns, risk_free_rate, benchmark_sharpe=0.0)
+    observed_sharpe = ratios.get("sharpe_ratio", 0)
+    
+    if psr_95 is not None:
+        psr_95_pct = psr_95 * 100
+        psr_99_pct = psr_99 * 100 if psr_99 is not None else 0
+        
+        st.info(f"""
+**Observed Sharpe Ratio:** {observed_sharpe:.2f}
+
+**Probabilistic Sharpe Ratio (PSR):**  
+- At 95% confidence: {psr_95_pct:.1f}%  
+- At 99% confidence: {psr_99_pct:.1f}%
+
+**Interpretation:**  
+✓ {psr_95_pct:.1f}% probability that true Sharpe > 1.0  
+{'✓ High statistical significance' if psr_95 > 0.85 else '⚠ Moderate statistical significance'}  
+{'✓ Sharpe is likely NOT due to luck' if psr_95 > 0.80 else '⚠ Sharpe may be influenced by luck'}
+        """)
+    else:
+        st.warning("Insufficient data for Probabilistic Sharpe Ratio calculation")
+    
+    # Section 3.1.3: Smart Sharpe & Sortino
+    st.markdown("---")
+    st.subheader("Smart Sharpe & Sortino")
+    
+    smart_sharpe = calculate_smart_sharpe(portfolio_returns, risk_free_rate)
+    smart_sortino = calculate_smart_sortino(portfolio_returns, risk_free_rate)
+    observed_sortino = ratios.get("sortino_ratio", 0)
+    
+    if smart_sharpe is not None and smart_sortino is not None:
+        sharpe_adjustment = observed_sharpe - smart_sharpe
+        sortino_adjustment = observed_sortino - smart_sortino
+        sortino_conservative = observed_sortino / np.sqrt(2)
+        
+        smart_ratios_df = pd.DataFrame({
+            "Ratio": [
+                "Sharpe Ratio",
+                "Smart Sharpe (Autocorrelation adj.)",
+                "Sortino Ratio",
+                "Smart Sortino",
+                "Sortino/√2 (Conservative Est.)",
         ],
         "Value": [
-            f"{risk.get('volatility', 0)*100:.2f}%",
-            f"{risk.get('max_drawdown', 0)*100:.2f}%",
-            f"{risk.get('var_95', 0)*100:.2f}%",
-            f"{risk.get('cvar_95', 0)*100:.2f}%",
-            f"{risk.get('downside_deviation', 0)*100:.2f}%",
-            f"{risk.get('ulcer_index', 0)*100:.2f}%",
-            f"{risk.get('pain_index', 0)*100:.2f}%",
-            f"{ratios.get('calmar_ratio', 0):.3f}",
-            f"{ratios.get('sortino_ratio', 0):.3f}",
-        ]
-    })
-    st.dataframe(risk_df, use_container_width=True, hide_index=True)
+                f"{observed_sharpe:.2f}",
+                f"{smart_sharpe:.2f}",
+                f"{observed_sortino:.2f}",
+                f"{smart_sortino:.2f}",
+                f"{sortino_conservative:.2f}",
+            ],
+            "Adjustment": [
+                "—",
+                f"{sharpe_adjustment:+.2f}",
+                "—",
+                f"{sortino_adjustment:+.2f}",
+                "—",
+            ],
+        })
+        
+        st.dataframe(smart_ratios_df, use_container_width=True, hide_index=True, height=230)
+        st.caption("Note: Smart ratios adjust for autocorrelation and non-normality")
+    else:
+        st.warning("Insufficient data for Smart Sharpe/Sortino calculation")
     
-    # Advanced metrics placeholders
+    # Chart 3.1.4: Capture Ratio Visualization
     st.markdown("---")
-    st.info("Probabilistic Sharpe Ratio, Smart Sharpe/Sortino, Kelly Criterion coming soon...")
+    st.subheader("Capture Ratio Visualization")
+    
+    up_capture = market.get("up_capture")
+    down_capture = market.get("down_capture")
+    
+    if up_capture is not None and down_capture is not None:
+        capture_data = get_capture_ratio_data(up_capture, down_capture)
+        if capture_data:
+            fig = plot_capture_ratio(capture_data)
+            st.plotly_chart(fig, use_container_width=True, key="risk_capture_ratio")
+            
+            capture_ratio = capture_data.get("capture_ratio", 0)
+            st.info(f"""
+**Capture Ratio:** {capture_ratio:.2f} (Up/Down)
+
+**Interpretation:**  
+✓ Portfolio captures {up_capture*100:.0f}% of market upside  
+✓ Portfolio captures only {down_capture*100:.0f}% of market downside  
+{'✓ Strong asymmetry' if capture_ratio > 1.2 else '⚠ Moderate asymmetry'} ({capture_ratio:.2f}) → {'Favorable risk/reward' if capture_ratio > 1.1 else 'Neutral risk/reward'}
+            """)
+    else:
+        st.info("Capture ratios require benchmark comparison")
+    
+    # Chart 3.1.5: Risk/Return Scatter
+    st.markdown("---")
+    st.subheader("Risk/Return Scatter")
+    
+    scatter_data = get_risk_return_scatter_data(
+        portfolio_returns, benchmark_returns, risk_free_rate
+    )
+    if scatter_data:
+        fig = plot_risk_return_scatter(scatter_data)
+        st.plotly_chart(fig, use_container_width=True, key="risk_return_scatter")
+    else:
+        st.warning("Unable to generate risk/return scatter plot")
+    
+    # Section 3.1.6: Information Ratio Breakdown
+    st.markdown("---")
+    st.subheader("Information Ratio Breakdown")
+    
+    # Recalculate IR from scratch to ensure correctness
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        from core.analytics_engine.performance import calculate_annualized_return
+        from core.analytics_engine.ratios import calculate_information_ratio
+        from core.analytics_engine.market_metrics import calculate_tracking_error
+        
+        try:
+            # Calculate components
+            port_return = calculate_annualized_return(portfolio_returns)
+            bench_return = calculate_annualized_return(benchmark_returns)
+            active_return = port_return - bench_return
+            
+            # Recalculate tracking error and IR
+            tracking_error = calculate_tracking_error(portfolio_returns, benchmark_returns) or 0
+            info_ratio = calculate_information_ratio(portfolio_returns, benchmark_returns) or 0
+            
+            st.info(f"""
+**Active Return (Portfolio - Benchmark):** {active_return*100:+.2f}%  
+**Tracking Error (Std of Active Return):** {tracking_error*100:.2f}%  
+**Information Ratio (AR / TE):** {info_ratio:.2f}
+            """)
+            
+            # Stacked bar visualization
+            import plotly.graph_objects as go
+            from streamlit_app.utils.chart_config import COLORS, get_chart_layout
+            
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                y=["Return Breakdown"],
+                x=[bench_return * 100],
+                orientation="h",
+                name="Benchmark Return",
+                marker=dict(color=COLORS["secondary"]),
+                text=[f"{bench_return*100:.1f}%"],
+                textposition="inside",
+            ))
+            fig.add_trace(go.Bar(
+                y=["Return Breakdown"],
+                x=[active_return * 100],
+                orientation="h",
+                name="Active Return",
+                marker=dict(color=COLORS["success"] if active_return > 0 else COLORS["danger"]),
+                text=[f"{active_return*100:+.1f}%"],
+                textposition="inside",
+            ))
+            
+            layout = get_chart_layout(
+                title="Return Breakdown",
+                xaxis=dict(title="Return (%)", tickformat=",.1f"),
+                yaxis=dict(title=""),
+                barmode="stack",
+                height=200,
+            )
+            fig.update_layout(**layout)
+            st.plotly_chart(fig, use_container_width=True, key="info_ratio_breakdown")
+            
+            st.caption(f"""
+**Interpretation:**  
+{'✓ High IR' if info_ratio > 1.0 else '⚠ Moderate IR'} ({info_ratio:.2f}) → {'Consistent alpha generation' if info_ratio > 0.75 else 'Inconsistent alpha'}  
+✓ Active return is {abs(active_return)/abs(port_return)*100:.0f}% of total return
+            """)
+        except Exception as e:
+            logger.warning(f"Error calculating Information Ratio: {e}")
+            st.info("Unable to calculate Information Ratio")
+    else:
+        st.info("Information Ratio requires benchmark comparison")
+    
+    # Section 3.1.7: Kelly Criterion & Risk of Ruin
+    st.markdown("---")
+    st.subheader("Kelly Criterion & Risk of Ruin")
+    
+    kelly_data = calculate_kelly_criterion(portfolio_returns)
+    risk_of_ruin = calculate_risk_of_ruin(portfolio_returns)
+    
+    if kelly_data:
+        kelly_full = kelly_data.get("kelly_full", 0) * 100
+        kelly_half = kelly_data.get("kelly_half", 0) * 100
+        kelly_quarter = kelly_data.get("kelly_quarter", 0) * 100
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Kelly Criterion - Position Sizing**")
+            st.info(f"""
+**Kelly Criterion:** {kelly_full:.1f}%  
+(Optimal leverage for max growth)
+
+**Half-Kelly:** {kelly_half:.1f}%  
+(Conservative, reduces volatility)
+
+**Quarter-Kelly:** {kelly_quarter:.1f}%  
+(Very conservative)
+            """)
+        
+        with col2:
+            if risk_of_ruin:
+                st.markdown("**Risk of Ruin Analysis**")
+                ruin_df = pd.DataFrame({
+                    "Drawdown": ["-10%", "-20%", "-25%", "-30%", "-50%"],
+                    "Probability": [
+                        f"{risk_of_ruin.get('ruin_10pct', 0)*100:.1f}%",
+                        f"{risk_of_ruin.get('ruin_20pct', 0)*100:.1f}%",
+                        f"{risk_of_ruin.get('ruin_25pct', 0)*100:.1f}%",
+                        f"{risk_of_ruin.get('ruin_30pct', 0)*100:.1f}%",
+                        f"{risk_of_ruin.get('ruin_50pct', 0)*100:.1f}%",
+                    ],
+                    "Est. Recovery": ["~3 mo", "~8 mo", "~12 mo", "~18 mo", "~5 yr"],
+                })
+                st.dataframe(ruin_df, use_container_width=True, hide_index=True, height=210)
+                st.caption("Note: Recovery times are approximate estimates")
+    else:
+        st.warning("Insufficient data for Kelly Criterion / Risk of Ruin calculation")
+    
+    # Table 3.1.8: Complete Risk Metrics Table (28 metrics as per spec)
+    st.markdown("---")
+    st.subheader("Complete Risk Metrics Table")
+    
+    # Recalculate all metrics from portfolio returns
+    from core.analytics_engine.risk_metrics import (
+        calculate_volatility as calc_vol,
+        calculate_max_drawdown as calc_dd,
+        calculate_var,
+        calculate_cvar,
+        calculate_downside_deviation,
+    )
+    
+    # Portfolio metrics
+    port_vol = calc_vol(portfolio_returns)
+    port_dd_tuple = calc_dd(portfolio_returns)
+    port_dd_val = port_dd_tuple[0] if isinstance(port_dd_tuple, tuple) else port_dd_tuple
+    port_dd_date = port_dd_tuple[1] if isinstance(port_dd_tuple, tuple) and len(port_dd_tuple) > 1 else None
+    port_dd_trough = port_dd_tuple[2] if isinstance(port_dd_tuple, tuple) and len(port_dd_tuple) > 2 else None
+    port_dd_duration = port_dd_tuple[3] if isinstance(port_dd_tuple, tuple) and len(port_dd_tuple) > 3 else None
+    
+    # Calculate all VaR/CVaR metrics
+    port_var_90 = calculate_var(portfolio_returns, 0.90, method="historical") or 0
+    port_var_95 = calculate_var(portfolio_returns, 0.95, method="historical") or 0
+    port_var_99 = calculate_var(portfolio_returns, 0.99, method="historical") or 0
+    port_var_95_param = calculate_var(portfolio_returns, 0.95, method="parametric") or 0
+    port_var_95_cf = calculate_var(portfolio_returns, 0.95, method="cornish_fisher") or 0
+    
+    port_cvar_90 = calculate_cvar(portfolio_returns, 0.90) or 0
+    port_cvar_95 = calculate_cvar(portfolio_returns, 0.95) or 0
+    port_cvar_99 = calculate_cvar(portfolio_returns, 0.99) or 0
+    
+    port_downside = calculate_downside_deviation(portfolio_returns) or 0
+    
+    # Calculate remaining metrics
+    from core.analytics_engine.risk_metrics import (
+        calculate_semi_deviation,
+        calculate_skewness,
+        calculate_kurtosis,
+        calculate_top_drawdowns,
+        calculate_current_drawdown,
+        calculate_average_drawdown,
+        calculate_ulcer_index,
+        calculate_pain_index,
+    )
+    
+    port_semi = calculate_semi_deviation(portfolio_returns) or 0
+    port_skew = calculate_skewness(portfolio_returns) or 0
+    port_kurt = calculate_kurtosis(portfolio_returns) or 0
+    
+    # Calculate drawdown metrics using top_drawdowns
+    port_current_dd = calculate_current_drawdown(portfolio_returns) or 0
+    port_avg_dd = calculate_average_drawdown(portfolio_returns) or 0
+    port_ulcer = calculate_ulcer_index(portfolio_returns) or 0
+    port_pain = calculate_pain_index(portfolio_returns) or 0
+    
+    # Calculate avg DD duration and recovery from top drawdowns
+    top_dds = calculate_top_drawdowns(portfolio_returns, top_n=5)
+    avg_dd_duration = 0
+    avg_recovery_time = 0
+    max_recovery_time = 0
+    if top_dds:
+        avg_dd_duration = sum(dd['duration_days'] for dd in top_dds) / len(top_dds)
+        recoveries = [dd['recovery_days'] for dd in top_dds if dd['recovery_days']]
+        if recoveries:
+            avg_recovery_time = sum(recoveries) / len(recoveries)
+            max_recovery_time = max(recoveries)
+    
+    # Benchmark metrics
+    bench_metrics = {}
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        try:
+            bench_vol = calc_vol(benchmark_returns)
+            bench_dd_tuple = calc_dd(benchmark_returns)
+            bench_dd_val = bench_dd_tuple[0] if isinstance(bench_dd_tuple, tuple) else bench_dd_tuple
+            bench_dd_date = bench_dd_tuple[1] if isinstance(bench_dd_tuple, tuple) and len(bench_dd_tuple) > 1 else None
+            bench_dd_trough = bench_dd_tuple[2] if isinstance(bench_dd_tuple, tuple) and len(bench_dd_tuple) > 2 else None
+            bench_dd_duration = bench_dd_tuple[3] if isinstance(bench_dd_tuple, tuple) and len(bench_dd_tuple) > 3 else None
+            
+            # Calculate all benchmark metrics
+            bench_current_dd = calculate_current_drawdown(benchmark_returns) or 0
+            bench_avg_dd = calculate_average_drawdown(benchmark_returns) or 0
+            bench_ulcer = calculate_ulcer_index(benchmark_returns) or 0
+            bench_pain = calculate_pain_index(benchmark_returns) or 0
+            bench_semi = calculate_semi_deviation(benchmark_returns) or 0
+            bench_skew = calculate_skewness(benchmark_returns) or 0
+            bench_kurt = calculate_kurtosis(benchmark_returns) or 0
+            
+            # Calculate benchmark drawdown durations
+            bench_top_dds = calculate_top_drawdowns(benchmark_returns, top_n=5)
+            bench_avg_dd_duration = 0
+            bench_avg_recovery = 0
+            bench_max_recovery = 0
+            if bench_top_dds:
+                bench_avg_dd_duration = sum(dd['duration_days'] for dd in bench_top_dds) / len(bench_top_dds)
+                bench_recoveries = [dd['recovery_days'] for dd in bench_top_dds if dd['recovery_days']]
+                if bench_recoveries:
+                    bench_avg_recovery = sum(bench_recoveries) / len(bench_recoveries)
+                    bench_max_recovery = max(bench_recoveries)
+            
+            bench_metrics = {
+                'daily_vol': bench_vol.get('daily', 0),
+                'weekly_vol': bench_vol.get('weekly', 0),
+                'monthly_vol': bench_vol.get('monthly', 0),
+                'annual_vol': bench_vol.get('annual', 0),
+                'max_dd': bench_dd_val,
+                'max_dd_date': bench_dd_date,
+                'max_dd_trough': bench_dd_trough,
+                'max_dd_duration': bench_dd_duration,
+                'current_dd': bench_current_dd,
+                'avg_dd': bench_avg_dd,
+                'avg_dd_duration': bench_avg_dd_duration,
+                'avg_recovery': bench_avg_recovery,
+                'max_recovery': bench_max_recovery,
+                'ulcer': bench_ulcer,
+                'pain': bench_pain,
+                'var_90': calculate_var(benchmark_returns, 0.90, method="historical") or 0,
+                'var_95': calculate_var(benchmark_returns, 0.95, method="historical") or 0,
+                'var_99': calculate_var(benchmark_returns, 0.99, method="historical") or 0,
+                'var_95_param': calculate_var(benchmark_returns, 0.95, method="parametric") or 0,
+                'var_95_cf': calculate_var(benchmark_returns, 0.95, method="cornish_fisher") or 0,
+                'cvar_90': calculate_cvar(benchmark_returns, 0.90) or 0,
+                'cvar_95': calculate_cvar(benchmark_returns, 0.95) or 0,
+                'cvar_99': calculate_cvar(benchmark_returns, 0.99) or 0,
+                'downside': calculate_downside_deviation(benchmark_returns) or 0,
+                'semi': bench_semi,
+                'skew': bench_skew,
+                'kurt': bench_kurt,
+            }
+        except Exception as e:
+            logger.warning(f"Error calculating benchmark metrics for table: {e}")
+    
+    # Extract portfolio volatilities
+    p_daily = port_vol.get('daily', 0) if isinstance(port_vol, dict) else 0
+    p_weekly = port_vol.get('weekly', 0) if isinstance(port_vol, dict) else 0
+    p_monthly = port_vol.get('monthly', 0) if isinstance(port_vol, dict) else 0
+    p_annual = port_vol.get('annual', 0) if isinstance(port_vol, dict) else 0
+    
+    # Build table with all 28 metrics
+    metrics_data = [
+        ("Daily Volatility", f"{p_daily*100:.2f}%", 
+         f"{bench_metrics.get('daily_vol', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(p_daily - bench_metrics.get('daily_vol', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Weekly Volatility", f"{p_weekly*100:.2f}%",
+         f"{bench_metrics.get('weekly_vol', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(p_weekly - bench_metrics.get('weekly_vol', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Monthly Volatility", f"{p_monthly*100:.2f}%",
+         f"{bench_metrics.get('monthly_vol', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(p_monthly - bench_metrics.get('monthly_vol', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Annual Volatility", f"{p_annual*100:.2f}%",
+         f"{bench_metrics.get('annual_vol', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(p_annual - bench_metrics.get('annual_vol', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Max Drawdown", f"{port_dd_val*100:.2f}%",
+         f"{bench_metrics.get('max_dd', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_dd_val - bench_metrics.get('max_dd', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Max DD Peak Date", str(port_dd_date)[:10] if port_dd_date else "—",
+         str(bench_metrics.get('max_dd_date'))[:10] if bench_metrics and bench_metrics.get('max_dd_date') else "—",
+         "—"),
+        ("Max DD Trough Date", str(port_dd_trough)[:10] if port_dd_trough else "—",
+         str(bench_metrics.get('max_dd_trough'))[:10] if bench_metrics and bench_metrics.get('max_dd_trough') else "—",
+         "—"),
+        ("Max DD Duration (days)", str(port_dd_duration) if port_dd_duration else "—",
+         str(bench_metrics.get('max_dd_duration')) if bench_metrics and bench_metrics.get('max_dd_duration') else "—",
+         f"{int(port_dd_duration or 0) - int(bench_metrics.get('max_dd_duration') or 0):+d}" if bench_metrics and port_dd_duration and bench_metrics.get('max_dd_duration') else "—"),
+        ("Current Drawdown", f"{port_current_dd*100:.2f}%",
+         f"{bench_metrics.get('current_dd', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_current_dd - bench_metrics.get('current_dd', 0))*100:+.2f}%" if bench_metrics and port_current_dd != 0 else "—"),
+        ("Average Drawdown", f"{port_avg_dd*100:.2f}%",
+         f"{bench_metrics.get('avg_dd', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_avg_dd - bench_metrics.get('avg_dd', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Avg DD Duration", f"{int(avg_dd_duration)} days" if avg_dd_duration else "—",
+         f"{int(bench_metrics.get('avg_dd_duration', 0))} days" if bench_metrics and bench_metrics.get('avg_dd_duration') else "—",
+         f"{int(avg_dd_duration or 0) - int(bench_metrics.get('avg_dd_duration') or 0):+d} days" if bench_metrics and avg_dd_duration and bench_metrics.get('avg_dd_duration') else "—"),
+        ("Avg Recovery Time", f"{int(avg_recovery_time)} days" if avg_recovery_time else "—",
+         f"{int(bench_metrics.get('avg_recovery', 0))} days" if bench_metrics and bench_metrics.get('avg_recovery') else "—",
+         f"{int(avg_recovery_time or 0) - int(bench_metrics.get('avg_recovery') or 0):+d} days" if bench_metrics and avg_recovery_time and bench_metrics.get('avg_recovery') else "—"),
+        ("Max Recovery Time", f"{int(max_recovery_time)} days" if max_recovery_time else "—",
+         f"{int(bench_metrics.get('max_recovery', 0))} days" if bench_metrics and bench_metrics.get('max_recovery') else "—",
+         f"{int(max_recovery_time or 0) - int(bench_metrics.get('max_recovery') or 0):+d} days" if bench_metrics and max_recovery_time and bench_metrics.get('max_recovery') else "—"),
+        ("Ulcer Index", f"{port_ulcer*100:.2f}%",
+         f"{bench_metrics.get('ulcer', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_ulcer - bench_metrics.get('ulcer', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Pain Index", f"{port_pain*100:.2f}%",
+         f"{bench_metrics.get('pain', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_pain - bench_metrics.get('pain', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("VaR 90% (Historical)", f"{port_var_90*100:.2f}%",
+         f"{bench_metrics.get('var_90', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_var_90 - bench_metrics.get('var_90', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("VaR 95% (Historical)", f"{port_var_95*100:.2f}%",
+         f"{bench_metrics.get('var_95', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_var_95 - bench_metrics.get('var_95', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("VaR 99% (Historical)", f"{port_var_99*100:.2f}%",
+         f"{bench_metrics.get('var_99', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_var_99 - bench_metrics.get('var_99', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("VaR 95% (Parametric)", f"{port_var_95_param*100:.2f}%",
+         f"{bench_metrics.get('var_95_param', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_var_95_param - bench_metrics.get('var_95_param', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("VaR 95% (Cornish-Fisher)", f"{port_var_95_cf*100:.2f}%",
+         f"{bench_metrics.get('var_95_cf', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_var_95_cf - bench_metrics.get('var_95_cf', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("CVaR 90%", f"{port_cvar_90*100:.2f}%",
+         f"{bench_metrics.get('cvar_90', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_cvar_90 - bench_metrics.get('cvar_90', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("CVaR 95%", f"{port_cvar_95*100:.2f}%",
+         f"{bench_metrics.get('cvar_95', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_cvar_95 - bench_metrics.get('cvar_95', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("CVaR 99%", f"{port_cvar_99*100:.2f}%",
+         f"{bench_metrics.get('cvar_99', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_cvar_99 - bench_metrics.get('cvar_99', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Downside Deviation", f"{port_downside*100:.2f}%",
+         f"{bench_metrics.get('downside', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_downside - bench_metrics.get('downside', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Semi-Deviation", f"{port_semi*100:.2f}%",
+         f"{bench_metrics.get('semi', 0)*100:.2f}%" if bench_metrics else "—",
+         f"{(port_semi - bench_metrics.get('semi', 0))*100:+.2f}%" if bench_metrics else "—"),
+        ("Skewness", f"{port_skew:.3f}",
+         f"{bench_metrics.get('skew', 0):.3f}" if bench_metrics else "—",
+         f"{(port_skew - bench_metrics.get('skew', 0)):+.3f}" if bench_metrics else "—"),
+        ("Kurtosis (Excess)", f"{port_kurt:+.3f}",
+         f"{bench_metrics.get('kurt', 0):+.3f}" if bench_metrics else "—",
+         f"{(port_kurt - bench_metrics.get('kurt', 0)):+.3f}" if bench_metrics else "—"),
+    ]
+    
+    complete_risk_df = pd.DataFrame(metrics_data, columns=["Metric", "Portfolio", "Benchmark", "Difference"])
+    
+    # Calculate height for all rows (no scroll)
+    row_height = 35
+    header_height = 40
+    total_height = len(complete_risk_df) * row_height + header_height
+    
+    st.dataframe(complete_risk_df, use_container_width=True, hide_index=True, height=total_height)
 
 
-def _render_drawdown_analysis(risk, portfolio_values, benchmark_returns):
+def _render_drawdown_analysis(risk, portfolio_values, benchmark_values, portfolio_returns, benchmark_returns):
     """Sub-tab 3.2: Drawdown Analysis."""
     st.subheader("Drawdown Analysis")
     
-    if portfolio_values is not None and not portfolio_values.empty:
-        # Underwater Plot
-        underwater_data = get_underwater_plot_data(portfolio_values)
-        if underwater_data:
-            fig = plot_underwater(underwater_data)
-            st.plotly_chart(fig, use_container_width=True, key="drawdown_underwater")
-
-        # Top 5 Drawdowns Table
-        st.markdown("---")
-        st.subheader("Top 5 Drawdowns")
-        st.info("Top 5 drawdowns table implementation coming soon...")
-    else:
+    if portfolio_values is None or portfolio_values.empty:
         st.warning("No portfolio values data available for drawdown analysis")
+        return
+    
+    # Import needed functions
+    from core.analytics_engine.risk_metrics import calculate_top_drawdowns, calculate_drawdown_duration
+    from core.analytics_engine.performance import calculate_annualized_return
+    
+    # Chart 3.2.1: Underwater Plot
+    st.markdown("### Underwater Plot")
+    underwater_data = get_underwater_plot_data(portfolio_values, benchmark_values)
+    if underwater_data:
+        fig = plot_underwater(underwater_data)
+        st.plotly_chart(fig, use_container_width=True, key="drawdown_underwater")
+    
+    st.markdown("---")
+    
+    # Chart 3.2.2: Drawdown Periods
+    st.markdown("### Drawdown Periods")
+    drawdown_periods_data = get_drawdown_periods_data(portfolio_values, threshold=0.05)
+    if drawdown_periods_data:
+        fig = plot_drawdown_periods(drawdown_periods_data)
+        st.plotly_chart(fig, use_container_width=True, key="drawdown_periods")
+    
+    st.markdown("---")
+    
+    # Chart 3.2.3: Drawdown Recovery Visualization
+    st.markdown("### Drawdown Recovery Timeline")
+    
+    if portfolio_returns is not None and not portfolio_returns.empty:
+        recovery_data = get_drawdown_recovery_data(portfolio_returns, top_n=3)
+        
+        if recovery_data:
+            for dd in recovery_data:
+                # Create expander for each drawdown
+                with st.expander(
+                    f"Drawdown #{dd['number']}: {dd['start_date']} to {dd['recovery_date'] if dd['recovery_date'] else 'Ongoing'}",
+                    expanded=(dd['number'] == 1)  # Expand first one
+                ):
+                    # Show metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        st.metric("Depth", f"{dd['depth']*100:.2f}%")
+                    with col2:
+                        st.metric("Duration", f"{dd['duration_days']} days")
+                    with col3:
+                        if dd['recovery_days']:
+                            st.metric("Recovery Time", f"{dd['recovery_days']} days")
+                        else:
+                            st.metric("Recovery Time", "Not recovered")
+                    with col4:
+                        total_days = dd['duration_days'] + (dd['recovery_days'] if dd['recovery_days'] else 0)
+                        st.metric("Total Duration", f"{total_days} days")
+                    
+                    # Show timeline chart
+                    fig = plot_drawdown_recovery(dd)
+                    st.plotly_chart(fig, use_container_width=True, key=f"recovery_{dd['number']}")
+                    
+                    # Show value information
+                    if dd['peak_value'] and dd['trough_value']:
+                        st.caption(
+                            f"**Values:** Peak: {dd['peak_value']:.2f} → "
+                            f"Trough: {dd['trough_value']:.2f} ({dd['depth']*100:.2f}%)"
+                            + (f" → Recovery: {dd['recovery_value']:.2f}" if dd['recovery_value'] else " → Not recovered")
+                        )
+        else:
+            st.info("No significant drawdowns found (threshold: 0.1%)")
+    
+    st.markdown("---")
+    
+    # Table 3.2.4: Top 5 Drawdowns
+    st.markdown("### Top 5 Drawdowns")
+    
+    if portfolio_returns is not None and not portfolio_returns.empty:
+        top_drawdowns = calculate_top_drawdowns(portfolio_returns, top_n=5)
+        
+        if top_drawdowns:
+            # Create DataFrame for top drawdowns
+            dd_data = []
+            for i, dd in enumerate(top_drawdowns, 1):
+                dd_data.append({
+                    "#": i,
+                    "Start (Peak)": dd['start_date'].strftime("%Y-%m-%d") if dd['start_date'] else "—",
+                    "Bottom (Trough)": dd['bottom_date'].strftime("%Y-%m-%d") if dd['bottom_date'] else "—",
+                    "Recovery (End)": dd['recovery_date'].strftime("%Y-%m-%d") if dd['recovery_date'] else "Ongoing",
+                    "Depth (%)": f"{dd['depth']*100:.2f}%",
+                    "Duration (days)": dd['duration_days'],
+                    "Recovery (days)": dd['recovery_days'] if dd['recovery_days'] else "—",
+                })
+            
+            dd_df = pd.DataFrame(dd_data)
+            st.dataframe(dd_df, use_container_width=True, hide_index=True)
+            
+            # Benchmark Comparison (if available)
+            st.markdown("#### Benchmark Comparison")
+            
+            comparison_data = []
+            
+            # Portfolio metrics
+            avg_dd_depth = sum(dd['depth'] for dd in top_drawdowns) / len(top_drawdowns) if top_drawdowns else 0
+            avg_dd_duration = sum(dd['duration_days'] for dd in top_drawdowns) / len(top_drawdowns) if top_drawdowns else 0
+            avg_recovery = sum(dd['recovery_days'] for dd in top_drawdowns if dd['recovery_days']) / len([dd for dd in top_drawdowns if dd['recovery_days']]) if any(dd['recovery_days'] for dd in top_drawdowns) else None
+            max_recovery = max((dd['recovery_days'] for dd in top_drawdowns if dd['recovery_days']), default=None)
+            
+            comparison_data.append({
+                "#": "1",
+                "Metric": "Avg Drawdown Depth",
+                "Portfolio": f"{avg_dd_depth*100:.2f}%",
+                "Benchmark": "—"
+            })
+            comparison_data.append({
+                "#": "2",
+                "Metric": "Avg Drawdown Duration",
+                "Portfolio": f"{avg_dd_duration:.0f} days",
+                "Benchmark": "—"
+            })
+            comparison_data.append({
+                "#": "3",
+                "Metric": "Avg Recovery Time",
+                "Portfolio": f"{avg_recovery:.0f} days" if avg_recovery else "—",
+                "Benchmark": "—"
+            })
+            comparison_data.append({
+                "#": "4",
+                "Metric": "Max Recovery Time",
+                "Portfolio": f"{max_recovery:.0f} days" if max_recovery else "—",
+                "Benchmark": "—"
+            })
+            
+            # Try to calculate benchmark metrics
+            if benchmark_returns is not None and not benchmark_returns.empty:
+                try:
+                    bench_drawdowns = calculate_top_drawdowns(benchmark_returns, top_n=5)
+                    
+                    if bench_drawdowns:
+                        bench_avg_dd_depth = sum(dd['depth'] for dd in bench_drawdowns) / len(bench_drawdowns)
+                        bench_avg_dd_duration = sum(dd['duration_days'] for dd in bench_drawdowns) / len(bench_drawdowns)
+                        bench_avg_recovery = sum(dd['recovery_days'] for dd in bench_drawdowns if dd['recovery_days']) / len([dd for dd in bench_drawdowns if dd['recovery_days']]) if any(dd['recovery_days'] for dd in bench_drawdowns) else None
+                        bench_max_recovery = max((dd['recovery_days'] for dd in bench_drawdowns if dd['recovery_days']), default=None)
+                        
+                        comparison_data[0]["Benchmark"] = f"{bench_avg_dd_depth*100:.2f}%"
+                        comparison_data[1]["Benchmark"] = f"{bench_avg_dd_duration:.0f} days"
+                        comparison_data[2]["Benchmark"] = f"{bench_avg_recovery:.0f} days" if bench_avg_recovery else "—"
+                        comparison_data[3]["Benchmark"] = f"{bench_max_recovery:.0f} days" if bench_max_recovery else "—"
+                except Exception as e:
+                    logger.warning(f"Error calculating benchmark drawdown metrics: {e}")
+            
+            comparison_df = pd.DataFrame(comparison_data)
+            st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No significant drawdowns found")
+    else:
+        st.warning("No portfolio returns data available")
 
 
 def _render_var_analysis(risk):

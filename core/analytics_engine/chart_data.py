@@ -409,7 +409,7 @@ def get_rolling_beta_alpha_data(
 def get_underwater_plot_data(
     portfolio_values: pd.Series,
     benchmark_values: Optional[pd.Series] = None,
-) -> Dict[str, pd.Series]:
+) -> Dict[str, any]:
     """
     Prepare data for underwater plot (drawdown from peak).
 
@@ -428,6 +428,21 @@ def get_underwater_plot_data(
         # Calculate drawdown as percentage
         underwater = (portfolio_values / peak - 1) * 100
         result["underwater"] = underwater
+        
+        # Find max drawdown point
+        max_dd_idx = underwater.idxmin()
+        result["max_drawdown"] = {
+            "date": max_dd_idx,
+            "value": float(underwater.min())
+        }
+        
+        # Check if currently in drawdown
+        current_dd = underwater.iloc[-1]
+        if current_dd < -0.1:  # More than 0.1% from peak
+            result["current_drawdown"] = {
+                "date": underwater.index[-1],
+                "value": float(current_dd)
+            }
     else:
         result["underwater"] = pd.Series(dtype=float)
     
@@ -443,6 +458,120 @@ def get_underwater_plot_data(
             # Calculate drawdown as percentage
             benchmark_underwater = (aligned_benchmark / benchmark_peak - 1) * 100
             result["benchmark"] = benchmark_underwater
+    
+    return result
+
+
+def get_drawdown_periods_data(
+    portfolio_values: pd.Series,
+    threshold: float = 0.05,
+) -> Dict[str, any]:
+    """
+    Prepare data for drawdown periods chart with shaded zones.
+
+    Args:
+        portfolio_values: Series of portfolio values
+        threshold: Minimum drawdown depth to include (e.g., 0.05 = 5%)
+
+    Returns:
+        Dictionary with cumulative returns and drawdown zones
+    """
+    if portfolio_values.empty:
+        return {
+            "cumulative_returns": pd.Series(dtype=float),
+            "drawdown_zones": []
+        }
+    
+    # Calculate cumulative returns (for display)
+    cumulative_returns = (portfolio_values / portfolio_values.iloc[0] - 1) * 100
+    
+    # Calculate drawdowns
+    peak = portfolio_values.expanding().max()
+    drawdowns = (portfolio_values / peak - 1)
+    
+    # Find drawdown periods exceeding threshold
+    in_drawdown = drawdowns < -threshold
+    drawdown_zones = []
+    
+    if in_drawdown.any():
+        # Group consecutive drawdown periods
+        groups = (in_drawdown != in_drawdown.shift()).cumsum()
+        
+        for group_id, group_data in in_drawdown.groupby(groups):
+            if not group_data.iloc[0]:  # Skip non-drawdown periods
+                continue
+                
+            period_dates = group_data[group_data].index
+            
+            if len(period_dates) == 0:
+                continue
+            
+            # Find min drawdown in this period
+            period_drawdowns = drawdowns[period_dates]
+            min_dd = float(period_drawdowns.min())
+            
+            zone = {
+                "start": period_dates[0],
+                "end": period_dates[-1],
+                "depth": min_dd
+            }
+            drawdown_zones.append(zone)
+    
+    return {
+        "cumulative_returns": cumulative_returns,
+        "drawdown_zones": drawdown_zones
+    }
+
+
+def get_drawdown_recovery_data(
+    returns: pd.Series,
+    top_n: int = 3,
+) -> list[dict]:
+    """
+    Prepare data for drawdown recovery timeline visualization.
+
+    Args:
+        returns: Series of returns
+        top_n: Number of top drawdowns to show
+
+    Returns:
+        List of dictionaries with recovery timeline information
+    """
+    from core.analytics_engine.risk_metrics import calculate_top_drawdowns
+    
+    if returns.empty:
+        return []
+    
+    # Get top drawdowns
+    top_drawdowns = calculate_top_drawdowns(returns, top_n=top_n)
+    
+    if not top_drawdowns:
+        return []
+    
+    # Calculate cumulative returns for value calculation
+    cum_returns = (1 + returns).cumprod()
+    
+    result = []
+    for i, dd in enumerate(top_drawdowns, 1):
+        # Get peak value
+        peak_value = cum_returns.loc[dd['start_date']] if dd['start_date'] in cum_returns.index else None
+        trough_value = cum_returns.loc[dd['bottom_date']] if dd['bottom_date'] in cum_returns.index else None
+        recovery_value = cum_returns.loc[dd['recovery_date']] if dd['recovery_date'] and dd['recovery_date'] in cum_returns.index else None
+        
+        timeline_data = {
+            "number": i,
+            "start_date": dd['start_date'],
+            "bottom_date": dd['bottom_date'],
+            "recovery_date": dd['recovery_date'],
+            "depth": dd['depth'],
+            "duration_days": dd['duration_days'],
+            "recovery_days": dd['recovery_days'],
+            "peak_value": float(peak_value) if peak_value is not None else None,
+            "trough_value": float(trough_value) if trough_value is not None else None,
+            "recovery_value": float(recovery_value) if recovery_value is not None else None,
+        }
+        
+        result.append(timeline_data)
     
     return result
 
@@ -1226,3 +1355,104 @@ def get_statistical_tests_data(
         "kurtosis": kurtosis,
         "sample_size": total_size,
     }
+
+
+def get_capture_ratio_data(
+    up_capture: Optional[float],
+    down_capture: Optional[float],
+) -> Optional[Dict[str, float]]:
+    """
+    Prepare data for capture ratio visualization.
+    
+    Args:
+        up_capture: Up capture ratio (e.g., 1.05 = 105%)
+        down_capture: Down capture ratio (e.g., 0.85 = 85%)
+        
+    Returns:
+        Dictionary with capture ratio data or None
+    """
+    if up_capture is None or down_capture is None:
+        return None
+    
+    capture_ratio = up_capture / down_capture if down_capture != 0 else 0.0
+    
+    return {
+        "up_capture": float(up_capture),
+        "down_capture": float(down_capture),
+        "capture_ratio": float(capture_ratio),
+    }
+
+
+def get_risk_return_scatter_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: Optional[pd.Series] = None,
+    risk_free_rate: float = 0.0,
+    periods_per_year: int = TRADING_DAYS_PER_YEAR,
+) -> Optional[Dict[str, any]]:
+    """
+    Prepare data for risk/return scatter plot.
+    
+    Args:
+        portfolio_returns: Series of portfolio returns
+        benchmark_returns: Optional benchmark returns
+        risk_free_rate: Annual risk-free rate
+        periods_per_year: Number of trading periods per year
+        
+    Returns:
+        Dictionary with scatter plot data or None
+    """
+    if portfolio_returns.empty:
+        return None
+    
+    try:
+        from core.analytics_engine.performance import calculate_annualized_return
+        from core.analytics_engine.risk_metrics import calculate_volatility
+        
+        # Calculate portfolio metrics
+        port_return = calculate_annualized_return(portfolio_returns, periods_per_year)
+        port_vol_dict = calculate_volatility(portfolio_returns, periods_per_year)
+        port_vol = port_vol_dict.get("annual", 0.0) if isinstance(port_vol_dict, dict) else port_vol_dict
+        
+        result = {
+            "portfolio": {
+                "return": float(port_return),
+                "volatility": float(port_vol),
+                "label": "Portfolio",
+            },
+            "risk_free_rate": float(risk_free_rate),
+        }
+        
+        # Calculate benchmark metrics if available
+        if benchmark_returns is not None and not benchmark_returns.empty:
+            bench_return = calculate_annualized_return(benchmark_returns, periods_per_year)
+            bench_vol_dict = calculate_volatility(benchmark_returns, periods_per_year)
+            bench_vol = bench_vol_dict.get("annual", 0.0) if isinstance(bench_vol_dict, dict) else bench_vol_dict
+            
+            result["benchmark"] = {
+                "return": float(bench_return),
+                "volatility": float(bench_vol),
+                "label": "Benchmark",
+            }
+        
+        # Calculate Capital Market Line (CML) points
+        # CML: E(R) = Rf + Sharpe * σ
+        if port_vol > 0:
+            sharpe = (port_return - risk_free_rate) / port_vol
+            # Generate line points from 0 to max volatility * 1.2
+            max_vol = port_vol * 1.2
+            if benchmark_returns is not None and not benchmark_returns.empty:
+                max_vol = max(port_vol, bench_vol) * 1.2
+            
+            vol_points = np.linspace(0, max_vol, 50)
+            return_points = risk_free_rate + sharpe * vol_points
+            
+            result["cml"] = {
+                "volatility": vol_points.tolist(),
+                "return": return_points.tolist(),
+            }
+        
+        return result
+        
+    except Exception as e:
+        logger.warning(f"Error preparing risk/return scatter data: {e}")
+        return None
