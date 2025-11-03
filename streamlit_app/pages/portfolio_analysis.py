@@ -15,7 +15,12 @@ from core.analytics_engine.chart_data import (
     get_return_distribution_data,
     get_monthly_heatmap_data,
     get_rolling_sharpe_data,
-    get_rolling_beta_alpha_data,
+    get_rolling_sortino_data,
+    get_rolling_volatility_data,
+    get_rolling_beta_data,
+    get_rolling_alpha_data,
+    get_rolling_active_return_data,
+    get_bull_bear_analysis_data,
     get_underwater_plot_data,
     get_yearly_returns_data,
     get_period_returns_comparison_data,
@@ -45,7 +50,13 @@ from streamlit_app.components.charts import (
     plot_monthly_heatmap,
     plot_return_distribution,
     plot_rolling_sharpe,
-    plot_rolling_beta_alpha,
+    plot_rolling_sortino,
+    plot_rolling_beta,
+    plot_rolling_alpha,
+    plot_rolling_active_return,
+    plot_rolling_volatility,
+    plot_bull_bear_returns_comparison,
+    plot_bull_bear_rolling_beta,
     plot_underwater,
     plot_yearly_returns,
     plot_asset_allocation,
@@ -61,6 +72,7 @@ from streamlit_app.components.charts import (
     plot_risk_return_scatter,
     plot_drawdown_periods,
     plot_drawdown_recovery,
+    plot_var_distribution,
 )
 from streamlit_app.components.position_table import render_position_table
 from streamlit_app.components.metric_card_comparison import render_metric_cards_row
@@ -1165,7 +1177,7 @@ def _render_risk_tab(risk, ratios, market, portfolio_returns, benchmark_returns,
         _render_drawdown_analysis(risk, portfolio_values, benchmark_values, portfolio_returns, benchmark_returns)
     
     with sub_tab3:
-        _render_var_analysis(risk)
+        _render_var_analysis(portfolio_returns, benchmark_returns)
     
     with sub_tab4:
         _render_rolling_risk(portfolio_returns, benchmark_returns, risk_free_rate)
@@ -1907,39 +1919,108 @@ def _render_drawdown_analysis(risk, portfolio_values, benchmark_values, portfoli
         st.warning("No portfolio returns data available")
 
 
-def _render_var_analysis(risk):
+def _render_var_analysis(portfolio_returns, benchmark_returns):
     """Sub-tab 3.3: VaR & CVaR."""
     st.subheader("Value at Risk (VaR) & Conditional VaR")
     
-    # Trust Level Slider
+    if portfolio_returns is None or portfolio_returns.empty:
+        st.warning("No portfolio returns data available")
+        return
+    
+    from core.analytics_engine.risk_metrics import calculate_var, calculate_cvar
+    
+    # Control 3.3.1: Trust Level Slider
+    st.markdown("### Confidence Level")
     confidence_level = st.slider(
-        "Confidence Level",
+        "Select Confidence Level",
         min_value=90,
         max_value=99,
         value=95,
         step=1,
-        key="var_confidence_level"
+        key="var_confidence_level",
+        help="Adjust confidence level to see how VaR and CVaR change"
     )
     
-    # VaR Comparison Table
+    conf_decimal = confidence_level / 100.0
+    
+    # Calculate VaR and CVaR for selected confidence level
+    var_hist = calculate_var(portfolio_returns, conf_decimal, method="historical") or 0
+    var_param = calculate_var(portfolio_returns, conf_decimal, method="parametric") or 0
+    var_cf = calculate_var(portfolio_returns, conf_decimal, method="cornish_fisher") or 0
+    cvar = calculate_cvar(portfolio_returns, conf_decimal) or 0
+    
+    # Calculate benchmark metrics if available
+    bench_var_hist = 0
+    bench_cvar = 0
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        try:
+            bench_var_hist = calculate_var(benchmark_returns, conf_decimal, method="historical") or 0
+            bench_cvar = calculate_cvar(benchmark_returns, conf_decimal) or 0
+        except Exception as e:
+            logger.warning(f"Error calculating benchmark VaR/CVaR: {e}")
+    
     st.markdown("---")
-    st.subheader("VaR Methods Comparison")
-    var_df = pd.DataFrame({
-        "Method": ["Historical", "Parametric", "Monte Carlo", "Cornish-Fisher"],
-        f"VaR ({confidence_level}%)": [
-            f"{risk.get('var_95', 0)*100:.2f}%",
-            f"{risk.get('var_95_parametric', risk.get('var_95', 0))*100:.2f}%",
-            f"{risk.get('var_95_mc', risk.get('var_95', 0))*100:.2f}%",
-            f"{risk.get('var_95_cf', risk.get('var_95', 0))*100:.2f}%",
-        ],
-        "CVaR": [
-            f"{risk.get('cvar_95', 0)*100:.2f}%",
-            f"{risk.get('cvar_95', 0)*100:.2f}%",
-            f"{risk.get('cvar_95', 0)*100:.2f}%",
-            f"{risk.get('cvar_95', 0)*100:.2f}%",
+    
+    # Table 3.3.2: VaR Comparison
+    st.markdown("### VaR Methods Comparison")
+    
+    # Main comparison table
+    var_comparison_data = [
+        ("Historical", f"{var_hist*100:.2f}%", f"{int((1-conf_decimal)*100)}% of days worse"),
+        ("Parametric", f"{var_param*100:.2f}%", "Assumes normal dist"),
+        ("Cornish-Fisher", f"{var_cf*100:.2f}%", "Adj. for skew/kurt"),
+        (f"CVaR (ES) {confidence_level}%", f"{cvar*100:.2f}%", "Avg beyond VaR"),
+    ]
+    
+    var_comparison_df = pd.DataFrame(
+        var_comparison_data,
+        columns=["Method", f"VaR ({confidence_level}%)", "Interpretation"]
+    )
+    st.dataframe(var_comparison_df, use_container_width=True, hide_index=True)
+    
+    # Benchmark Comparison table
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        st.markdown("#### Benchmark Comparison")
+        
+        benchmark_comparison_data = [
+            (f"VaR {confidence_level}% (Hist)",
+             f"{var_hist*100:.2f}%",
+             f"{bench_var_hist*100:.2f}%",
+             f"{(var_hist - bench_var_hist)*100:+.2f}%"),
+            (f"CVaR {confidence_level}%",
+             f"{cvar*100:.2f}%",
+             f"{bench_cvar*100:.2f}%",
+             f"{(cvar - bench_cvar)*100:+.2f}%"),
         ]
-    })
-    st.dataframe(var_df, use_container_width=True, hide_index=True)
+        
+        benchmark_comparison_df = pd.DataFrame(
+            benchmark_comparison_data,
+            columns=["Method", "Portfolio", "Benchmark", "Difference"]
+        )
+        st.dataframe(benchmark_comparison_df, use_container_width=True, hide_index=True)
+    
+    st.markdown("---")
+    
+    # Chart 3.3.3: VaR Visualization on Distribution
+    st.markdown("### VaR on Return Distribution")
+    
+    try:
+        fig = plot_var_distribution(
+            portfolio_returns,
+            var_hist,
+            cvar,
+            conf_decimal
+        )
+        st.plotly_chart(fig, use_container_width=True, key="var_distribution")
+        
+        # Add interpretation
+        st.caption(
+            f"**Interpretation:** {int((1-conf_decimal)*100)}% of days have returns "
+            f"less than {var_hist*100:.2f}%. On those worst days, the average loss is {cvar*100:.2f}% (CVaR)."
+        )
+    except Exception as e:
+        logger.error(f"Error plotting VaR distribution: {e}")
+        st.error("Could not generate VaR distribution chart")
 
 
 def _render_rolling_risk(portfolio_returns, benchmark_returns, risk_free_rate):
@@ -1948,42 +2029,263 @@ def _render_rolling_risk(portfolio_returns, benchmark_returns, risk_free_rate):
         st.warning("No portfolio returns data available")
         return
     
-    # Window Size Slider
+    # ===== Control 3.4.1: Window Size Slider =====
+    st.markdown("### Rolling Window Size")
     window_size = st.slider(
         "Rolling Window Size (days)",
         min_value=21,
         max_value=252,
         value=63,
         step=21,
-        key="rolling_window_size"
+        key="rolling_window_size",
+        help="Select the window size for rolling metrics calculation"
     )
     
-    # Rolling Sharpe
-    st.subheader("Rolling Sharpe Ratio")
-    sharpe_data = get_rolling_sharpe_data(
-        portfolio_returns, benchmark_returns,
-        window=window_size, risk_free_rate=risk_free_rate
-    )
-    if sharpe_data:
-        fig = plot_rolling_sharpe(sharpe_data)
-        st.plotly_chart(fig, use_container_width=True, key="rolling_sharpe")
+    st.markdown(f"**Selected:** {window_size} days (≈{window_size // 21} months)")
     
-    # Rolling Beta & Alpha
-    st.markdown("---")
-    st.subheader("Rolling Beta & Alpha")
-    if benchmark_returns is not None and not benchmark_returns.empty:
-        beta_alpha_data = get_rolling_beta_alpha_data(
-            portfolio_returns, benchmark_returns,
-            window=window_size, risk_free_rate=risk_free_rate
-        )
-        if beta_alpha_data:
-            fig = plot_rolling_beta_alpha(beta_alpha_data)
-            st.plotly_chart(fig, use_container_width=True, key="rolling_beta_alpha")
-
-    # Rolling Volatility
+    # ===== Chart 3.4.2: Rolling Volatility =====
     st.markdown("---")
     st.subheader("Rolling Volatility")
-    st.info("Rolling volatility chart coming soon...")
+    try:
+        vol_data = get_rolling_volatility_data(
+            portfolio_returns,
+            benchmark_returns,
+            window=window_size
+        )
+        if vol_data:
+            fig = plot_rolling_volatility(vol_data)
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key="rolling_volatility_chart"
+            )
+            
+            # Volatility Statistics as Comparison Cards
+            st.markdown("**Volatility Statistics**")
+            
+            # Prepare metrics data for comparison cards
+            port_stats = vol_data.get('portfolio_stats', {})
+            bench_stats = vol_data.get('benchmark_stats')
+            
+            metrics_data = [
+                {
+                    "label": "Avg Volatility",
+                    "portfolio_value": port_stats.get('avg', 0),
+                    "benchmark_value": (
+                        bench_stats.get('avg', 0)
+                        if bench_stats else None
+                    ),
+                    "format": "percent",
+                    "higher_is_better": False
+                },
+                {
+                    "label": "Median Volatility",
+                    "portfolio_value": port_stats.get('median', 0),
+                    "benchmark_value": (
+                        bench_stats.get('median', 0)
+                        if bench_stats else None
+                    ),
+                    "format": "percent",
+                    "higher_is_better": False
+                },
+                {
+                    "label": "Min Volatility",
+                    "portfolio_value": port_stats.get('min', 0),
+                    "benchmark_value": (
+                        bench_stats.get('min', 0)
+                        if bench_stats else None
+                    ),
+                    "format": "percent",
+                    "higher_is_better": False
+                },
+                {
+                    "label": "Max Volatility",
+                    "portfolio_value": port_stats.get('max', 0),
+                    "benchmark_value": (
+                        bench_stats.get('max', 0)
+                        if bench_stats else None
+                    ),
+                    "format": "percent",
+                    "higher_is_better": False
+                }
+            ]
+            
+            render_metric_cards_row(metrics_data, columns_per_row=4)
+    except Exception as e:
+        logger.error(f"Error plotting rolling volatility: {e}")
+        st.error("Could not generate rolling volatility chart")
+    
+    # ===== Chart 3.4.3: Rolling Sharpe Ratio =====
+    st.markdown("---")
+    st.subheader("Rolling Sharpe Ratio")
+    try:
+        sharpe_data = get_rolling_sharpe_data(
+            portfolio_returns,
+            benchmark_returns,
+            window=window_size,
+            risk_free_rate=risk_free_rate
+        )
+        if sharpe_data:
+            fig = plot_rolling_sharpe(sharpe_data, window=window_size)
+            st.plotly_chart(fig, use_container_width=True, key="rolling_sharpe_chart")
+    except Exception as e:
+        logger.error(f"Error plotting rolling Sharpe ratio: {e}")
+        st.error("Could not generate rolling Sharpe ratio chart")
+    
+    # ===== Chart 3.4.4: Rolling Sortino Ratio =====
+    st.markdown("---")
+    st.subheader("Rolling Sortino Ratio")
+    try:
+        sortino_data = get_rolling_sortino_data(
+            portfolio_returns,
+            benchmark_returns,
+            window=window_size,
+            risk_free_rate=risk_free_rate
+        )
+        if sortino_data:
+            fig = plot_rolling_sortino(sortino_data, window=window_size)
+            st.plotly_chart(fig, use_container_width=True, key="rolling_sortino_chart")
+    except Exception as e:
+        logger.error(f"Error plotting rolling Sortino ratio: {e}")
+        st.error("Could not generate rolling Sortino ratio chart")
+    
+    # Only show beta/alpha charts if benchmark is available
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        # ===== Chart 3.4.5: Rolling Beta =====
+        st.markdown("---")
+        st.subheader("Rolling Beta")
+        try:
+            beta_data = get_rolling_beta_data(
+                portfolio_returns,
+                benchmark_returns,
+                window=window_size
+            )
+            if beta_data:
+                fig = plot_rolling_beta(beta_data)
+                st.plotly_chart(fig, use_container_width=True, key="rolling_beta_chart")
+        except Exception as e:
+            logger.error(f"Error plotting rolling beta: {e}")
+            st.error("Could not generate rolling beta chart")
+        
+        # ===== Chart 3.4.6: Rolling Alpha =====
+        st.markdown("---")
+        st.subheader("Rolling Alpha")
+        try:
+            alpha_data = get_rolling_alpha_data(
+                portfolio_returns,
+                benchmark_returns,
+                window=window_size,
+                risk_free_rate=risk_free_rate
+            )
+            if alpha_data:
+                fig = plot_rolling_alpha(alpha_data)
+                st.plotly_chart(fig, use_container_width=True, key="rolling_alpha_chart")
+        except Exception as e:
+            logger.error(f"Error plotting rolling alpha: {e}")
+            st.error("Could not generate rolling alpha chart")
+        
+        # ===== Chart 3.4.7: Rolling Active Return =====
+        st.markdown("---")
+        st.subheader("Rolling Active Return")
+        try:
+            active_return_data = get_rolling_active_return_data(
+                portfolio_returns,
+                benchmark_returns,
+                window=window_size
+            )
+            if active_return_data:
+                fig = plot_rolling_active_return(active_return_data)
+                st.plotly_chart(fig, use_container_width=True, key="rolling_active_return_chart")
+                
+                # Display statistics
+                stats = active_return_data.get("stats", {})
+                st.markdown("**Active Return Statistics**")
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Avg Active Return", f"{stats.get('avg', 0)*100:.2f}%")
+                col2.metric("Periods with Positive Alpha", f"{stats.get('pct_positive', 0):.1f}%")
+                col3.metric("Max Alpha", f"{stats.get('max', 0)*100:.2f}%")
+                col4.metric("Min Alpha", f"{stats.get('min', 0)*100:.2f}%")
+        except Exception as e:
+            logger.error(f"Error plotting rolling active return: {e}")
+            st.error("Could not generate rolling active return chart")
+        
+        # ===== Section 3.4.8: Bull/Bear Market Analysis =====
+        st.markdown("---")
+        st.subheader("Bull/Bear Market Analysis")
+        st.markdown("*Separate Analysis of Bullish and Bearish Periods*")
+        
+        try:
+            bull_bear_data = get_bull_bear_analysis_data(
+                portfolio_returns,
+                benchmark_returns,
+                window=126  # Use 126 days (6 months) for bull/bear analysis
+            )
+            if bull_bear_data:
+                bull = bull_bear_data.get("bull", {})
+                bear = bull_bear_data.get("bear", {})
+                
+                # Statistics Table
+                st.markdown(
+                    "**Performance in Different Market Conditions**"
+                )
+                st.caption(
+                    "Median daily return when benchmark is up (bullish) "
+                    "vs down (bearish)"
+                )
+                
+                # Create comparison dataframe
+                comparison_df = pd.DataFrame({
+                    "Metric": [
+                        "Portfolio Avg Daily Return (%)",
+                        "Benchmark Avg Daily Return (%)",
+                        "Beta",
+                        "Outperformance (%)"
+                    ],
+                    "Bullish Market": [
+                        f"{bull.get('portfolio_return', 0):.2f}",
+                        f"{bull.get('benchmark_return', 0):.2f}",
+                        f"{bull.get('beta', 0):.2f}",
+                        f"{bull.get('difference', 0):.2f}"
+                    ],
+                    "Bearish Market": [
+                        f"{bear.get('portfolio_return', 0):.2f}",
+                        f"{bear.get('benchmark_return', 0):.2f}",
+                        f"{bear.get('beta', 0):.2f}",
+                        f"{bear.get('difference', 0):.2f}"
+                    ],
+                    "Difference": [
+                        f"{bull.get('portfolio_return', 0) - bear.get('portfolio_return', 0):.2f}",
+                        f"{bull.get('benchmark_return', 0) - bear.get('benchmark_return', 0):.2f}",
+                        f"{bull.get('beta', 0) - bear.get('beta', 0):.2f}",
+                        f"{bull.get('difference', 0) - bear.get('difference', 0):.2f}"
+                    ]
+                })
+                
+                st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+                
+                # Returns Comparison Bar Chart
+                st.markdown("**Average Annualized Returns Comparison**")
+                st.caption(
+                    "Median daily returns in bullish vs bearish market days"
+                )
+                fig_comparison = plot_bull_bear_returns_comparison(
+                    bull_bear_data
+                )
+                st.plotly_chart(
+                    fig_comparison,
+                    use_container_width=True,
+                    key="bull_bear_comparison"
+                )
+                
+                # Rolling Beta in Different Market Periods
+                st.markdown("**Rolling Beta in Different Market Periods (126 days)**")
+                fig_rolling = plot_bull_bear_rolling_beta(bull_bear_data)
+                st.plotly_chart(fig_rolling, use_container_width=True, key="bull_bear_rolling_beta")
+        except Exception as e:
+            logger.error(f"Error in bull/bear market analysis: {e}")
+            st.error("Could not generate bull/bear market analysis")
+    else:
+        st.info("Benchmark data required for Beta, Alpha, Active Return, and Bull/Bear analysis")
 
 
 def _render_assets_tab(positions, portfolio_returns, benchmark_returns, portfolio_id, portfolio_service):
