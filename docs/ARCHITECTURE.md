@@ -1150,6 +1150,57 @@ This document will be **updated during development** with:
   - UI visual tweaks: removed "Better" column from Key Metrics Comparison (colored status dots suffice); benchmark lines in charts switched to solid style for consistency.
   - Date normalization: before pivoting combined prices, `Date` is coerced to tz-naive; pivot index and filter boundaries are also normalized to tz-naive to prevent `Cannot compare tz-naive and tz-aware timestamps`.
 
+#### Update 2025-11-03: Risk Metrics Tab - Full Implementation
+
+**Major Feature Implementation** - Complete Risk Metrics sub-tab with 8 comprehensive sections:
+
+**New Core Functions:**
+- `core/analytics_engine/chart_data.py`:
+  - `get_capture_ratio_data()` - Prepare capture ratio visualization data
+  - `get_risk_return_scatter_data()` - Risk/return scatter with CML calculation
+
+**New Chart Components:**
+- `streamlit_app/components/charts.py`:
+  - `plot_capture_ratio()` - Horizontal bar chart for up/down capture ratios
+  - `plot_risk_return_scatter()` - Scatter plot with Capital Market Line
+
+**Enhanced UI:**
+- `streamlit_app/pages/portfolio_analysis.py` - `_render_risk_key_metrics()`:
+  - **Section 3.1.1**: 8 risk metric cards (2 rows × 4) with benchmark comparison
+  - **Section 3.1.2**: Probabilistic Sharpe Ratio (PSR) with statistical significance
+  - **Section 3.1.3**: Smart Sharpe & Smart Sortino (autocorrelation-adjusted)
+  - **Chart 3.1.4**: Capture Ratio visualization (horizontal bar chart)
+  - **Chart 3.1.5**: Risk/Return Scatter plot with CML
+  - **Section 3.1.6**: Information Ratio breakdown with stacked bar chart
+  - **Section 3.1.7**: Kelly Criterion & Risk of Ruin analysis
+  - **Table 3.1.8**: Complete risk metrics table (31 metrics)
+
+**Key Features:**
+- Probabilistic Sharpe Ratio (PSR) at 95% and 99% confidence levels
+- Smart ratios adjusting for autocorrelation
+- Kelly Criterion (full, half, quarter positions)
+- Risk of Ruin probabilities for various drawdown levels
+- Up/Down Capture ratios with asymmetry analysis
+- Risk/Return scatter with Capital Market Line
+- Information Ratio component breakdown
+- Comprehensive 31-metric risk table with volatility breakdowns
+
+**Integration:**
+- All advanced metrics from `core/analytics_engine/advanced_metrics.py`
+- Benchmark comparison for all 8 metric cards
+- Interactive Plotly visualizations
+- Real-time calculations from portfolio returns
+
+**Performance:**
+- All calculations complete in <1s for typical datasets
+- Graceful handling of insufficient data scenarios
+- Efficient data preparation for visualizations
+
+**Files Modified:**
+- New functions: 2 chart_data functions, 2 chart functions
+- Modified: `portfolio_analysis.py` (500+ lines rewritten)
+- Architecture maintained: Backend → Service → UI separation
+
 #### Update 2025-10-31: Statistical Tests Improvements
 
 **Problem Identified:** User reported that p-values for normality tests (Shapiro-Wilk and Jarque-Bera) consistently showed `< 0.0001` across different portfolios, raising concerns about calculation accuracy.
@@ -1379,6 +1430,31 @@ This document will be **updated during development** with:
 **Dependencies Added**:
 - Streamlit 1.28+ (for UI framework)
 - Plotly 5.17+ (for interactive charts)
+
+**Update 2025-11-03: Drawdown Analysis Sub-tab - Complete Implementation**:
+- **New Core Functions** (risk_metrics.py):
+  - `calculate_top_drawdowns(returns, top_n)`: Analyzes and returns top N drawdown periods with full details (dates, depths, durations, recovery times)
+- **New Chart Data Functions** (chart_data.py):
+  - `get_drawdown_periods_data(portfolio_values, threshold)`: Prepares data for drawdown period visualization with shaded zones
+  - `get_drawdown_recovery_data(returns, top_n)`: Prepares timeline data for top N drawdown recovery visualizations
+  - Enhanced `get_underwater_plot_data()`: Now returns max drawdown and current drawdown annotations
+- **New Chart Components** (charts.py):
+  - `plot_drawdown_periods(data)`: Renders cumulative returns with shaded drawdown zones and depth labels
+  - `plot_drawdown_recovery(drawdown_data)`: Renders timeline visualization for individual drawdown (Peak → Trough → Recovery)
+  - Enhanced `plot_underwater(data)`: Added max drawdown annotation, current drawdown highlight, and zero line
+- **Enhanced UI Section** (portfolio_analysis.py → _render_drawdown_analysis):
+  - Chart 3.2.1: **Underwater Plot** - Portfolio vs Benchmark with annotated max/current drawdowns
+  - Chart 3.2.2: **Drawdown Periods** - Cumulative returns with shaded zones for major drawdowns (>5%)
+  - Chart 3.2.3: **Drawdown Recovery Timeline** - Expandable cards for TOP-3 drawdowns with metrics and timeline charts
+  - Table 3.2.4: **Top 5 Drawdowns** - Detailed table with dates, depths, durations, recovery times
+  - Benchmark Comparison: Average DD depth/duration, average/max recovery times
+- **Key Features**:
+  - Interactive expandable sections for each major drawdown
+  - Automatic benchmark comparison when available
+  - Visual timeline showing Peak → Trough → Recovery progression
+  - Color-coded stages (green=peak, red=trough, yellow=recovery)
+  - Comprehensive metrics: depth, duration, recovery time, total time
+  - Threshold filtering to focus on significant drawdowns (>0.1%)
 
 **Future Updates**: This section will track all architectural changes and decisions made during development.
 

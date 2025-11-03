@@ -548,3 +548,92 @@ def calculate_kurtosis(returns: pd.Series) -> float:
     except Exception as e:
         raise NumericalError(f"Error calculating kurtosis: {e}") from e
 
+
+def calculate_top_drawdowns(
+    returns: pd.Series,
+    top_n: int = 5,
+) -> list[dict]:
+    """
+    Calculate top N drawdowns with dates and recovery information.
+
+    Args:
+        returns: Series of returns indexed by date
+        top_n: Number of top drawdowns to return
+
+    Returns:
+        List of dictionaries with drawdown information:
+        - depth: Drawdown depth (negative)
+        - start_date: Peak date
+        - bottom_date: Trough date
+        - recovery_date: Recovery date (or None if not recovered)
+        - duration_days: Peak to trough duration
+        - recovery_days: Trough to recovery duration (or None)
+    """
+    if returns.empty:
+        return []
+
+    try:
+        # Calculate cumulative returns
+        cum_returns = (1 + returns).cumprod()
+        running_max = cum_returns.expanding().max()
+        drawdowns = (cum_returns - running_max) / running_max
+
+        # Find drawdown periods
+        in_drawdown = drawdowns < -0.001  # Threshold to avoid tiny DDs
+        
+        # Group consecutive drawdown periods
+        drawdown_list = []
+        groups = (in_drawdown != in_drawdown.shift()).cumsum()
+        
+        for group_id, group_data in in_drawdown.groupby(groups):
+            if not group_data.iloc[0]:  # Skip non-drawdown periods
+                continue
+                
+            period_dates = group_data[group_data].index
+            
+            if len(period_dates) == 0:
+                continue
+            
+            start_date = period_dates[0]
+            
+            # Find peak before this drawdown
+            peak_idx = cum_returns[:start_date].index[-1] if len(cum_returns[:start_date]) > 0 else start_date
+            
+            # Find trough (deepest point in this period)
+            period_drawdowns = drawdowns[period_dates]
+            bottom_date = period_drawdowns.idxmin()
+            depth = float(period_drawdowns.min())
+            
+            # Find recovery date
+            peak_value = cum_returns.loc[peak_idx]
+            after_trough = cum_returns[cum_returns.index > bottom_date]
+            recovery_mask = after_trough >= peak_value
+            
+            if recovery_mask.any():
+                recovery_date = after_trough[recovery_mask].index[0]
+                recovery_days = (recovery_date - bottom_date).days
+            else:
+                recovery_date = None
+                recovery_days = None
+            
+            # Calculate duration
+            duration_days = (bottom_date - peak_idx).days
+            
+            drawdown_info = {
+                'depth': depth,
+                'start_date': peak_idx.date() if hasattr(peak_idx, 'date') else peak_idx,
+                'bottom_date': bottom_date.date() if hasattr(bottom_date, 'date') else bottom_date,
+                'recovery_date': recovery_date.date() if recovery_date is not None and hasattr(recovery_date, 'date') else recovery_date,
+                'duration_days': duration_days,
+                'recovery_days': recovery_days,
+            }
+            
+            drawdown_list.append(drawdown_info)
+        
+        # Sort by depth and take top N
+        drawdown_list.sort(key=lambda x: x['depth'])
+        return drawdown_list[:top_n]
+        
+    except Exception as e:
+        logger.warning(f"Error calculating top drawdowns: {e}")
+        return []
