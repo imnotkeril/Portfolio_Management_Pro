@@ -1456,3 +1456,360 @@ def get_risk_return_scatter_data(
     except Exception as e:
         logger.warning(f"Error preparing risk/return scatter data: {e}")
         return None
+
+
+def get_rolling_volatility_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: Optional[pd.Series] = None,
+    window: int = 63,
+    periods_per_year: int = TRADING_DAYS_PER_YEAR,
+) -> Optional[Dict[str, any]]:
+    """
+    Prepare data for rolling volatility chart with statistics table.
+    
+    Args:
+        portfolio_returns: Series of portfolio returns
+        benchmark_returns: Optional benchmark returns
+        window: Rolling window size in days
+        periods_per_year: Number of trading periods per year
+        
+    Returns:
+        Dictionary with rolling volatility series and statistics or None
+    """
+    if portfolio_returns.empty:
+        return None
+    
+    try:
+        # Calculate rolling volatility (annualized)
+        portfolio_vol = portfolio_returns.rolling(window=window).std() * np.sqrt(periods_per_year)
+        
+        result = {
+            "portfolio": portfolio_vol,
+            "window": window,
+            "portfolio_stats": {
+                "avg": float(portfolio_vol.mean()),
+                "median": float(portfolio_vol.median()),
+                "min": float(portfolio_vol.min()),
+                "max": float(portfolio_vol.max()),
+            }
+        }
+        
+        # Calculate benchmark rolling volatility if available
+        if benchmark_returns is not None and not benchmark_returns.empty:
+            aligned_benchmark = benchmark_returns.reindex(
+                portfolio_returns.index,
+                method="ffill"
+            ).fillna(0)
+            
+            benchmark_vol = aligned_benchmark.rolling(window=window).std() * np.sqrt(periods_per_year)
+            
+            result["benchmark"] = benchmark_vol
+            result["benchmark_stats"] = {
+                "avg": float(benchmark_vol.mean()),
+                "median": float(benchmark_vol.median()),
+                "min": float(benchmark_vol.min()),
+                "max": float(benchmark_vol.max()),
+            }
+        
+        return result
+        
+    except Exception as e:
+        logger.warning(f"Error preparing rolling volatility data: {e}")
+        return None
+
+
+def get_rolling_beta_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+    window: int = 63,
+    periods_per_year: int = TRADING_DAYS_PER_YEAR,
+) -> Optional[Dict[str, any]]:
+    """
+    Prepare data for rolling beta chart with zones.
+    
+    Args:
+        portfolio_returns: Series of portfolio returns
+        benchmark_returns: Benchmark returns
+        window: Rolling window size in days
+        periods_per_year: Number of trading periods per year
+        
+    Returns:
+        Dictionary with rolling beta series or None
+    """
+    if portfolio_returns.empty or benchmark_returns is None or benchmark_returns.empty:
+        return None
+    
+    try:
+        # Align benchmark with portfolio
+        aligned_benchmark = benchmark_returns.reindex(
+            portfolio_returns.index,
+            method="ffill"
+        ).fillna(0)
+        
+        # Calculate rolling beta
+        def calculate_beta(port_window, bench_window):
+            if len(port_window) < 2 or len(bench_window) < 2:
+                return np.nan
+            
+            cov = np.cov(port_window, bench_window)[0, 1]
+            var = np.var(bench_window, ddof=1)
+            
+            if var <= 0:
+                return np.nan
+            
+            return cov / var
+        
+        rolling_beta = pd.Series(index=portfolio_returns.index, dtype=float)
+        
+        for i in range(window, len(portfolio_returns) + 1):
+            port_window = portfolio_returns.iloc[i-window:i].values
+            bench_window = aligned_benchmark.iloc[i-window:i].values
+            rolling_beta.iloc[i-1] = calculate_beta(port_window, bench_window)
+        
+        return {
+            "beta": rolling_beta,
+            "window": window,
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error preparing rolling beta data: {e}")
+        return None
+
+
+def get_rolling_alpha_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+    window: int = 63,
+    risk_free_rate: float = 0.0,
+    periods_per_year: int = TRADING_DAYS_PER_YEAR,
+) -> Optional[Dict[str, any]]:
+    """
+    Prepare data for rolling alpha chart.
+    
+    Args:
+        portfolio_returns: Series of portfolio returns
+        benchmark_returns: Benchmark returns
+        window: Rolling window size in days
+        risk_free_rate: Annual risk-free rate
+        periods_per_year: Number of trading periods per year
+        
+    Returns:
+        Dictionary with rolling alpha series or None
+    """
+    if portfolio_returns.empty or benchmark_returns is None or benchmark_returns.empty:
+        return None
+    
+    try:
+        # Align benchmark with portfolio
+        aligned_benchmark = benchmark_returns.reindex(
+            portfolio_returns.index,
+            method="ffill"
+        ).fillna(0)
+        
+        # Calculate rolling alpha (annualized)
+        def calculate_alpha(port_window, bench_window):
+            if len(port_window) < 2 or len(bench_window) < 2:
+                return np.nan
+            
+            # Calculate beta
+            cov = np.cov(port_window, bench_window)[0, 1]
+            var = np.var(bench_window, ddof=1)
+            
+            if var <= 0:
+                beta = 0
+            else:
+                beta = cov / var
+            
+            # Calculate mean returns (annualized)
+            port_mean_annual = port_window.mean() * periods_per_year
+            bench_mean_annual = bench_window.mean() * periods_per_year
+            
+            # Alpha = Portfolio Return - (Risk Free Rate + Beta * (Benchmark Return - Risk Free Rate))
+            alpha = port_mean_annual - (risk_free_rate + beta * (bench_mean_annual - risk_free_rate))
+            
+            return alpha
+        
+        rolling_alpha = pd.Series(index=portfolio_returns.index, dtype=float)
+        
+        for i in range(window, len(portfolio_returns) + 1):
+            port_window = portfolio_returns.iloc[i-window:i].values
+            bench_window = aligned_benchmark.iloc[i-window:i].values
+            rolling_alpha.iloc[i-1] = calculate_alpha(port_window, bench_window)
+        
+        return {
+            "alpha": rolling_alpha,
+            "window": window,
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error preparing rolling alpha data: {e}")
+        return None
+
+
+def get_rolling_active_return_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+    window: int = 63,
+    periods_per_year: int = TRADING_DAYS_PER_YEAR,
+) -> Optional[Dict[str, any]]:
+    """
+    Prepare data for rolling active return area chart.
+    
+    Args:
+        portfolio_returns: Series of portfolio returns
+        benchmark_returns: Benchmark returns
+        window: Rolling window size in days
+        periods_per_year: Number of trading periods per year
+        
+    Returns:
+        Dictionary with rolling active return series and statistics or None
+    """
+    if portfolio_returns.empty or benchmark_returns is None or benchmark_returns.empty:
+        return None
+    
+    try:
+        # Align benchmark with portfolio
+        aligned_benchmark = benchmark_returns.reindex(
+            portfolio_returns.index,
+            method="ffill"
+        ).fillna(0)
+        
+        # Calculate rolling active return (annualized)
+        rolling_port_return = portfolio_returns.rolling(window=window).mean() * periods_per_year
+        rolling_bench_return = aligned_benchmark.rolling(window=window).mean() * periods_per_year
+        rolling_active_return = rolling_port_return - rolling_bench_return
+        
+        # Calculate statistics
+        avg_active = rolling_active_return.mean()
+        positive_periods = (rolling_active_return > 0).sum()
+        total_periods = rolling_active_return.notna().sum()
+        pct_positive = (positive_periods / total_periods * 100) if total_periods > 0 else 0
+        
+        return {
+            "active_return": rolling_active_return,
+            "window": window,
+            "stats": {
+                "avg": float(avg_active),
+                "pct_positive": float(pct_positive),
+                "max": float(rolling_active_return.max()),
+                "min": float(rolling_active_return.min()),
+            }
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error preparing rolling active return data: {e}")
+        return None
+
+
+def get_bull_bear_analysis_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series,
+    window: int = 126,
+    periods_per_year: int = TRADING_DAYS_PER_YEAR,
+) -> Optional[Dict[str, any]]:
+    """
+    Prepare data for bull/bear market analysis.
+    
+    Args:
+        portfolio_returns: Series of portfolio returns
+        benchmark_returns: Benchmark returns
+        window: Rolling window size for beta calculation
+        periods_per_year: Number of trading periods per year
+        
+    Returns:
+        Dictionary with bull/bear analysis data or None
+    """
+    if portfolio_returns.empty or benchmark_returns is None or benchmark_returns.empty:
+        return None
+    
+    try:
+        # Align benchmark with portfolio
+        aligned_benchmark = benchmark_returns.reindex(
+            portfolio_returns.index,
+            method="ffill"
+        ).fillna(0)
+        
+        # Identify bull and bear periods (benchmark return > 0 = bull)
+        bull_mask = aligned_benchmark > 0
+        bear_mask = aligned_benchmark <= 0
+        
+        # Calculate returns for bull and bear periods
+        bull_port_returns = portfolio_returns[bull_mask]
+        bull_bench_returns = aligned_benchmark[bull_mask]
+        bear_port_returns = portfolio_returns[bear_mask]
+        bear_bench_returns = aligned_benchmark[bear_mask]
+        
+        # Calculate AVERAGE DAILY return during bull/bear periods
+        # Shows typical daily performance in different market conditions
+        def calculate_avg_daily_return(returns_series):
+            if len(returns_series) == 0:
+                return 0.0
+            
+            # Use median (more robust than mean)
+            median_daily = returns_series.median()
+            
+            # Convert to percentage
+            return float(median_daily * 100)
+        
+        bull_port_cum = calculate_avg_daily_return(bull_port_returns)
+        bull_bench_cum = calculate_avg_daily_return(bull_bench_returns)
+        bear_port_cum = calculate_avg_daily_return(bear_port_returns)
+        bear_bench_cum = calculate_avg_daily_return(bear_bench_returns)
+        
+        # Calculate beta for each period
+        def calc_beta(port, bench):
+            if len(port) < 2 or len(bench) < 2:
+                return 0.0
+            cov = np.cov(port.values, bench.values)[0, 1]
+            var = np.var(bench.values, ddof=1)
+            return cov / var if var > 0 else 0.0
+        
+        bull_beta = calc_beta(bull_port_returns, bull_bench_returns)
+        bear_beta = calc_beta(bear_port_returns, bear_bench_returns)
+        
+        # Calculate rolling beta for bull/bear periods
+        rolling_bull_beta = pd.Series(index=portfolio_returns.index, dtype=float)
+        rolling_bear_beta = pd.Series(index=portfolio_returns.index, dtype=float)
+        
+        for i in range(window, len(portfolio_returns) + 1):
+            port_window = portfolio_returns.iloc[i-window:i]
+            bench_window = aligned_benchmark.iloc[i-window:i]
+            
+            bull_mask_window = bench_window > 0
+            bear_mask_window = bench_window <= 0
+            
+            if bull_mask_window.sum() >= 2:
+                rolling_bull_beta.iloc[i-1] = calc_beta(
+                    port_window[bull_mask_window],
+                    bench_window[bull_mask_window]
+                )
+            
+            if bear_mask_window.sum() >= 2:
+                rolling_bear_beta.iloc[i-1] = calc_beta(
+                    port_window[bear_mask_window],
+                    bench_window[bear_mask_window]
+                )
+        
+        return {
+            "bull": {
+                "portfolio_return": float(bull_port_cum),
+                "benchmark_return": float(bull_bench_cum),
+                "beta": float(bull_beta),
+                "difference": float(bull_port_cum - bull_bench_cum),
+            },
+            "bear": {
+                "portfolio_return": float(bear_port_cum),
+                "benchmark_return": float(bear_bench_cum),
+                "beta": float(bear_beta),
+                "difference": float(bear_port_cum - bear_bench_cum),
+            },
+            "rolling_beta": {
+                "bull": rolling_bull_beta,
+                "bear": rolling_bear_beta,
+                "window": window,
+            }
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error preparing bull/bear analysis data: {e}")
+        return None
