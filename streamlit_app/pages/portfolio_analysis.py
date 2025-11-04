@@ -35,6 +35,18 @@ from core.analytics_engine.chart_data import (
     get_risk_return_scatter_data,
     get_drawdown_periods_data,
     get_drawdown_recovery_data,
+    get_asset_metrics_data,
+    get_asset_impact_on_return_data,
+    get_asset_impact_on_risk_data,
+    get_risk_vs_weight_comparison_data,
+    get_diversification_coefficient_data,
+    get_correlation_matrix_data,
+    get_correlation_statistics_data,
+    get_correlation_with_benchmark_data,
+    get_cluster_analysis_data,
+    get_asset_price_dynamics_data,
+    get_rolling_correlation_with_benchmark_data,
+    get_detailed_asset_analysis_data,
 )
 from core.analytics_engine.advanced_metrics import (
     calculate_expected_returns,
@@ -73,10 +85,24 @@ from streamlit_app.components.charts import (
     plot_drawdown_periods,
     plot_drawdown_recovery,
     plot_var_distribution,
+    plot_impact_on_return,
+    plot_impact_on_risk,
+    plot_risk_vs_weight_comparison,
+    plot_correlation_matrix,
+    plot_correlation_with_benchmark,
+    plot_clustered_correlation_matrix,
+    plot_dendrogram,
+    plot_asset_price_dynamics,
+    plot_rolling_correlation_with_benchmark,
+    plot_detailed_asset_price_volume,
+    plot_asset_correlation_bar,
 )
 from streamlit_app.components.position_table import render_position_table
 from streamlit_app.components.metric_card_comparison import render_metric_cards_row
 from streamlit_app.components.comparison_table import render_comparison_table
+from streamlit_app.components.assets_metrics import render_assets_table_extended
+from streamlit_app.utils.chart_config import COLORS, get_chart_layout
+import plotly.graph_objects as go
 
 logger = logging.getLogger(__name__)
 
@@ -2308,38 +2334,925 @@ def _render_assets_tab(positions, portfolio_returns, benchmark_returns, portfoli
 
 def _render_asset_overview(positions):
     """Sub-tab 4.1: Asset Overview & Impact."""
-    st.subheader("Portfolio Positions")
-    
-    if positions:
-        render_position_table(positions)
-        
-        # Asset Allocation
-        st.markdown("---")
-        st.subheader("Asset Allocation")
-        # Use weight_target if available, otherwise equal weight
-        weights = []
-        for pos in positions:
-            if hasattr(pos, 'weight_target') and pos.weight_target is not None:
-                weights.append(pos.weight_target)
-            else:
-                weights.append(1.0 / len(positions) if len(positions) > 0 else 0.0)
-        
-        total_weight = sum(weights)
-        if total_weight > 0:
-            # Build mapping ticker -> weight %
-            alloc_data = {}
-            for pos, w in zip(positions, weights):
-                pct = (w / total_weight * 100)
-                alloc_data[pos.ticker] = alloc_data.get(pos.ticker, 0.0) + pct
-            fig = plot_asset_allocation(alloc_data)
-            st.plotly_chart(fig, use_container_width=True, key="assets_allocation")
-
-        # Impact on Return/Risk
-        st.markdown("---")
-        st.subheader("Impact Analysis")
-        st.info("Impact on return and risk charts coming soon...")
-    else:
+    if not positions:
         st.info("No positions found")
+        return
+    
+    # === Section 4.1.1: Assets Table (Extended) ===
+    st.subheader("Assets Overview - Full Details")
+    st.caption(
+        "💡 **Change%** shows daily price change "
+        "(today vs previous trading day)"
+    )
+    
+    # Fetch price data for asset metrics
+    try:
+        from services.data_service import DataService
+        from datetime import date, timedelta
+        
+        data_service = DataService()
+        end_date = date.today()
+        start_date = end_date - timedelta(days=5)  # Last 5 days for price change
+        
+        # Fetch prices
+        tickers = [pos.ticker for pos in positions]
+        all_prices = []
+        for ticker in tickers:
+            try:
+                if ticker == "CASH":
+                    # Cash always 1.0
+                    dr = pd.bdate_range(start=start_date, end=end_date)
+                    prices = pd.DataFrame({
+                        "Date": dr,
+                        "Adjusted_Close": 1.0,
+                        "Ticker": "CASH",
+                    })
+                else:
+                    prices = data_service.fetch_historical_prices(
+                        ticker, start_date, end_date, use_cache=True, save_to_db=False
+                    )
+                    prices["Ticker"] = ticker
+                
+                if not prices.empty:
+                    all_prices.append(prices)
+            except Exception as e:
+                logger.warning(f"Failed to fetch prices for {ticker}: {e}")
+        
+        if all_prices:
+            combined = pd.concat(all_prices, ignore_index=True)
+            price_data = combined.pivot_table(
+                index="Date",
+                columns="Ticker",
+                values="Adjusted_Close",
+                aggfunc="last",
+            )
+        else:
+            price_data = None
+        
+        # Get asset metrics data
+        asset_data = get_asset_metrics_data(positions, price_data)
+        
+        if asset_data is not None and not asset_data.empty:
+            render_assets_table_extended(asset_data)
+        else:
+            # Fallback to basic table
+            render_position_table(positions)
+    
+    except Exception as e:
+        logger.warning(f"Error fetching asset data: {e}")
+        # Fallback to basic table
+        render_position_table(positions)
+    
+    # === Fetch full price data for all impact analyses ===
+    price_data_full = None
+    start_date_impact = None
+    end_date_impact = None
+    
+    try:
+        analytics = st.session_state.get("portfolio_analytics", {})
+        portfolio_returns = analytics.get("portfolio_returns")
+        
+        if portfolio_returns is not None and not portfolio_returns.empty:
+            # Get date range from portfolio returns
+            start_date_impact = portfolio_returns.index.min()
+            end_date_impact = portfolio_returns.index.max()
+            
+            # Fetch full price data for impact calculation
+            all_prices_full = []
+            for ticker in tickers:
+                try:
+                    if ticker == "CASH":
+                        dr = pd.bdate_range(
+                            start=start_date_impact, end=end_date_impact
+                        )
+                        prices_full = pd.DataFrame({
+                            "Date": dr,
+                            "Adjusted_Close": 1.0,
+                            "Ticker": "CASH",
+                        })
+                    else:
+                        prices_full = data_service.fetch_historical_prices(
+                            ticker, start_date_impact, end_date_impact,
+                            use_cache=True, save_to_db=False
+                        )
+                        prices_full["Ticker"] = ticker
+                    
+                    if not prices_full.empty:
+                        all_prices_full.append(prices_full)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to fetch full prices for {ticker}: {e}"
+                    )
+            
+            if all_prices_full:
+                combined_full = pd.concat(all_prices_full, ignore_index=True)
+                price_data_full = combined_full.pivot_table(
+                    index="Date",
+                    columns="Ticker",
+                    values="Adjusted_Close",
+                    aggfunc="last",
+                )
+    except Exception as e:
+        logger.error(f"Error fetching price data for impact analysis: {e}")
+    
+    # === Section 4.1.2: Chart - Impact on Total Return ===
+    st.markdown("---")
+    st.subheader("Impact on Assets to Total Return")
+    
+    try:
+        # Check if we have required data
+        if price_data_full is None or price_data_full.empty:
+            st.info(
+                "Please calculate analytics first to see impact analysis. "
+                "Price data is required for this calculation."
+            )
+        elif start_date_impact is None or end_date_impact is None:
+            st.info(
+                "Please calculate analytics first to see impact analysis. "
+                "Portfolio returns date range is required."
+            )
+        else:
+            # Calculate impact on return
+            impact_return_data = get_asset_impact_on_return_data(
+                positions, price_data_full, start_date_impact, end_date_impact
+            )
+            
+            if impact_return_data and impact_return_data.get("tickers"):
+                fig = plot_impact_on_return(impact_return_data)
+                st.plotly_chart(
+                    fig, use_container_width=True, key="impact_on_return"
+                )
+                
+                # Show top contributor
+                top_ticker = impact_return_data["tickers"][0]
+                top_contrib = impact_return_data["contributions"][0]
+                st.caption(
+                    f"**Top contributor:** {top_ticker} - "
+                    f"{top_contrib:.2f}% weighted contribution "
+                    f"to portfolio return"
+                )
+            else:
+                st.info("Insufficient data for impact on return analysis. "
+                       "Please ensure all positions have valid price data.")
+    
+    except Exception as e:
+        logger.error(f"Error calculating impact on return: {e}", exc_info=True)
+        st.error(
+            f"Unable to calculate impact on return: {str(e)}. "
+            "Please check the logs for details."
+        )
+    
+    # === Section 4.1.3: Chart - Impact on Risk ===
+    st.markdown("---")
+    st.subheader("Impact on Assets to Overall Portfolio Risk")
+    
+    try:
+        if price_data_full is not None and not price_data_full.empty:
+            impact_risk_data = get_asset_impact_on_risk_data(positions, price_data_full)
+            
+            if impact_risk_data:
+                fig = plot_impact_on_risk(impact_risk_data)
+                st.plotly_chart(fig, use_container_width=True, key="impact_on_risk")
+                
+                # Show biggest contributor
+                if impact_risk_data["tickers"]:
+                    top_ticker = impact_risk_data["tickers"][0]
+                    top_contrib = impact_risk_data["risk_contributions"][0]
+                    st.caption(
+                        f"**Biggest risk contributor:** {top_ticker} - "
+                        f"{top_contrib:.1f}% of portfolio risk"
+                    )
+            else:
+                st.info("Insufficient data for impact on risk analysis")
+        else:
+            st.info("Price data not available for risk analysis")
+    
+    except Exception as e:
+        logger.error(f"Error calculating impact on risk: {e}")
+        st.info("Unable to calculate impact on risk")
+    
+    # === Section 4.1.4: Chart - Comparison Risk vs Weight ===
+    st.markdown("---")
+    st.subheader("Comparison of Risk & Return Impact and Asset Weighting")
+    
+    try:
+        if (price_data_full is not None and not price_data_full.empty 
+            and start_date_impact is not None):
+            comparison_data = get_risk_vs_weight_comparison_data(
+                positions, price_data_full, start_date_impact, end_date_impact
+            )
+            
+            if comparison_data:
+                fig = plot_risk_vs_weight_comparison(comparison_data)
+                st.plotly_chart(fig, use_container_width=True, key="risk_vs_weight")
+                
+                st.caption(
+                    "ℹ️ **For well-diversified portfolio:** bars should be similar. "
+                    "**Red bars:** Risk impact, **Green bars:** Return impact, "
+                    "**Orange bars:** Portfolio weight. "
+                    "If red bar >> orange bar: asset contributes more risk than weight "
+                    "(high beta/volatility). "
+                    "If green bar >> orange bar: asset contributes more return than weight."
+                )
+            else:
+                st.info("Insufficient data for comparison analysis")
+        else:
+            st.info(
+                "Please calculate analytics first to see comparison analysis. "
+                "Price data and date range are required."
+            )
+    
+    except Exception as e:
+        logger.error(f"Error calculating risk vs weight comparison: {e}", exc_info=True)
+        st.error(
+            f"Unable to calculate comparison: {str(e)}. "
+            "Please check the logs for details."
+        )
+    
+    # === Section 4.1.5: Diversification Coefficient ===
+    st.markdown("---")
+    st.subheader("Diversification Assessment")
+    
+    try:
+        if price_data_full is not None and not price_data_full.empty:
+            div_data = get_diversification_coefficient_data(positions, price_data_full)
+            
+            if div_data:
+                coef = div_data["diversification_coefficient"]
+                vol_reduction = div_data["volatility_reduction_pct"]
+                is_diversified = div_data["is_diversified"]
+                
+                # Display coefficient in styled box
+                st.markdown("━" * 60)
+                st.markdown(f"### Diversification Coefficient: **{coef:.2f}**")
+                st.markdown("")
+                st.markdown("**Formula:** Weighted sum of volatilities / Portfolio volatility")
+                st.markdown("")
+                st.markdown("**Interpretation:**")
+                
+                if is_diversified:
+                    st.success(
+                        f"✓ Value > 1.0 indicates positive diversification effect\n\n"
+                        f"✓ {coef:.2f} means {vol_reduction:.1f}% volatility reduction from diversification\n\n"
+                        f"✓ Portfolio is well-diversified"
+                    )
+                else:
+                    st.warning(
+                        f"⚠ Value <= 1.0 indicates little to no diversification benefit\n\n"
+                        f"⚠ Portfolio may be under-diversified or concentrated"
+                    )
+                
+                st.info(
+                    "ℹ️ The diversification coefficient shows the ratio of the "
+                    "weighted sum of individual volatilities to total portfolio "
+                    "volatility. A value above 1 indicates positive effect."
+                )
+                st.markdown("━" * 60)
+            else:
+                st.info("Insufficient data for diversification analysis")
+        else:
+            st.info("Price data not available")
+    
+    except Exception as e:
+        logger.error(f"Error calculating diversification coefficient: {e}")
+        st.info("Unable to calculate diversification coefficient")
+    
+    # === Section 4.1.6: Factor Exposure Analysis ===
+    st.markdown("---")
+    st.subheader("Factor Exposure Analysis")
+    
+    st.info(
+        "📊 **Factor Analysis** using market index proxies\n\n"
+        "⚠️ Requires factor data API (e.g., French Data Library)\n\n"
+        "This analysis estimates portfolio factor exposures using "
+        "regression on market indices as factor proxies."
+    )
+    
+    try:
+        analytics = st.session_state.get("portfolio_analytics", {})
+        portfolio_returns = analytics.get("portfolio_returns")
+        
+        if (portfolio_returns is not None and not portfolio_returns.empty 
+            and len(portfolio_returns) > 30):
+            
+            # Try to fetch Fama-French factors first, fallback to ETF proxies
+            from core.data_manager.factor_data import get_fama_french_factors
+            from services.data_service import DataService
+            
+            factor_data = {}
+            
+            start_factor = portfolio_returns.index.min()
+            end_factor = portfolio_returns.index.max()
+            
+            # Convert datetime index to date if needed
+            if hasattr(start_factor, 'date'):
+                start_factor_date = start_factor.date()
+            else:
+                start_factor_date = start_factor
+            if hasattr(end_factor, 'date'):
+                end_factor_date = end_factor.date()
+            else:
+                end_factor_date = end_factor
+            
+            with st.spinner("Fetching factor data..."):
+                # First, try to fetch real Fama-French factors
+                try:
+                    ff_factors = get_fama_french_factors(
+                        start_date=start_factor_date,
+                        end_date=end_factor_date,
+                        include_momentum=True
+                    )
+                    
+                    if ff_factors:
+                        factor_data.update(ff_factors)
+                        logger.info(
+                            f"Successfully loaded {len(ff_factors)} Fama-French factors"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to fetch Fama-French factors: {e}. "
+                        "Falling back to ETF proxies."
+                    )
+                
+                # If we don't have enough factors, use ETF proxies as fallback
+                if len(factor_data) < 3:
+                    logger.info("Using ETF proxies for factor construction")
+                    data_service = DataService()
+                    
+                    # Fetch base ETFs for factor construction
+                    base_etfs = {}
+                    etf_tickers = ["SPY", "IWM", "VTV", "VUG", "MTUM", "QUAL"]
+                    
+                    for ticker in etf_tickers:
+                        try:
+                            prices = data_service.fetch_historical_prices(
+                                ticker, start_factor_date, end_factor_date,
+                                use_cache=True, save_to_db=False
+                            )
+                            if not prices.empty:
+                                returns = prices.set_index("Date")[
+                                    "Adjusted_Close"
+                                ].pct_change().dropna()
+                                base_etfs[ticker] = returns
+                        except Exception as e:
+                            logger.warning(f"Failed to fetch {ticker}: {e}")
+                    
+                    # Construct factors from ETFs (only if not already loaded)
+                    if "Market (Mkt-RF)" not in factor_data and "SPY" in base_etfs:
+                        factor_data["Market (Mkt-RF)"] = base_etfs["SPY"]
+                    
+                    if "Size (SMB)" not in factor_data:
+                        if "IWM" in base_etfs and "SPY" in base_etfs:
+                            smb = base_etfs["IWM"] - base_etfs["SPY"]
+                            factor_data["Size (SMB)"] = smb
+                    
+                    if "Value (HML)" not in factor_data:
+                        if "VTV" in base_etfs and "VUG" in base_etfs:
+                            hml = base_etfs["VTV"] - base_etfs["VUG"]
+                            factor_data["Value (HML)"] = hml
+                    
+                    if "Momentum (MOM)" not in factor_data and "MTUM" in base_etfs:
+                        factor_data["Momentum (MOM)"] = base_etfs["MTUM"]
+                    
+                    # Quality (QMJ): QUAL (if available)
+                    if "QUAL" in base_etfs:
+                        factor_data["Quality (QMJ)"] = base_etfs["QUAL"]
+            
+            if len(factor_data) >= 1:
+                # Align all data - use inner join to keep only dates with all data
+                aligned_data = pd.DataFrame({
+                    "Portfolio": portfolio_returns
+                })
+                
+                # Add each factor with proper alignment
+                for factor_name, returns in factor_data.items():
+                    # Align returns to portfolio dates
+                    aligned_returns = returns.reindex(
+                        portfolio_returns.index, method=None
+                    )
+                    aligned_data[factor_name] = aligned_returns
+                
+                # Drop rows where any factor or portfolio is NaN
+                aligned_data = aligned_data.dropna()
+                
+                # Debug: log how many factors we have
+                logger.info(
+                    f"Factor analysis: {len(factor_data)} factors loaded, "
+                    f"{len(aligned_data)} aligned observations. "
+                    f"Factors: {list(factor_data.keys())}"
+                )
+                
+                # Show info about loaded factors
+                if len(factor_data) > 0:
+                    factor_names = ", ".join(list(factor_data.keys())[:5])
+                    if len(factor_data) > 5:
+                        factor_names += f" (+{len(factor_data) - 5} more)"
+                    st.caption(
+                        f"📊 **Loaded {len(factor_data)} factor(s):** {factor_names}"
+                    )
+                
+                if len(aligned_data) > 20:
+                    # Run regression
+                    from scipy import stats
+                    
+                    y = aligned_data["Portfolio"].values
+                    X_factors = aligned_data.drop(columns=["Portfolio"])
+                    
+                    # Add constant (intercept)
+                    X = np.column_stack([
+                        np.ones(len(X_factors)), X_factors.values
+                    ])
+                    
+                    # Perform regression
+                    beta = np.linalg.lstsq(X, y, rcond=None)[0]
+                    
+                    # Calculate residuals and statistics
+                    y_pred = X @ beta
+                    residuals = y - y_pred
+                    n = len(y)
+                    k = X.shape[1]
+                    mse = np.sum(residuals**2) / (n - k)
+                    
+                    # Standard errors
+                    var_beta = mse * np.linalg.inv(X.T @ X).diagonal()
+                    se_beta = np.sqrt(var_beta)
+                    
+                    # t-statistics
+                    t_stats = beta / se_beta
+                    
+                    # p-values
+                    p_values = 2 * (1 - stats.t.cdf(np.abs(t_stats), n - k))
+                    
+                    # R-squared
+                    ss_total = np.sum((y - np.mean(y))**2)
+                    ss_residual = np.sum(residuals**2)
+                    r_squared = 1 - (ss_residual / ss_total)
+                    
+                    # Calculate contributions
+                    explained_var = np.var(y_pred)
+                    factor_contributions = []
+                    for i in range(1, len(beta)):
+                        contrib = (
+                            beta[i] * X_factors.iloc[:, i-1].values
+                        ).var() / explained_var * 100
+                        factor_contributions.append(contrib)
+                    
+                    # Normalize contributions
+                    total_contrib = sum(factor_contributions)
+                    if total_contrib > 0:
+                        factor_contributions = [
+                            c / total_contrib * 100 
+                            for c in factor_contributions
+                        ]
+                    
+                    # Create results table (sorted by contribution)
+                    results = []
+                    for i, factor_name in enumerate(X_factors.columns):
+                        sig = ""
+                        if p_values[i+1] < 0.001:
+                            sig = "***"
+                        elif p_values[i+1] < 0.01:
+                            sig = "**"
+                        elif p_values[i+1] < 0.05:
+                            sig = "*"
+                        
+                        results.append({
+                            "Factor": factor_name,
+                            "Exposure": beta[i+1],
+                            "t-stat": t_stats[i+1],
+                            "p-value": p_values[i+1],
+                            "Contribution": factor_contributions[i],
+                        })
+                    
+                    # Sort by contribution (descending by absolute value)
+                    results = sorted(
+                        results, 
+                        key=lambda x: abs(x["Contribution"]), 
+                        reverse=True
+                    )
+                    
+                    # Format for display table
+                    display_results = []
+                    for r in results:
+                        # Format t-stat with significance
+                        t_stat_str = f"{r['t-stat']:.1f}{'***' if r['p-value'] < 0.001 else '**' if r['p-value'] < 0.01 else '*' if r['p-value'] < 0.05 else ''}"
+                        
+                        display_results.append({
+                            "Factor": r["Factor"],
+                            "Exposure": f"{r['Exposure']:.2f}",
+                            "t-stat": t_stat_str,
+                            "Contribution (%)": f"{r['Contribution']:.1f}%",
+                        })
+                    
+                    results_df = pd.DataFrame(display_results)
+                    
+                    # Display results table (styled as per spec)
+                    st.markdown("**Factor Analysis - Style Attribution**")
+                    st.dataframe(
+                        results_df,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                    
+                    st.caption(
+                        "*Significance: *** p<0.001, ** p<0.01, * p<0.05*"
+                    )
+                    
+                    # PIE chart showing % contribution - better for small values
+                    import plotly.graph_objects as go
+                    
+                    # Sort by absolute contribution (largest first) for better visualization
+                    chart_data = sorted(
+                        results, 
+                        key=lambda x: abs(x["Contribution"]), 
+                        reverse=True
+                    )
+                    
+                    # Colors for factors (match spec style)
+                    factor_colors = {
+                        "Market (Mkt-RF)": "#2196F3",  # Blue
+                        "Size (SMB)": "#4CAF50",  # Green
+                        "Value (HML)": "#FF9800",  # Orange
+                        "Momentum (MOM)": "#9C27B0",  # Purple
+                        "Quality (QMJ)": "#00BCD4",  # Cyan
+                    }
+                    
+                    # Prepare data for pie chart
+                    # Use absolute values for pie chart, but show sign in labels
+                    labels = []
+                    values = []
+                    colors_list = []
+                    text_info = []
+                    hover_data = []
+                    
+                    for r in chart_data:
+                        factor_name = r["Factor"]
+                        contrib = r["Contribution"]
+                        exposure = r["Exposure"]
+                        abs_contrib = abs(contrib)
+                        
+                        # Only include factors with non-zero contribution
+                        if abs_contrib > 0.01:  # Threshold: 0.01%
+                            labels.append(factor_name)
+                            values.append(abs_contrib)
+                            colors_list.append(
+                                factor_colors.get(factor_name, "#888888")
+                            )
+                            
+                            # Create label with sign indicator
+                            sign = "+" if contrib > 0 else "-"
+                            text_info.append(
+                                f"{sign}{abs_contrib:.1f}%"
+                            )
+                            # Store actual contribution and exposure for hover
+                            hover_data.append([contrib, exposure])
+                    
+                    # Create pie chart
+                    fig = go.Figure(data=[go.Pie(
+                        labels=labels,
+                        values=values,
+                        hole=0.4,  # Donut chart style
+                        marker=dict(
+                            colors=colors_list,
+                            line=dict(color='#1A1C20', width=2)
+                        ),
+                        text=text_info,
+                        textposition='outside',
+                        textinfo='text+percent',
+                        hovertemplate=(
+                            "<b>%{label}</b><br>" +
+                            "Contribution: %{customdata[0]:+.2f}%<br>" +
+                            "Exposure: %{customdata[1]:.2f}<br>" +
+                            "<extra></extra>"
+                        ),
+                        customdata=hover_data,
+                    )])
+                    
+                    from streamlit_app.utils.chart_config import (
+                        get_chart_layout
+                    )
+                    
+                    # Custom layout for pie chart
+                    layout = get_chart_layout(
+                        title="Factor Attribution Chart",
+                        showlegend=True,
+                    )
+                    # Remove axis-specific settings for pie chart
+                    layout.pop('xaxis', None)
+                    layout.pop('yaxis', None)
+                    layout.pop('barmode', None)
+                    layout.pop('hovermode', None)
+                    
+                    fig.update_layout(**layout)
+                    
+                    # Add note if there are negative contributions
+                    negative_factors = [
+                        r for r in chart_data 
+                        if r["Contribution"] < 0 and abs(r["Contribution"]) > 0.01
+                    ]
+                    if negative_factors:
+                        neg_names = ", ".join([r["Factor"] for r in negative_factors])
+                        st.caption(
+                            f"⚠️ **Note:** Negative contributions shown with minus sign: {neg_names}"
+                        )
+                    
+                    st.plotly_chart(
+                        fig, use_container_width=True, 
+                        key="factor_contribution"
+                    )
+                    
+                    # Model statistics (compact)
+                    st.markdown("**Model Statistics:**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("R²", f"{r_squared:.3f}")
+                    with col2:
+                        st.metric("Observations", f"{n}")
+                    with col3:
+                        alpha_annual = beta[0]*252*100
+                        st.metric(
+                            "Alpha (Annual)", 
+                            f"{alpha_annual:.2f}%"
+                        )
+                    
+                    # === Automatic Interpretation ===
+                    st.markdown("---")
+                    st.subheader("📊 Automatic Interpretation")
+                    
+                    # Analyze dominant factors
+                    significant_factors = [
+                        r for r in results 
+                        if abs(r["t-stat"]) > 2 and abs(r["Contribution"]) > 1.0
+                    ]
+                    dominant_factors = [
+                        r for r in results 
+                        if abs(r["Contribution"]) > 10.0
+                    ]
+                    
+                    # Style analysis
+                    value_exposure = None
+                    size_exposure = None
+                    momentum_exposure = None
+                    quality_exposure = None
+                    market_exposure = None
+                    
+                    for r in results:
+                        factor_name = r["Factor"]
+                        exposure = r["Exposure"]
+                        if "Market" in factor_name or "Mkt-RF" in factor_name:
+                            market_exposure = exposure
+                        elif "Value" in factor_name or "HML" in factor_name:
+                            value_exposure = exposure
+                        elif "Size" in factor_name or "SMB" in factor_name:
+                            size_exposure = exposure
+                        elif "Momentum" in factor_name or "MOM" in factor_name:
+                            momentum_exposure = exposure
+                        elif "Quality" in factor_name or "QMJ" in factor_name:
+                            quality_exposure = exposure
+                    
+                    # Build interpretation
+                    interpretation_parts = []
+                    
+                    # Model quality
+                    if r_squared > 0.9:
+                        interpretation_parts.append(
+                            f"✅ **Excellent model fit** (R² = {r_squared:.1%}). "
+                            "The model explains most of the portfolio's return variance."
+                        )
+                    elif r_squared > 0.7:
+                        interpretation_parts.append(
+                            f"✅ **Good model fit** (R² = {r_squared:.1%}). "
+                            "The model explains a substantial portion of returns."
+                        )
+                    elif r_squared > 0.5:
+                        interpretation_parts.append(
+                            f"⚠️ **Moderate model fit** (R² = {r_squared:.1%}). "
+                            "The model explains about half of the variance. "
+                            "Consider if additional factors are needed."
+                        )
+                    else:
+                        interpretation_parts.append(
+                            f"⚠️ **Weak model fit** (R² = {r_squared:.1%}). "
+                            "The model explains less than half of the variance. "
+                            "Portfolio may have significant idiosyncratic risk or "
+                            "require different factor model."
+                        )
+                    
+                    # Alpha interpretation
+                    if abs(alpha_annual) > 5:
+                        if alpha_annual > 0:
+                            interpretation_parts.append(
+                                f"✅ **Strong positive alpha** ({alpha_annual:+.2f}% annual). "
+                                "Portfolio shows significant outperformance beyond "
+                                "factor exposures."
+                            )
+                        else:
+                            interpretation_parts.append(
+                                f"⚠️ **Negative alpha** ({alpha_annual:+.2f}% annual). "
+                                "Portfolio underperforms after accounting for factor exposures."
+                            )
+                    elif abs(alpha_annual) > 2:
+                        if alpha_annual > 0:
+                            interpretation_parts.append(
+                                f"✅ **Positive alpha** ({alpha_annual:+.2f}% annual). "
+                                "Portfolio generates excess returns beyond factors."
+                            )
+                        else:
+                            interpretation_parts.append(
+                                f"⚠️ **Slight negative alpha** ({alpha_annual:+.2f}% annual). "
+                                "Portfolio slightly underperforms factor-adjusted returns."
+                            )
+                    else:
+                        interpretation_parts.append(
+                            f"ℹ️ **Neutral alpha** ({alpha_annual:+.2f}% annual). "
+                            "Returns are well explained by factor exposures."
+                        )
+                    
+                    # Dominant factors
+                    if dominant_factors:
+                        top_factor = dominant_factors[0]
+                        interpretation_parts.append(
+                            f"📈 **Dominant factor:** {top_factor['Factor']} "
+                            f"contributes {abs(top_factor['Contribution']):.1f}% of returns. "
+                            f"Exposure: {top_factor['Exposure']:.2f} "
+                            f"(t-stat: {top_factor['t-stat']:.1f})."
+                        )
+                    
+                    if len(dominant_factors) > 1:
+                        second_factor = dominant_factors[1]
+                        interpretation_parts.append(
+                            f"📊 **Secondary factor:** {second_factor['Factor']} "
+                            f"contributes {abs(second_factor['Contribution']):.1f}% of returns."
+                        )
+                    
+                    # Style classification
+                    style_classification = []
+                    
+                    if value_exposure is not None:
+                        if value_exposure > 0.3:
+                            style_classification.append("**Value-oriented**")
+                        elif value_exposure < -0.3:
+                            style_classification.append("**Growth-oriented**")
+                        else:
+                            style_classification.append("**Blend**")
+                    
+                    if size_exposure is not None:
+                        if size_exposure > 0.2:
+                            style_classification.append("**Small-cap tilt**")
+                        elif size_exposure < -0.2:
+                            style_classification.append("**Large-cap tilt**")
+                        else:
+                            style_classification.append("**Market-cap neutral**")
+                    
+                    if momentum_exposure is not None:
+                        if momentum_exposure > 0.2:
+                            style_classification.append("**Momentum strategy**")
+                        elif momentum_exposure < -0.2:
+                            style_classification.append("**Contrarian strategy**")
+                    
+                    if quality_exposure is not None:
+                        if quality_exposure > 0.2:
+                            style_classification.append("**Quality focus**")
+                        elif quality_exposure < -0.2:
+                            style_classification.append("**Lower quality exposure**")
+                    
+                    if style_classification:
+                        interpretation_parts.append(
+                            f"🎯 **Portfolio style:** {', '.join(style_classification)}."
+                        )
+                    
+                    # Market exposure
+                    if market_exposure is not None:
+                        if market_exposure > 1.1:
+                            interpretation_parts.append(
+                                f"📊 **High market sensitivity** (β = {market_exposure:.2f}). "
+                                "Portfolio moves more than the market."
+                            )
+                        elif market_exposure < 0.9:
+                            interpretation_parts.append(
+                                f"📊 **Lower market sensitivity** (β = {market_exposure:.2f}). "
+                                "Portfolio moves less than the market."
+                            )
+                        else:
+                            interpretation_parts.append(
+                                f"📊 **Market-like sensitivity** (β = {market_exposure:.2f}). "
+                                "Portfolio moves in line with the market."
+                            )
+                    
+                    # Statistical significance
+                    highly_significant = [
+                        r for r in results 
+                        if abs(r["t-stat"]) > 3 and abs(r["p-value"]) < 0.01
+                    ]
+                    if len(highly_significant) >= 2:
+                        interpretation_parts.append(
+                            f"✅ {len(highly_significant)} factors show **highly significant** "
+                            "exposures (p < 0.01), indicating robust factor loadings."
+                        )
+                    
+                    # Display interpretation
+                    for part in interpretation_parts:
+                        st.markdown(part)
+                        st.markdown("")
+                    
+                    # Summary recommendation
+                    st.markdown("---")
+                    st.markdown("### 💡 Summary")
+                    
+                    summary_points = []
+                    
+                    # Factor concentration
+                    top_2_contrib = sum([
+                        abs(r["Contribution"]) for r in results[:2]
+                    ])
+                    if top_2_contrib > 80:
+                        summary_points.append(
+                            "⚠️ Portfolio is **highly concentrated** in 1-2 factors. "
+                            "Consider diversifying factor exposures."
+                        )
+                    elif top_2_contrib > 60:
+                        summary_points.append(
+                            "ℹ️ Portfolio shows **moderate factor concentration**. "
+                            "Some diversification across factors is present."
+                        )
+                    else:
+                        summary_points.append(
+                            "✅ Portfolio shows **good factor diversification** "
+                            "across multiple factors."
+                        )
+                    
+                    # Risk assessment
+                    if market_exposure is not None and market_exposure > 1.2:
+                        summary_points.append(
+                            "⚠️ **High market beta** suggests portfolio may experience "
+                            "significant volatility during market downturns."
+                        )
+                    elif market_exposure is not None and market_exposure < 0.8:
+                        summary_points.append(
+                            "✅ **Lower market beta** provides some downside protection "
+                            "during market declines."
+                        )
+                    
+                    # Alpha assessment
+                    if alpha_annual > 3:
+                        summary_points.append(
+                            f"✅ **Positive alpha** ({alpha_annual:+.2f}%) suggests "
+                            "portfolio management adds value beyond factor exposures."
+                        )
+                    elif alpha_annual < -3:
+                        summary_points.append(
+                            f"⚠️ **Negative alpha** ({alpha_annual:+.2f}%) suggests "
+                            "portfolio may benefit from review of strategy or holdings."
+                        )
+                    
+                    for point in summary_points:
+                        st.markdown(f"- {point}")
+                    
+                    # Interpretation guide
+                    with st.expander("📖 How to interpret", expanded=False):
+                        st.markdown("""
+                        **Factor Exposure (Beta):**
+                        - Shows how the portfolio responds to each factor
+                        - Example: Market exposure of 1.0 means portfolio 
+                          moves 1:1 with market
+                        
+                        **t-statistic:**
+                        - Measures statistical significance
+                        - |t| > 2 typically indicates significance
+                        - |t| > 3 indicates high significance
+                        
+                        **Contribution (%):**
+                        - Percentage of explained return variance from 
+                          each factor
+                        - Sum = 100% of explained variance
+                        
+                        **R²:**
+                        - Proportion of portfolio variance explained by 
+                          factors
+                        - Higher R² = better model fit
+                        - R² > 0.9 = excellent, > 0.7 = good, < 0.5 = weak
+                        
+                        **Alpha (Intercept):**
+                        - Excess return not explained by factors
+                        - Positive alpha = outperformance
+                        - Negative alpha = underperformance
+                        """)
+                else:
+                    st.warning("Insufficient aligned data for regression")
+            else:
+                st.warning(
+                    "Unable to fetch factor proxy data. "
+                    "Please check internet connection."
+                )
+        else:
+            st.info(
+                "Please calculate analytics with at least 30 days of data "
+                "to run factor analysis"
+            )
+    
+    except Exception as e:
+        logger.error(f"Error in factor analysis: {e}")
+        st.error(f"Error calculating factor analysis: {str(e)}")
 
 
 def _render_correlations(positions, portfolio_returns, benchmark_returns):
@@ -2350,20 +3263,296 @@ def _render_correlations(positions, portfolio_returns, benchmark_returns):
         st.info("No positions available for correlation analysis")
         return
     
-    # Correlation Matrix
-    st.subheader("Correlation Matrix")
-    st.info("Correlation matrix heatmap implementation coming soon...")
+    # Fetch price data
+    try:
+        from services.data_service import DataService
+        
+        analytics = st.session_state.get("portfolio_analytics", {})
+        portfolio_returns = analytics.get("portfolio_returns")
+        
+        if portfolio_returns is None or portfolio_returns.empty:
+            st.info("Please calculate analytics first to see correlation analysis")
+            return
+        
+        # Get date range
+        start_date = portfolio_returns.index.min()
+        end_date = portfolio_returns.index.max()
+        
+        data_service = DataService()
+        tickers = [pos.ticker for pos in positions]
+        
+        # Fetch price data
+        all_prices = []
+        for ticker in tickers:
+            try:
+                if ticker == "CASH":
+                    dr = pd.bdate_range(start=start_date, end=end_date)
+                    prices = pd.DataFrame({
+                        "Date": dr,
+                        "Adjusted_Close": 1.0,
+                        "Ticker": "CASH",
+                    })
+                else:
+                    prices = data_service.fetch_historical_prices(
+                        ticker, start_date, end_date,
+                        use_cache=True, save_to_db=False
+                    )
+                    prices["Ticker"] = ticker
+                
+                if not prices.empty:
+                    all_prices.append(prices)
+            except Exception as e:
+                logger.warning(f"Failed to fetch prices for {ticker}: {e}")
+        
+        if not all_prices:
+            st.info("Unable to fetch price data for correlation analysis")
+            return
+        
+        # Combine and pivot
+        combined = pd.concat(all_prices, ignore_index=True)
+        price_data = combined.pivot_table(
+            index="Date",
+            columns="Ticker",
+            values="Adjusted_Close",
+            aggfunc="last",
+        )
+        
+        # === Section 4.2.1: Correlation Matrix ===
+        st.subheader("Correlation Matrix - All Assets + Benchmark")
+        
+        corr_matrix_data = get_correlation_matrix_data(
+            positions, price_data, benchmark_returns
+        )
+        
+        if corr_matrix_data and corr_matrix_data.get("correlation_matrix") is not None:
+            correlation_matrix = corr_matrix_data["correlation_matrix"]
+            fig = plot_correlation_matrix(correlation_matrix)
+            st.plotly_chart(fig, use_container_width=True, key="correlation_matrix")
+        else:
+            st.info("Insufficient data for correlation matrix")
+        
+        # === Section 4.2.2: Correlation Statistics ===
+        st.markdown("---")
+        st.subheader("Correlation Statistics")
+        
+        if corr_matrix_data and corr_matrix_data.get("correlation_matrix") is not None:
+            corr_stats = get_correlation_statistics_data(
+                corr_matrix_data["correlation_matrix"]
+            )
+            
+            if corr_stats:
+                # Row 1: Average Correlation | Median Correlation
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Average Correlation", f"{corr_stats['average_correlation']:.2f}")
+                with col2:
+                    st.metric("Median Correlation", f"{corr_stats['median_correlation']:.2f}")
+                
+                # Row 2: Min Correlation | Max Correlation
+                col3, col4 = st.columns(2)
+                with col3:
+                    st.metric("Min Correlation", 
+                             f"{corr_stats['min_correlation']:.2f}",
+                             help=f"Between {corr_stats['min_pair'][0]} and {corr_stats['min_pair'][1]}")
+                with col4:
+                    st.metric("Max Correlation", 
+                             f"{corr_stats['max_correlation']:.2f}",
+                             help=f"Between {corr_stats['max_pair'][0]} and {corr_stats['max_pair'][1]}")
+                
+                # Row 3: Pairs > 0.8 (high) | Pairs < 0.2 (low)
+                col5, col6 = st.columns(2)
+                with col5:
+                    st.metric("Pairs > 0.8 (high)", corr_stats['high_corr_count'])
+                with col6:
+                    st.metric("Pairs < 0.2 (low)", corr_stats['low_corr_count'])
+                
+                # Interpretation
+                avg_corr = corr_stats['average_correlation']
+                if avg_corr < 0.3:
+                    st.success("✓ Low average correlation - Excellent diversification potential")
+                elif avg_corr < 0.5:
+                    st.success("✓ Moderate average correlation - Good diversification potential")
+                else:
+                    st.warning("⚠ High average correlation - Limited diversification")
+        
+        # === Section 4.2.3: Correlation with Benchmark ===
+        st.markdown("---")
+        st.subheader("Asset Correlation with SPY")
+        
+        if benchmark_returns is not None and not benchmark_returns.empty:
+            corr_bench_data = get_correlation_with_benchmark_data(
+                positions, price_data, benchmark_returns
+            )
+            
+            if corr_bench_data and corr_bench_data.get("tickers"):
+                # Bar chart
+                fig = plot_correlation_with_benchmark(corr_bench_data)
+                st.plotly_chart(fig, use_container_width=True, key="corr_with_benchmark_chart")
+                
+                # Table
+                corr_table_data = []
+                for i, ticker in enumerate(corr_bench_data["tickers"]):
+                    corr_table_data.append({
+                        "Ticker": ticker,
+                        "Correlation (SPY)": f"{corr_bench_data['correlations'][i]:.2f}",
+                        "Beta": f"{corr_bench_data['betas'][i]:.2f}",
+                    })
+                
+                corr_df = pd.DataFrame(corr_table_data)
+                st.dataframe(corr_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("Insufficient data for correlation with benchmark analysis")
+        else:
+            st.info("Benchmark data not available")
+        
+        # === Section 4.2.4: Cluster Analysis ===
+        st.markdown("---")
+        st.subheader("Cluster Analysis of Correlations")
+        
+        if corr_matrix_data and corr_matrix_data.get("correlation_matrix") is not None:
+            # First, get cluster data to determine default number of clusters
+            cluster_data = get_cluster_analysis_data(
+                corr_matrix_data["correlation_matrix"]
+            )
+            
+            if cluster_data:
+                # Allow user to adjust number of clusters
+                num_assets = len(corr_matrix_data["tickers"])
+                max_clusters = min(num_assets, 6)  # Limit to 6 for readability
+                
+                col_cluster1, col_cluster2 = st.columns([2, 1])
+                with col_cluster1:
+                    st.caption(
+                        "Adjust number of clusters to see different groupings. "
+                        "More clusters = finer granularity, fewer clusters = broader groups."
+                    )
+                with col_cluster2:
+                    n_clusters_user = st.slider(
+                        "Number of Clusters",
+                        min_value=2,
+                        max_value=max_clusters,
+                        value=cluster_data.get("n_clusters", 3),
+                        key="cluster_count_slider"
+                    )
+                
+                # Override n_clusters with user selection
+                cluster_data["n_clusters"] = n_clusters_user
+                # Clustered correlation matrix
+                st.markdown("**Clustered Correlation Matrix Heatmap**")
+                st.caption(
+                    "Same as correlation matrix but reordered by clusters. "
+                    "Assets grouped by similar behavior."
+                )
+                fig = plot_clustered_correlation_matrix(
+                    cluster_data["clustered_matrix"]
+                )
+                st.plotly_chart(fig, use_container_width=True, key="clustered_matrix")
+                
+                # Dendrogram
+                st.markdown("**Asset Clustering Dendrogram**")
+                st.caption(
+                    "Dendrogram showing hierarchical clustering of assets based on correlation. "
+                    "Yellow dashed line indicates optimal cut point for cluster formation."
+                )
+                fig = plot_dendrogram(
+                    cluster_data["linkage_matrix"],
+                    cluster_data["reordered_tickers"],
+                    cluster_data["n_clusters"]
+                )
+                st.plotly_chart(fig, use_container_width=True, key="dendrogram")
+                
+                # Show cluster assignments
+                clusters = {}
+                try:
+                    from scipy.cluster.hierarchy import fcluster
+                    cluster_assignments = fcluster(
+                        cluster_data["linkage_matrix"],
+                        cluster_data["n_clusters"],
+                        criterion="maxclust"
+                    )
+                    
+                    # Group tickers by cluster
+                    for i, ticker in enumerate(cluster_data["reordered_tickers"]):
+                        cluster_id = int(cluster_assignments[i])
+                        if cluster_id not in clusters:
+                            clusters[cluster_id] = []
+                        clusters[cluster_id].append(ticker)
+                    
+                except Exception as e:
+                    logger.warning(f"Error calculating cluster assignments: {e}")
+                
+                # Display clusters (always show, even if empty)
+                if clusters:
+                    st.markdown("**Cluster Assignments:**")
+                    cluster_text = ""
+                    for cluster_id in sorted(clusters.keys()):
+                        tickers_str = ", ".join(clusters[cluster_id])
+                        cluster_text += f"**Cluster {cluster_id}:** {tickers_str}  \n"
+                    st.markdown(cluster_text)
+                    
+                    # Show cluster quality info
+                    if len(clusters) > 1:
+                        cluster_sizes = [len(clusters[cid]) for cid in clusters.keys()]
+                        balanced = max(cluster_sizes) / min(cluster_sizes) < 2.5
+                        
+                        if balanced:
+                            st.success(
+                                f"✓ Balanced clustering: {len(clusters)} clusters with "
+                                f"relatively even distribution"
+                            )
+                        else:
+                            st.info(
+                                f"ℹ Uneven clustering: {len(clusters)} clusters detected. "
+                                f"Consider adjusting number of clusters for better balance."
+                            )
+                else:
+                    st.info("Unable to calculate cluster assignments")
+                
+                # Interpretation guide (always show)
+                st.markdown("---")
+                with st.expander("📖 How to Interpret Cluster Analysis", expanded=False):
+                    st.markdown(f"""
+                    **Understanding the Dendrogram:**
+                    
+                    1. **Distance Axis (X-axis):** Shows how dissimilar assets are. 
+                       - Lower distance = more similar (higher correlation)
+                       - Higher distance = more different (lower correlation)
+                    
+                    2. **Tree Structure:** 
+                       - Assets on the left are individual assets
+                       - Branches connect similar assets/groups (growing right)
+                       - Height of branch = distance at which groups merge
+                       - **Shorter branches = more similar assets**
+                    
+                    3. **Cut Line (Yellow Dashed):** 
+                       - Shows current number of clusters ({cluster_data["n_clusters"]})
+                       - Draw a vertical line at this distance
+                       - All branches crossing the line form separate clusters
+                       - **Adjust slider above to see different cluster configurations**
+                    
+                    4. **Cluster Interpretation:**
+                       - **Assets in same cluster** = move together (high correlation)
+                       - **Assets in different clusters** = move independently (low correlation)
+                       - Use this to identify diversification opportunities
+                    
+                    **Practical Use:**
+                    - **All assets in one cluster** → portfolio is not diversified
+                    - **Multiple balanced clusters** → good diversification
+                    - **Consider reducing exposure** to assets in the same cluster
+                    - **Adjust number of clusters** to find optimal grouping for your analysis
+                    
+                    **Note:** The number of clusters ({cluster_data["n_clusters"]}) is a starting point. 
+                    Use the slider above to explore different groupings and find the most 
+                    meaningful clusters for your portfolio.
+                    """)
+            else:
+                st.info("Unable to perform cluster analysis")
+        else:
+            st.info("Correlation matrix not available for cluster analysis")
     
-    # Correlation with Benchmark
-    st.markdown("---")
-    st.subheader("Correlation with Benchmark")
-    if benchmark_returns is not None and not benchmark_returns.empty:
-        st.info("Asset correlation with benchmark chart coming soon...")
-    
-    # Cluster Analysis
-    st.markdown("---")
-    st.subheader("Cluster Analysis")
-    st.info("Correlation clustering dendrogram coming soon...")
+    except Exception as e:
+        logger.error(f"Error in correlation analysis: {e}", exc_info=True)
+        st.error(f"Error calculating correlations: {str(e)}")
 
 
 def _render_asset_details(positions, portfolio_returns, benchmark_returns, portfolio_id, portfolio_service):
@@ -2374,27 +3563,350 @@ def _render_asset_details(positions, portfolio_returns, benchmark_returns, portf
         st.info("No positions available")
         return
     
-    # Asset Multi-Select
-    ticker_list = [pos.ticker for pos in positions]
-    selected_tickers = st.multiselect(
-        "Select Assets for Comparison",
-        options=ticker_list,
-        default=ticker_list[:5] if len(ticker_list) > 5 else ticker_list,
-        key="asset_selector"
-    )
+    # Fetch price data
+    try:
+        from services.data_service import DataService
+        from streamlit_app.utils.formatters import format_percentage
+        
+        analytics = st.session_state.get("portfolio_analytics", {})
+        portfolio_returns = analytics.get("portfolio_returns")
+        
+        if portfolio_returns is None or portfolio_returns.empty:
+            st.info("Please calculate analytics first to see asset details")
+            return
+        
+        # Get date range
+        start_date = portfolio_returns.index.min()
+        end_date = portfolio_returns.index.max()
+        
+        data_service = DataService()
+        ticker_list = [pos.ticker for pos in positions]
+        
+        # Fetch price data
+        all_prices = []
+        for ticker in ticker_list:
+            try:
+                if ticker == "CASH":
+                    dr = pd.bdate_range(start=start_date, end=end_date)
+                    prices = pd.DataFrame({
+                        "Date": dr,
+                        "Adjusted_Close": 1.0,
+                        "Ticker": "CASH",
+                    })
+                else:
+                    prices = data_service.fetch_historical_prices(
+                        ticker, start_date, end_date,
+                        use_cache=True, save_to_db=False
+                    )
+                    prices["Ticker"] = ticker
+                
+                if not prices.empty:
+                    all_prices.append(prices)
+            except Exception as e:
+                logger.warning(f"Failed to fetch prices for {ticker}: {e}")
+        
+        if not all_prices:
+            st.info("Unable to fetch price data")
+            return
+        
+        # Combine and pivot
+        combined = pd.concat(all_prices, ignore_index=True)
+        price_data = combined.pivot_table(
+            index="Date",
+            columns="Ticker",
+            values="Adjusted_Close",
+            aggfunc="last",
+        )
+        
+        # === Section 4.3.1: Asset Multi-Select ===
+        # Initialize session state if not exists
+        if "asset_selector" not in st.session_state:
+            st.session_state["asset_selector"] = (
+                ticker_list[:5] if len(ticker_list) > 5 else ticker_list
+            )
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col2:
+            select_all_clicked = st.button("Select All", key="select_all_assets")
+            deselect_all_clicked = st.button("Deselect All", key="deselect_all_assets")
+        
+        # Handle button clicks BEFORE creating widget
+        if select_all_clicked:
+            st.session_state["asset_selector"] = ticker_list
+            st.rerun()
+        
+        if deselect_all_clicked:
+            st.session_state["asset_selector"] = []
+            st.rerun()
+        
+        with col1:
+            selected_tickers = st.multiselect(
+                "Select Assets for Comparison",
+                options=ticker_list,
+                default=st.session_state["asset_selector"],
+                key="asset_selector"
+            )
+        
+        if not selected_tickers:
+            st.info("Please select at least one asset for comparison")
+            return
+        
+        # === Section 4.3.2: Asset Price Dynamics ===
+        st.markdown("---")
+        st.subheader("Asset Price Change (% from Start Date)")
+        
+        price_dynamics_data = get_asset_price_dynamics_data(
+            positions, price_data, benchmark_returns, selected_tickers
+        )
+        
+        if price_dynamics_data and price_dynamics_data.get("price_series"):
+            fig = plot_asset_price_dynamics(price_dynamics_data)
+            st.plotly_chart(fig, use_container_width=True, key="price_dynamics")
+            
+            # Show final returns in legend-style format
+            price_series = price_dynamics_data["price_series"]
+            final_returns_text = "**Final Returns:**\n"
+            for ticker, series in price_series.items():
+                if not series.empty:
+                    final_return = series.iloc[-1]
+                    final_returns_text += f"{ticker}: {final_return:+.2f}%  "
+            
+            st.markdown(final_returns_text)
+        
+        # === Section 4.3.3: Rolling Correlation with Benchmark ===
+        st.markdown("---")
+        st.subheader("Rolling Correlation with SPY")
+        
+        if benchmark_returns is not None and not benchmark_returns.empty:
+            window = st.slider(
+                "Window size (days)",
+                min_value=30,
+                max_value=120,
+                value=60,
+                step=10,
+                key="rolling_corr_window"
+            )
+            
+            rolling_corr_data = get_rolling_correlation_with_benchmark_data(
+                positions, price_data, benchmark_returns,
+                portfolio_returns, window, selected_tickers
+            )
+            
+            if rolling_corr_data and rolling_corr_data.get("rolling_correlations"):
+                fig = plot_rolling_correlation_with_benchmark(rolling_corr_data)
+                st.plotly_chart(fig, use_container_width=True, key="rolling_corr")
+            else:
+                st.info("Insufficient data for rolling correlation analysis")
+        else:
+            st.info("Benchmark data not available")
+        
+        # === Section 4.3.4: Detailed Analysis of Single Asset ===
+        st.markdown("---")
+        st.subheader("Detailed Asset Analysis")
+        
+        selected_ticker = st.selectbox(
+            "Select asset for detailed analysis",
+            options=ticker_list,
+            key="detailed_asset_selector"
+        )
+        
+        if selected_ticker:
+            detailed_data = get_detailed_asset_analysis_data(
+                selected_ticker, positions, price_data,
+                portfolio_returns, benchmark_returns
+            )
+            
+            if detailed_data:
+                # Calculate benchmark metrics for comparison
+                # Use same alignment as overview (by portfolio returns) to ensure consistency
+                benchmark_metrics = {}
+                if benchmark_returns is not None and not benchmark_returns.empty:
+                    try:
+                        # Align benchmark returns with portfolio returns (same as overview)
+                        # This ensures benchmark metrics match overview tab
+                        common_idx = portfolio_returns.index.intersection(
+                            benchmark_returns.index
+                        )
+                        aligned_bench = benchmark_returns.loc[common_idx]
+                        
+                        if len(aligned_bench) >= 2:
+                            from core.analytics_engine.performance import (
+                                calculate_annualized_return,
+                            )
+                            from core.analytics_engine.risk_metrics import (
+                                calculate_volatility,
+                            )
+                            from core.analytics_engine.ratios import (
+                                calculate_sharpe_ratio,
+                            )
+                            
+                            # Calculate benchmark metrics (same method as overview)
+                            bench_total_return = (1 + aligned_bench).prod() - 1
+                            bench_annual_return = calculate_annualized_return(
+                                aligned_bench
+                            )
+                            bench_volatility = calculate_volatility(
+                                aligned_bench
+                            ).get("annual", 0.0)
+                            bench_sharpe = (
+                                calculate_sharpe_ratio(
+                                    aligned_bench, risk_free_rate=0.0435
+                                ) or 0.0
+                            )
+                            
+                            benchmark_metrics = {
+                                "total_return": float(bench_total_return),
+                                "annual_return": float(bench_annual_return),
+                                "volatility": float(bench_volatility),
+                                "sharpe_ratio": float(bench_sharpe),
+                            }
+                    except Exception as e:
+                        logger.warning(f"Error calculating benchmark metrics: {e}")
+                
+                # Metrics cards with benchmark comparison (like in overview)
+                metrics = detailed_data["metrics"]
+                portfolio_metrics = detailed_data["portfolio_metrics"]
+                
+                metrics_data = [
+                    {
+                        "label": "Total Return",
+                        "portfolio_value": metrics.get("total_return", 0),
+                        "benchmark_value": benchmark_metrics.get("total_return"),
+                        "format": "percent",
+                        "higher_is_better": True,
+                    },
+                    {
+                        "label": "Annual Return",
+                        "portfolio_value": metrics.get("annual_return", 0),
+                        "benchmark_value": benchmark_metrics.get("annual_return"),
+                        "format": "percent",
+                        "higher_is_better": True,
+                    },
+                    {
+                        "label": "Volatility",
+                        "portfolio_value": metrics.get("volatility", 0),
+                        "benchmark_value": benchmark_metrics.get("volatility"),
+                        "format": "percent",
+                        "higher_is_better": False,  # Lower is better
+                    },
+                    {
+                        "label": "Sharpe Ratio",
+                        "portfolio_value": metrics.get("sharpe_ratio", 0),
+                        "benchmark_value": benchmark_metrics.get("sharpe_ratio"),
+                        "format": "ratio",
+                        "higher_is_better": True,
+                    },
+                ]
+                
+                render_metric_cards_row(metrics_data, columns_per_row=4)
+                
+                # Price and Volume Chart
+                st.markdown("---")
+                st.subheader(f"{selected_ticker} - Price and Volume Chart")
+                
+                fig = plot_detailed_asset_price_volume(
+                    detailed_data["prices"],
+                    detailed_data["returns"],
+                    detailed_data.get("ma50"),
+                    detailed_data.get("ma200"),
+                    selected_ticker
+                )
+                st.plotly_chart(fig, use_container_width=True, key="asset_price_volume")
+                
+                # Comparison of Return
+                st.markdown("---")
+                st.subheader(f"Comparison of Return - {selected_ticker} vs Portfolio vs SPY")
+                
+                cum_returns = detailed_data["cumulative_returns"]
+                
+                # Align all series to common dates
+                asset_cum = cum_returns["asset"]
+                portfolio_cum = cum_returns["portfolio"]
+                benchmark_cum = cum_returns.get("benchmark")
+                
+                # Find common dates
+                common_dates = asset_cum.index.intersection(portfolio_cum.index)
+                if benchmark_cum is not None and not benchmark_cum.empty:
+                    common_dates = common_dates.intersection(benchmark_cum.index)
+                
+                if len(common_dates) >= 2:
+                    # Align all series to common dates
+                    asset_aligned = asset_cum.loc[common_dates] * 100
+                    portfolio_aligned = portfolio_cum.loc[common_dates] * 100
+                    
+                    # Create data dictionary for plot_cumulative_returns
+                    # Note: plot_cumulative_returns expects 'portfolio' and 'benchmark' keys
+                    # But we want to show asset, portfolio, and benchmark
+                    # So we'll create a custom plot
+                    fig = go.Figure()
+                    
+                    # Asset line (yellow)
+                    fig.add_trace(
+                        go.Scatter(
+                            x=asset_aligned.index,
+                            y=asset_aligned.values,
+                            mode="lines",
+                            name=selected_ticker,
+                            line=dict(color="#FFD700", width=2),  # Yellow
+                        )
+                    )
+                    
+                    # Portfolio line (purple)
+                    fig.add_trace(
+                        go.Scatter(
+                            x=portfolio_aligned.index,
+                            y=portfolio_aligned.values,
+                            mode="lines",
+                            name="Portfolio",
+                            line=dict(color="#BF9FFB", width=2),
+                        )
+                    )
+                    
+                    # Benchmark line (solid blue)
+                    if benchmark_cum is not None and not benchmark_cum.empty:
+                        benchmark_aligned = benchmark_cum.loc[common_dates] * 100
+                        fig.add_trace(
+                            go.Scatter(
+                                x=benchmark_aligned.index,
+                                y=benchmark_aligned.values,
+                                mode="lines",
+                                name="SPY (Benchmark)",
+                                line=dict(color=COLORS["secondary"], width=2),  # Solid blue
+                            )
+                        )
+                    
+                    layout = get_chart_layout(
+                        title="Comparison of Return",
+                        yaxis=dict(
+                            title="Cumulative Return (%)",
+                            tickformat=",.1f",
+                        ),
+                        xaxis=dict(title="Date"),
+                        hovermode="x unified",
+                    )
+                    
+                    fig.update_layout(**layout)
+                    st.plotly_chart(fig, use_container_width=True, key="asset_cumulative")
+                else:
+                    st.info("Insufficient overlapping dates for comparison chart")
+                
+                # Correlations with Other Assets
+                st.markdown("---")
+                st.subheader(f"Correlations with Other Assets - {selected_ticker}")
+                
+                other_corrs = detailed_data.get("other_correlations", {})
+                if other_corrs:
+                    fig = plot_asset_correlation_bar(other_corrs, selected_ticker)
+                    st.plotly_chart(fig, use_container_width=True, key="asset_correlations")
+                else:
+                    st.info("No correlation data available with other assets")
+            else:
+                st.info(f"Unable to calculate detailed analysis for {selected_ticker}")
     
-    st.info("Asset price dynamics chart coming soon...")
-    
-    # Detailed Single Asset Analysis
-    st.markdown("---")
-    st.subheader("Detailed Asset Analysis")
-    selected_ticker = st.selectbox(
-        "Select asset for detailed analysis",
-        options=ticker_list,
-        key="detailed_asset_selector"
-    )
-    
-    st.info(f"Detailed analysis for {selected_ticker} coming soon...")
+    except Exception as e:
+        logger.error(f"Error in asset details: {e}", exc_info=True)
+        st.error(f"Error calculating asset details: {str(e)}")
 
 
 def _render_export_tab(analytics, portfolio_name, portfolio_id):
