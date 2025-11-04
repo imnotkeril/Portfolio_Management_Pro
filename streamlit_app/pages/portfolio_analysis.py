@@ -1,6 +1,5 @@
 """Portfolio Analysis page - Full implementation according to specification."""
 
-import json
 import logging
 from datetime import date, timedelta
 import streamlit as st
@@ -9,7 +8,6 @@ import numpy as np
 
 from services.portfolio_service import PortfolioService
 from services.analytics_service import AnalyticsService
-from services.report_service import ReportService
 from core.analytics_engine.chart_data import (
     get_cumulative_returns_data,
     get_return_distribution_data,
@@ -258,12 +256,11 @@ def show():
         positions = []
     
     # === MAIN TABS ===
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "Overview",
         "Performance",
         "Risk",
-        "Assets & Correlations",
-        "Export & Reports"
+        "Assets & Correlations"
     ])
     
     # === TAB 1: OVERVIEW ===
@@ -294,12 +291,6 @@ def show():
         _render_assets_tab(
             positions, portfolio_returns, benchmark_returns,
             portfolio_id, portfolio_service
-        )
-    
-    # === TAB 5: EXPORT & REPORTS ===
-    with tab5:
-        _render_export_tab(
-            analytics, selected_name, portfolio_id
         )
 
 
@@ -3909,61 +3900,5 @@ def _render_asset_details(positions, portfolio_returns, benchmark_returns, portf
         st.error(f"Error calculating asset details: {str(e)}")
 
 
-def _render_export_tab(analytics, portfolio_name, portfolio_id):
-    """Render Export & Reports tab."""
-    st.subheader("Export Analytics Data")
-    
-    report_service = ReportService()
-    
-    # Extract metrics for export
-    perf = analytics.get("performance", {})
-    risk = analytics.get("risk", {})
-    ratios = analytics.get("ratios", {})
-    market = analytics.get("market", {})
-    
-    metrics_for_export = {
-        "performance": perf,
-        "risk": risk,
-        "ratios": ratios,
-        "market": market,
-    }
-    
-    # Multiple Metrics Comparison Table
-    st.subheader("Complete Metrics Comparison")
-    st.info("Full 70+ metrics comparison table coming soon...")
-    
-    # Export Options
-    st.markdown("---")
-    st.subheader("Data Export")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        csv_data = report_service.generate_csv_report(metrics_for_export)
-        st.download_button(
-            label="📄 Export to CSV",
-            data=csv_data,
-            file_name=f"portfolio_metrics_{portfolio_id[:8]}.csv",
-            mime="text/csv",
-            type="primary",
-            use_container_width=True
-        )
-    
-    with col2:
-        json_report = report_service.generate_json_report(
-            portfolio_name, metrics_for_export, analytics.get("portfolio_returns")
-        )
-        json_data = json.dumps(json_report, indent=2, default=str)
-        st.download_button(
-            label="📄 Export to JSON",
-            data=json_data,
-            file_name=f"portfolio_metrics_{portfolio_id[:8]}.json",
-            mime="application/json",
-            type="primary",
-            use_container_width=True
-        )
-    
-    # PDF Report
-    st.markdown("---")
-    st.subheader("PDF Tearsheet Generation")
-    st.info("PDF tearsheet generation (quantstats-style) coming soon...")
+
+
