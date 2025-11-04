@@ -10,6 +10,7 @@ COLORS = {
     "warning": "#FFA15A",  # Orange
     "info": "#19D3F3",  # Cyan
     "cash": "#C8C8C8",  # Gray for cash
+    "text": "#FFFFFF",  # White text
 }
 
 DEFAULT_LAYOUT = {

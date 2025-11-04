@@ -433,3 +433,86 @@ def render_individual_asset_metrics(
 
     st.markdown("---")
 
+
+def render_assets_table_extended(
+    asset_data: pd.DataFrame,
+) -> None:
+    """
+    Render extended asset information table with sortable columns.
+    
+    Args:
+        asset_data: DataFrame with columns: ticker, weight, name, sector, 
+                    industry, currency, price, change_pct
+    """
+    if asset_data is None or asset_data.empty:
+        st.info("No asset data available")
+        return
+    
+    # Format the dataframe for display
+    display_df = asset_data.copy()
+    
+    # Add row number
+    display_df.insert(0, "#", range(1, len(display_df) + 1))
+    
+    # Format columns
+    if "weight" in display_df.columns:
+        display_df["weight"] = display_df["weight"].apply(lambda x: f"{x:.2f}%")
+    
+    if "price" in display_df.columns:
+        display_df["price"] = display_df["price"].apply(
+            lambda x: f"${x:,.2f}" if x > 0 else "N/A"
+        )
+    
+    if "change_pct" in display_df.columns:
+        # Store original values for coloring
+        change_values = display_df["change_pct"].copy()
+        display_df["change_pct"] = display_df["change_pct"].apply(
+            lambda x: f"{x:+.2f}%" if pd.notna(x) else "0.00%"
+        )
+    
+    # Rename columns for display
+    column_mapping = {
+        "#": "#",
+        "ticker": "Ticker",
+        "weight": "Weight %",
+        "name": "Name",
+        "sector": "Sector",
+        "industry": "Industry",
+        "currency": "Currency",
+        "price": "Price",
+        "change_pct": "Change %",
+    }
+    
+    display_df = display_df.rename(columns=column_mapping)
+    
+    # Select columns to display
+    display_columns = ["#", "Ticker", "Weight %", "Name", "Sector", 
+                      "Industry", "Currency", "Price", "Change %"]
+    display_df = display_df[[col for col in display_columns if col in display_df.columns]]
+    
+    # Apply styling
+    def highlight_change(val):
+        """Highlight positive/negative changes."""
+        if isinstance(val, str) and "%" in val:
+            try:
+                num_val = float(val.replace("%", "").replace("+", ""))
+                if num_val > 0:
+                    return "color: #4CAF50;"  # Green
+                elif num_val < 0:
+                    return "color: #F44336;"  # Red
+            except ValueError:
+                pass
+        return ""
+    
+    # Display with styling
+    styled_df = display_df.style.applymap(
+        highlight_change,
+        subset=["Change %"] if "Change %" in display_df.columns else []
+    )
+    
+    st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(400, (len(display_df) + 1) * 35 + 3),
+    )

@@ -1813,3 +1813,1083 @@ def get_bull_bear_analysis_data(
     except Exception as e:
         logger.warning(f"Error preparing bull/bear analysis data: {e}")
         return None
+
+
+def get_asset_metrics_data(
+    positions: list,
+    price_data: Optional[pd.DataFrame] = None,
+) -> Optional[pd.DataFrame]:
+    """
+    Prepare extended asset information table data.
+    
+    Args:
+        positions: List of Position objects
+        price_data: Optional DataFrame with recent price data
+        
+    Returns:
+        DataFrame with columns: ticker, weight, name, sector, industry, 
+                                currency, price, change_pct
+    """
+    if not positions:
+        return None
+    
+    try:
+        import yfinance as yf
+        
+        # Build base data from positions
+        data = []
+        
+        for pos in positions:
+            ticker = pos.ticker
+            weight = pos.weight_target if hasattr(pos, 'weight_target') and pos.weight_target else 0.0
+            shares = pos.shares if hasattr(pos, 'shares') else 0.0
+            
+            # Skip CASH special handling
+            if ticker == "CASH":
+                data.append({
+                    "ticker": ticker,
+                    "weight": weight * 100,
+                    "shares": shares,
+                    "name": "Cash Position",
+                    "sector": "Cash",
+                    "industry": "Cash",
+                    "currency": "USD",
+                    "price": 1.0,
+                    "change_pct": 0.0,
+                })
+                continue
+            
+            # Fetch ticker info from yfinance
+            try:
+                ticker_obj = yf.Ticker(ticker)
+                info = ticker_obj.info
+                
+                # Get price change from price_data if available
+                current_price = info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
+                change_pct = 0.0
+                
+                if price_data is not None and ticker in price_data.columns:
+                    prices = price_data[ticker].dropna()
+                    if len(prices) >= 2:
+                        current_price = float(prices.iloc[-1])
+                        prev_price = float(prices.iloc[-2])
+                        if prev_price > 0:
+                            change_pct = ((current_price - prev_price) / prev_price) * 100
+                
+                data.append({
+                    "ticker": ticker,
+                    "weight": weight * 100,
+                    "shares": shares,
+                    "name": info.get("longName") or info.get("shortName") or ticker,
+                    "sector": info.get("sector") or "N/A",
+                    "industry": info.get("industry") or "N/A",
+                    "currency": info.get("currency") or "USD",
+                    "price": float(current_price),
+                    "change_pct": float(change_pct),
+                })
+                
+            except Exception as e:
+                logger.warning(f"Error fetching info for {ticker}: {e}")
+                # Fallback data
+                data.append({
+                    "ticker": ticker,
+                    "weight": weight * 100,
+                    "shares": shares,
+                    "name": ticker,
+                    "sector": "N/A",
+                    "industry": "N/A",
+                    "currency": "USD",
+                    "price": 0.0,
+                    "change_pct": 0.0,
+                })
+        
+        df = pd.DataFrame(data)
+        return df
+        
+    except Exception as e:
+        logger.warning(f"Error preparing asset metrics data: {e}")
+        return None
+
+
+def get_asset_impact_on_return_data(
+    positions: list,
+    price_data: pd.DataFrame,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate each asset's contribution to total portfolio return.
+    
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data (dates × tickers)
+        start_date: Optional start date for analysis
+        end_date: Optional end date for analysis
+        
+    Returns:
+        Dictionary with asset contributions data
+    """
+    if not positions or price_data.empty:
+        return None
+    
+    try:
+        if price_data.empty:
+            logger.warning("Price data is empty")
+            return None
+        
+        # Filter by date range if provided
+        filtered_data = price_data.copy()
+        if start_date is not None:
+            # Convert date to datetime if needed for comparison
+            if isinstance(filtered_data.index, pd.DatetimeIndex):
+                start_dt = pd.Timestamp(start_date)
+                filtered_data = filtered_data[filtered_data.index >= start_dt]
+            else:
+                # Try to convert index to datetime
+                try:
+                    filtered_data.index = pd.to_datetime(filtered_data.index)
+                    start_dt = pd.Timestamp(start_date)
+                    filtered_data = filtered_data[filtered_data.index >= start_dt]
+                except Exception:
+                    logger.warning(
+                        f"Could not filter by start_date {start_date}"
+                    )
+        
+        if end_date is not None:
+            if isinstance(filtered_data.index, pd.DatetimeIndex):
+                end_dt = pd.Timestamp(end_date)
+                filtered_data = filtered_data[filtered_data.index <= end_dt]
+            else:
+                try:
+                    filtered_data.index = pd.to_datetime(filtered_data.index)
+                    end_dt = pd.Timestamp(end_date)
+                    filtered_data = filtered_data[filtered_data.index <= end_dt]
+                except Exception:
+                    logger.warning(
+                        f"Could not filter by end_date {end_date}"
+                    )
+        
+        if filtered_data.empty:
+            logger.warning("Price data is empty after date filtering")
+            return None
+        
+        # Calculate weights based on initial portfolio value
+        total_shares_value = {}
+        for pos in positions:
+            ticker = pos.ticker
+            if ticker == "CASH":
+                # Cash always 1.0
+                total_shares_value[ticker] = pos.shares * 1.0
+            elif ticker in filtered_data.columns:
+                # Get first non-null price
+                prices_series = filtered_data[ticker].dropna()
+                if not prices_series.empty:
+                    first_price = float(prices_series.iloc[0])
+                    total_shares_value[ticker] = pos.shares * first_price
+                else:
+                    logger.warning(f"No price data for {ticker}")
+                    continue
+            else:
+                logger.warning(
+                    f"Ticker {ticker} not in price_data columns"
+                )
+                continue
+        
+        if not total_shares_value:
+            logger.warning("No valid positions with price data")
+            return None
+        
+        total_value = sum(total_shares_value.values())
+        if total_value == 0:
+            logger.warning("Total portfolio value is zero")
+            return None
+        
+        weights = {
+            ticker: value / total_value 
+            for ticker, value in total_shares_value.items()
+        }
+        
+        # Calculate returns for each asset
+        asset_returns = {}
+        for ticker in weights.keys():
+            if ticker == "CASH":
+                asset_returns[ticker] = 0.0  # Cash has no return
+            elif ticker in filtered_data.columns:
+                prices_series = filtered_data[ticker].dropna()
+                if len(prices_series) >= 2:
+                    first_price = float(prices_series.iloc[0])
+                    last_price = float(prices_series.iloc[-1])
+                    if first_price > 0:
+                        total_return = (last_price / first_price) - 1
+                        asset_returns[ticker] = float(total_return)
+                    else:
+                        asset_returns[ticker] = 0.0
+                else:
+                    asset_returns[ticker] = 0.0
+            else:
+                asset_returns[ticker] = 0.0
+        
+        # Calculate weighted contribution
+        contributions = {}
+        for ticker in weights.keys():
+            weighted_return = (
+                weights[ticker] * asset_returns.get(ticker, 0.0)
+            )
+            contributions[ticker] = float(weighted_return * 100)
+        
+        # Sort by contribution
+        sorted_tickers = sorted(
+            contributions.keys(), 
+            key=lambda t: contributions[t], 
+            reverse=True
+        )
+        
+        return {
+            "tickers": sorted_tickers,
+            "contributions": [
+                contributions[t] for t in sorted_tickers
+            ],
+            "returns": [
+                asset_returns.get(t, 0.0) * 100 
+                for t in sorted_tickers
+            ],
+            "weights": [weights[t] * 100 for t in sorted_tickers],
+        }
+        
+    except Exception as e:
+        logger.warning(
+            f"Error calculating asset impact on return: {e}"
+        )
+        import traceback
+        logger.warning(traceback.format_exc())
+        return None
+
+
+def get_asset_impact_on_risk_data(
+    positions: list,
+    price_data: pd.DataFrame,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate each asset's contribution to total portfolio risk (volatility).
+    
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data (dates × tickers)
+        
+    Returns:
+        Dictionary with risk contribution data
+    """
+    if not positions or price_data.empty:
+        return None
+    
+    try:
+        # Calculate weights
+        total_shares_value = {}
+        for pos in positions:
+            ticker = pos.ticker
+            if ticker in price_data.columns:
+                first_price = price_data[ticker].dropna().iloc[0] if not price_data[ticker].dropna().empty else 1.0
+                total_shares_value[ticker] = pos.shares * first_price
+        
+        total_value = sum(total_shares_value.values())
+        weights = {ticker: value / total_value for ticker, value in total_shares_value.items()}
+        
+        # Calculate returns for each asset
+        returns_data = {}
+        for ticker in weights.keys():
+            if ticker in price_data.columns:
+                prices = price_data[ticker].dropna()
+                if len(prices) >= 2:
+                    returns = prices.pct_change().dropna()
+                    returns_data[ticker] = returns
+        
+        # Build returns matrix
+        common_dates = None
+        for returns in returns_data.values():
+            if common_dates is None:
+                common_dates = returns.index
+            else:
+                common_dates = common_dates.intersection(returns.index)
+        
+        if common_dates is None or len(common_dates) < 2:
+            return None
+        
+        # Align returns
+        aligned_returns = pd.DataFrame({
+            ticker: returns_data[ticker].reindex(common_dates)
+            for ticker in returns_data.keys()
+        })
+        
+        # Calculate covariance matrix
+        cov_matrix = aligned_returns.cov() * TRADING_DAYS_PER_YEAR
+        
+        # Calculate portfolio variance
+        weights_array = np.array([weights.get(ticker, 0.0) for ticker in aligned_returns.columns])
+        portfolio_variance = np.dot(weights_array, np.dot(cov_matrix.values, weights_array))
+        portfolio_volatility = np.sqrt(portfolio_variance)
+        
+        # Calculate marginal contribution to risk (MCR)
+        mcr = np.dot(cov_matrix.values, weights_array) / portfolio_volatility
+        
+        # Calculate contribution to risk (CTR)
+        ctr = weights_array * mcr
+        
+        # Calculate percentage contribution
+        risk_contribution_pct = (ctr / portfolio_volatility) * 100
+        
+        # Prepare results
+        risk_contributions = {}
+        for i, ticker in enumerate(aligned_returns.columns):
+            risk_contributions[ticker] = float(risk_contribution_pct[i])
+        
+        # Sort by contribution
+        sorted_tickers = sorted(risk_contributions.keys(), key=lambda t: risk_contributions[t], reverse=True)
+        
+        return {
+            "tickers": sorted_tickers,
+            "risk_contributions": [risk_contributions[t] for t in sorted_tickers],
+            "weights": [weights[t] * 100 for t in sorted_tickers],
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error calculating asset impact on risk: {e}")
+        return None
+
+
+def get_risk_vs_weight_comparison_data(
+    positions: list,
+    price_data: pd.DataFrame,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> Optional[Dict[str, any]]:
+    """
+    Prepare data for comparing risk contribution, return impact vs portfolio weight.
+    
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data
+        start_date: Optional start date for return calculation
+        end_date: Optional end date for return calculation
+        
+    Returns:
+        Dictionary with comparison data: tickers, risk_impact, return_impact, weights
+    """
+    # Get risk impact data
+    risk_data = get_asset_impact_on_risk_data(positions, price_data)
+    
+    if risk_data is None:
+        return None
+    
+    # Get return impact data
+    return_data = get_asset_impact_on_return_data(
+        positions, price_data, start_date, end_date
+    )
+    
+    # Create dictionaries for easy lookup
+    risk_dict = dict(zip(risk_data["tickers"], risk_data["risk_contributions"]))
+    weight_dict = dict(zip(risk_data["tickers"], risk_data["weights"]))
+    
+    # Get return impact if available
+    return_dict = {}
+    if return_data and return_data.get("tickers"):
+        return_dict = dict(
+            zip(return_data["tickers"], return_data["contributions"])
+        )
+    
+    # Align all tickers (use risk_data tickers as base)
+    tickers = risk_data["tickers"]
+    risk_impact = []
+    return_impact = []
+    weights = []
+    
+    for ticker in tickers:
+        risk_impact.append(risk_dict.get(ticker, 0.0))
+        weights.append(weight_dict.get(ticker, 0.0))
+        # Return impact: use absolute value for comparison
+        return_val = return_dict.get(ticker, 0.0)
+        return_impact.append(abs(return_val))  # Use absolute for comparison
+    
+    return {
+        "tickers": tickers,
+        "risk_impact": risk_impact,
+        "return_impact": return_impact,
+        "weights": weights,
+    }
+
+
+def get_diversification_coefficient_data(
+    positions: list,
+    price_data: pd.DataFrame,
+) -> Optional[Dict[str, float]]:
+    """
+    Calculate diversification coefficient.
+    
+    Formula: Weighted sum of individual volatilities / Portfolio volatility
+    
+    A value > 1.0 indicates positive diversification effect.
+    
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data
+        
+    Returns:
+        Dictionary with diversification metrics
+    """
+    if not positions or price_data.empty:
+        return None
+    
+    try:
+        # Calculate weights
+        total_shares_value = {}
+        for pos in positions:
+            ticker = pos.ticker
+            if ticker in price_data.columns:
+                first_price = price_data[ticker].dropna().iloc[0] if not price_data[ticker].dropna().empty else 1.0
+                total_shares_value[ticker] = pos.shares * first_price
+        
+        total_value = sum(total_shares_value.values())
+        weights = {ticker: value / total_value for ticker, value in total_shares_value.items()}
+        
+        # Calculate individual volatilities
+        individual_vols = {}
+        returns_data = {}
+        
+        for ticker in weights.keys():
+            if ticker in price_data.columns:
+                prices = price_data[ticker].dropna()
+                if len(prices) >= 2:
+                    returns = prices.pct_change().dropna()
+                    returns_data[ticker] = returns
+                    vol = returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
+                    individual_vols[ticker] = vol
+        
+        # Calculate weighted sum of individual volatilities
+        weighted_sum_vols = sum(weights[ticker] * individual_vols.get(ticker, 0.0) 
+                                for ticker in weights.keys())
+        
+        # Calculate portfolio returns
+        common_dates = None
+        for returns in returns_data.values():
+            if common_dates is None:
+                common_dates = returns.index
+            else:
+                common_dates = common_dates.intersection(returns.index)
+        
+        if common_dates is None or len(common_dates) < 2:
+            return None
+        
+        # Calculate portfolio returns
+        portfolio_returns = pd.Series(0.0, index=common_dates)
+        for ticker in returns_data.keys():
+            aligned_returns = returns_data[ticker].reindex(common_dates).fillna(0)
+            portfolio_returns += weights[ticker] * aligned_returns
+        
+        # Calculate portfolio volatility
+        portfolio_vol = portfolio_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
+        
+        # Calculate diversification coefficient
+        if portfolio_vol > 0:
+            div_coefficient = weighted_sum_vols / portfolio_vol
+        else:
+            div_coefficient = 1.0
+        
+        # Calculate volatility reduction
+        vol_reduction = (div_coefficient - 1.0) * 100
+        
+        return {
+            "diversification_coefficient": float(div_coefficient),
+            "weighted_sum_volatilities": float(weighted_sum_vols),
+            "portfolio_volatility": float(portfolio_vol),
+            "volatility_reduction_pct": float(vol_reduction),
+            "is_diversified": div_coefficient > 1.0,
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error calculating diversification coefficient: {e}")
+        return None
+
+
+def get_correlation_matrix_data(
+    positions: list,
+    price_data: pd.DataFrame,
+    benchmark_returns: Optional[pd.Series] = None,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate correlation matrix for all assets + benchmark.
+    
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data (dates x tickers)
+        benchmark_returns: Optional benchmark returns series
+        
+    Returns:
+        Dictionary with correlation matrix and metadata
+    """
+    if not positions or price_data.empty:
+        return None
+    
+    try:
+        # Calculate returns for all assets
+        returns_df = price_data.pct_change().dropna()
+        
+        if returns_df.empty or len(returns_df) < 2:
+            return None
+        
+        # Exclude CASH from correlation matrix (it's always 1.0, no real correlation)
+        if "CASH" in returns_df.columns:
+            returns_df = returns_df.drop(columns=["CASH"])
+        
+        if returns_df.empty or len(returns_df.columns) < 2:
+            return None
+        
+        # Add benchmark if available
+        if benchmark_returns is not None and not benchmark_returns.empty:
+            # Align benchmark with asset returns
+            aligned_benchmark = benchmark_returns.reindex(
+                returns_df.index, method="ffill"
+            ).dropna()
+            
+            if not aligned_benchmark.empty:
+                # Ensure we have common dates
+                common_dates = returns_df.index.intersection(aligned_benchmark.index)
+                if len(common_dates) >= 2:
+                    returns_df = returns_df.loc[common_dates]
+                    aligned_benchmark = aligned_benchmark.loc[common_dates]
+                    returns_df["SPY"] = aligned_benchmark
+        
+        # Calculate correlation matrix
+        correlation_matrix = returns_df.corr()
+        
+        # Get ticker list
+        tickers = list(correlation_matrix.columns)
+        
+        return {
+            "correlation_matrix": correlation_matrix,
+            "tickers": tickers,
+            "n_assets": len(tickers),
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error calculating correlation matrix: {e}")
+        return None
+
+
+def get_correlation_statistics_data(
+    correlation_matrix: pd.DataFrame,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate correlation statistics from correlation matrix.
+    
+    Args:
+        correlation_matrix: Correlation matrix DataFrame
+        
+    Returns:
+        Dictionary with correlation statistics
+    """
+    if correlation_matrix.empty:
+        return None
+    
+    try:
+        # Get upper triangle (excluding diagonal)
+        mask = np.triu(np.ones_like(correlation_matrix, dtype=bool), k=1)
+        upper_triangle = correlation_matrix.where(mask).stack()
+        
+        # Calculate statistics
+        correlations = upper_triangle.values
+        avg_correlation = float(np.nanmean(correlations))
+        median_correlation = float(np.nanmedian(correlations))
+        min_correlation = float(np.nanmin(correlations))
+        max_correlation = float(np.nanmax(correlations))
+        
+        # Find min/max pairs
+        min_idx = np.nanargmin(correlations)
+        max_idx = np.nanargmax(correlations)
+        min_pair = upper_triangle.index[min_idx]
+        max_pair = upper_triangle.index[max_idx]
+        
+        # Count high/low correlations
+        high_corr_count = int(np.sum(correlations > 0.8))
+        low_corr_count = int(np.sum(correlations < 0.2))
+        
+        return {
+            "average_correlation": avg_correlation,
+            "median_correlation": median_correlation,
+            "min_correlation": min_correlation,
+            "max_correlation": max_correlation,
+            "min_pair": (min_pair[0], min_pair[1]),
+            "max_pair": (max_pair[0], max_pair[1]),
+            "high_corr_count": high_corr_count,
+            "low_corr_count": low_corr_count,
+            "total_pairs": len(correlations),
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error calculating correlation statistics: {e}")
+        return None
+
+
+def get_correlation_with_benchmark_data(
+    positions: list,
+    price_data: pd.DataFrame,
+    benchmark_returns: pd.Series,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate correlation and beta for each asset with benchmark.
+    
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data
+        benchmark_returns: Benchmark returns series
+        
+    Returns:
+        Dictionary with correlation and beta data for each asset
+    """
+    if not positions or price_data.empty or benchmark_returns.empty:
+        return None
+    
+    try:
+        # Calculate asset returns
+        asset_returns = price_data.pct_change().dropna()
+        
+        if asset_returns.empty:
+            return None
+        
+        # Align benchmark
+        common_dates = asset_returns.index.intersection(benchmark_returns.index)
+        if len(common_dates) < 10:
+            return None
+        
+        asset_returns_aligned = asset_returns.loc[common_dates]
+        benchmark_aligned = benchmark_returns.loc[common_dates]
+        
+        # Calculate correlation and beta for each asset
+        results = []
+        tickers = [pos.ticker for pos in positions if pos.ticker in asset_returns_aligned.columns]
+        
+        for ticker in tickers:
+            asset_ret = asset_returns_aligned[ticker].dropna()
+            # Align with benchmark
+            aligned = pd.DataFrame({
+                "asset": asset_ret,
+                "benchmark": benchmark_aligned
+            }).dropna()
+            
+            if len(aligned) >= 10:
+                # Correlation
+                corr = aligned["asset"].corr(aligned["benchmark"])
+                
+                # Beta
+                cov = aligned["asset"].cov(aligned["benchmark"])
+                bench_var = aligned["benchmark"].var()
+                beta = cov / bench_var if bench_var > 0 else 0.0
+                
+                results.append({
+                    "ticker": ticker,
+                    "correlation": float(corr) if not np.isnan(corr) else 0.0,
+                    "beta": float(beta) if not np.isnan(beta) else 0.0,
+                })
+        
+        # Sort by correlation descending
+        results.sort(key=lambda x: x["correlation"], reverse=True)
+        
+        return {
+            "data": results,
+            "tickers": [r["ticker"] for r in results],
+            "correlations": [r["correlation"] for r in results],
+            "betas": [r["beta"] for r in results],
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error calculating correlation with benchmark: {e}")
+        return None
+
+
+def get_cluster_analysis_data(
+    correlation_matrix: pd.DataFrame,
+) -> Optional[Dict[str, any]]:
+    """
+    Perform hierarchical clustering on correlation matrix.
+    
+    Args:
+        correlation_matrix: Correlation matrix DataFrame
+        
+    Returns:
+        Dictionary with clustered matrix and linkage data
+    """
+    if correlation_matrix.empty:
+        return None
+    
+    try:
+        from scipy.cluster.hierarchy import linkage, dendrogram, leaves_list
+        from scipy.spatial.distance import squareform
+        
+        # Convert correlation to distance (1 - correlation)
+        distance_matrix = 1 - correlation_matrix.values
+        
+        # Convert to condensed form
+        condensed_distances = squareform(distance_matrix, checks=False)
+        
+        # Perform hierarchical clustering
+        linkage_matrix = linkage(condensed_distances, method="ward")
+        
+        # Get optimal leaf order
+        optimal_leaves = leaves_list(linkage_matrix)
+        
+        # Reorder correlation matrix
+        tickers = list(correlation_matrix.columns)
+        reordered_tickers = [tickers[i] for i in optimal_leaves]
+        reordered_matrix = correlation_matrix.loc[reordered_tickers, reordered_tickers]
+        
+        # Determine number of clusters using more intelligent method
+        # Try to find optimal number of clusters using distance-based approach
+        num_assets = len(tickers)
+        
+        if num_assets <= 3:
+            n_clusters = num_assets
+        elif num_assets <= 6:
+            # For 4-6 assets, try 2-3 clusters
+            n_clusters = max(2, min(3, num_assets // 2))
+        elif num_assets <= 10:
+            # For 7-10 assets, try 3-4 clusters
+            n_clusters = max(3, min(4, num_assets // 2))
+        else:
+            # For more assets, use 4-5 clusters
+            n_clusters = min(5, max(4, num_assets // 3))
+        
+        # Ensure we don't exceed number of assets
+        n_clusters = min(n_clusters, num_assets)
+        
+        return {
+            "clustered_matrix": reordered_matrix,
+            "original_matrix": correlation_matrix,
+            "linkage_matrix": linkage_matrix,
+            "reordered_tickers": reordered_tickers,
+            "n_clusters": n_clusters,
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error performing cluster analysis: {e}")
+        return None
+
+
+def get_asset_price_dynamics_data(
+    positions: list,
+    price_data: pd.DataFrame,
+    benchmark_returns: Optional[pd.Series] = None,
+    selected_tickers: Optional[list] = None,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate normalized price dynamics for selected assets.
+    
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data
+        benchmark_returns: Optional benchmark returns
+        selected_tickers: List of selected tickers to analyze
+        
+    Returns:
+        Dictionary with normalized price series
+    """
+    if not positions or price_data.empty:
+        return None
+    
+    try:
+        # Use selected tickers or all tickers
+        if selected_tickers is None:
+            selected_tickers = [pos.ticker for pos in positions 
+                             if pos.ticker in price_data.columns]
+        
+        # Filter to selected tickers
+        selected_tickers = [t for t in selected_tickers if t in price_data.columns]
+        
+        if not selected_tickers:
+            return None
+        
+        # Get price series for selected assets
+        price_series = {}
+        for ticker in selected_tickers:
+            prices = price_data[ticker].dropna()
+            if len(prices) >= 2:
+                # Normalize to start at 0%
+                first_price = prices.iloc[0]
+                normalized = ((prices / first_price) - 1) * 100
+                price_series[ticker] = normalized
+        
+        # Add benchmark if available
+        if benchmark_returns is not None and not benchmark_returns.empty:
+            # Convert returns to cumulative normalized prices
+            cumulative = (1 + benchmark_returns).cumprod()
+            if len(cumulative) >= 2:
+                first_val = cumulative.iloc[0]
+                normalized_bench = ((cumulative / first_val) - 1) * 100
+                price_series["SPY"] = normalized_bench
+        
+        return {
+            "price_series": price_series,
+            "tickers": list(price_series.keys()),
+            "dates": price_series[list(price_series.keys())[0]].index if price_series else None,
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error calculating asset price dynamics: {e}")
+        return None
+
+
+def get_rolling_correlation_with_benchmark_data(
+    positions: list,
+    price_data: pd.DataFrame,
+    benchmark_returns: pd.Series,
+    portfolio_returns: Optional[pd.Series] = None,
+    window: int = 60,
+    selected_tickers: Optional[list] = None,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate rolling correlation with benchmark for selected assets.
+    
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data
+        benchmark_returns: Benchmark returns series
+        portfolio_returns: Optional portfolio returns for weighted average
+        window: Rolling window size in days
+        selected_tickers: List of selected tickers
+        
+    Returns:
+        Dictionary with rolling correlation series
+    """
+    if not positions or price_data.empty or benchmark_returns.empty:
+        return None
+    
+    try:
+        # Use selected tickers or all tickers
+        if selected_tickers is None:
+            selected_tickers = [pos.ticker for pos in positions 
+                             if pos.ticker in price_data.columns]
+        
+        selected_tickers = [t for t in selected_tickers if t in price_data.columns]
+        
+        if not selected_tickers:
+            return None
+        
+        # Calculate asset returns
+        asset_returns = price_data.pct_change().dropna()
+        
+        # Align dates
+        common_dates = asset_returns.index.intersection(benchmark_returns.index)
+        if len(common_dates) < window:
+            return None
+        
+        asset_returns_aligned = asset_returns.loc[common_dates]
+        benchmark_aligned = benchmark_returns.loc[common_dates]
+        
+        # Calculate rolling correlations for each asset
+        rolling_correlations = {}
+        
+        for ticker in selected_tickers:
+            if ticker not in asset_returns_aligned.columns:
+                continue
+            
+            asset_ret = asset_returns_aligned[ticker].dropna()
+            
+            # Calculate rolling correlation
+            rolling_corr = []
+            rolling_dates = []
+            
+            for i in range(window, len(asset_ret) + 1):
+                window_asset = asset_ret.iloc[i-window:i]
+                window_bench = benchmark_aligned.iloc[i-window:i]
+                
+                # Align windows
+                aligned = pd.DataFrame({
+                    "asset": window_asset,
+                    "benchmark": window_bench
+                }).dropna()
+                
+                if len(aligned) >= window // 2:  # At least half window size
+                    corr = aligned["asset"].corr(aligned["benchmark"])
+                    if not np.isnan(corr):
+                        rolling_corr.append(corr)
+                        rolling_dates.append(asset_ret.index[i-1])
+            
+            if rolling_corr:
+                rolling_correlations[ticker] = pd.Series(
+                    rolling_corr, index=rolling_dates
+                )
+        
+        # Calculate weighted portfolio average if portfolio_returns available
+        portfolio_avg_corr = None
+        if portfolio_returns is not None and not portfolio_returns.empty:
+            # Calculate portfolio correlation with benchmark
+            aligned_port = portfolio_returns.reindex(common_dates).dropna()
+            aligned_bench = benchmark_returns.reindex(common_dates).dropna()
+            
+            if len(aligned_port) >= window:
+                portfolio_rolling_corr = []
+                portfolio_rolling_dates = []
+                
+                for i in range(window, len(aligned_port) + 1):
+                    window_port = aligned_port.iloc[i-window:i]
+                    window_bench = aligned_bench.iloc[i-window:i]
+                    
+                    aligned = pd.DataFrame({
+                        "portfolio": window_port,
+                        "benchmark": window_bench
+                    }).dropna()
+                    
+                    if len(aligned) >= window // 2:
+                        corr = aligned["portfolio"].corr(aligned["benchmark"])
+                        if not np.isnan(corr):
+                            portfolio_rolling_corr.append(corr)
+                            portfolio_rolling_dates.append(aligned_port.index[i-1])
+                
+                if portfolio_rolling_corr:
+                    portfolio_avg_corr = pd.Series(
+                        portfolio_rolling_corr, index=portfolio_rolling_dates
+                    )
+        
+        return {
+            "rolling_correlations": rolling_correlations,
+            "portfolio_avg_correlation": portfolio_avg_corr,
+            "window": window,
+            "tickers": list(rolling_correlations.keys()),
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error calculating rolling correlation: {e}")
+        return None
+
+
+def get_detailed_asset_analysis_data(
+    ticker: str,
+    positions: list,
+    price_data: pd.DataFrame,
+    portfolio_returns: pd.Series,
+    benchmark_returns: Optional[pd.Series] = None,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate detailed analysis data for a single asset.
+    
+    Args:
+        ticker: Asset ticker to analyze
+        positions: List of Position objects
+        price_data: DataFrame with price data
+        portfolio_returns: Portfolio returns series
+        benchmark_returns: Optional benchmark returns
+        
+    Returns:
+        Dictionary with detailed asset metrics and comparison data
+    """
+    if ticker not in price_data.columns:
+        return None
+    
+    try:
+        # Get asset prices
+        asset_prices = price_data[ticker].dropna()
+        
+        if len(asset_prices) < 2:
+            return None
+        
+        # Calculate asset returns
+        asset_returns = asset_prices.pct_change().dropna()
+        
+        # Calculate metrics
+        total_return = (asset_prices.iloc[-1] / asset_prices.iloc[0]) - 1
+        trading_days = len(asset_returns)
+        years = trading_days / TRADING_DAYS_PER_YEAR
+        annual_return = (1 + total_return) ** (1 / years) - 1 if years > 0 else 0.0
+        volatility = asset_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
+        
+        # Sharpe ratio (assuming 0 risk-free rate)
+        sharpe_ratio = annual_return / volatility if volatility > 0 else 0.0
+        
+        # Max drawdown
+        cumulative = (1 + asset_returns).cumprod()
+        running_max = cumulative.cummax()
+        drawdown = (cumulative - running_max) / running_max
+        max_drawdown = drawdown.min()
+        
+        # Portfolio metrics for comparison
+        portfolio_total_return = (1 + portfolio_returns).prod() - 1
+        portfolio_years = len(portfolio_returns) / TRADING_DAYS_PER_YEAR
+        portfolio_annual_return = (1 + portfolio_total_return) ** (1 / portfolio_years) - 1 if portfolio_years > 0 else 0.0
+        portfolio_volatility = portfolio_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
+        portfolio_sharpe = portfolio_annual_return / portfolio_volatility if portfolio_volatility > 0 else 0.0
+        
+        # Beta and correlation with portfolio
+        aligned = pd.DataFrame({
+            "asset": asset_returns,
+            "portfolio": portfolio_returns
+        }).dropna()
+        
+        beta = None
+        correlation = None
+        if len(aligned) >= 10:
+            cov = aligned["asset"].cov(aligned["portfolio"])
+            port_var = aligned["portfolio"].var()
+            beta = cov / port_var if port_var > 0 else 0.0
+            correlation = aligned["asset"].corr(aligned["portfolio"])
+        
+        # Correlation with other assets
+        other_correlations = {}
+        other_tickers = [pos.ticker for pos in positions 
+                        if pos.ticker != ticker and pos.ticker in price_data.columns]
+        
+        for other_ticker in other_tickers:
+            other_returns = price_data[other_ticker].pct_change().dropna()
+            aligned_other = pd.DataFrame({
+                "asset": asset_returns,
+                "other": other_returns
+            }).dropna()
+            
+            if len(aligned_other) >= 10:
+                corr = aligned_other["asset"].corr(aligned_other["other"])
+                if not np.isnan(corr):
+                    other_correlations[other_ticker] = float(corr)
+        
+        # Cumulative returns for comparison
+        asset_cumulative = (1 + asset_returns).cumprod() - 1
+        portfolio_cumulative = (1 + portfolio_returns).cumprod() - 1
+        
+        # Benchmark cumulative if available
+        benchmark_cumulative = None
+        if benchmark_returns is not None and not benchmark_returns.empty:
+            aligned_bench = benchmark_returns.reindex(asset_returns.index, method="ffill").dropna()
+            if len(aligned_bench) >= 2:
+                benchmark_cumulative = (1 + aligned_bench).cumprod() - 1
+        
+        # Moving averages (50-day, 200-day)
+        ma50 = asset_prices.rolling(50).mean() if len(asset_prices) >= 50 else None
+        ma200 = asset_prices.rolling(200).mean() if len(asset_prices) >= 200 else None
+        
+        return {
+            "ticker": ticker,
+            "metrics": {
+                "total_return": float(total_return),
+                "annual_return": float(annual_return),
+                "volatility": float(volatility),
+                "sharpe_ratio": float(sharpe_ratio),
+                "max_drawdown": float(max_drawdown),
+                "beta": float(beta) if beta is not None else None,
+                "correlation": float(correlation) if correlation is not None else None,
+            },
+            "portfolio_metrics": {
+                "total_return": float(portfolio_total_return),
+                "annual_return": float(portfolio_annual_return),
+                "volatility": float(portfolio_volatility),
+                "sharpe_ratio": float(portfolio_sharpe),
+            },
+            "other_correlations": other_correlations,
+            "cumulative_returns": {
+                "asset": asset_cumulative,
+                "portfolio": portfolio_cumulative,
+                "benchmark": benchmark_cumulative,
+            },
+            "prices": asset_prices,
+            "returns": asset_returns,
+            "ma50": ma50,
+            "ma200": ma200,
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error calculating detailed asset analysis: {e}")
+        return None

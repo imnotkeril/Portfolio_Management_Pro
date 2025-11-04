@@ -1246,8 +1246,6 @@ def plot_period_returns_bar(
     return fig
 
 
-
-
 def plot_return_quantiles_box(
     portfolio_returns: pd.Series,
     benchmark_returns: Optional[pd.Series] = None,
@@ -2350,6 +2348,869 @@ def plot_bull_bear_rolling_beta(
         yaxis=dict(title="Beta", tickformat=",.2f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_impact_on_return(
+    data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot impact on total return bar chart.
+    
+    Args:
+        data: Dictionary with 'tickers', 'contributions', 'returns', 'weights'
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if not data or "tickers" not in data:
+        return fig
+    
+    tickers = data.get("tickers", [])
+    contributions = data.get("contributions", [])
+    
+    # Color scale based on contribution value
+    colors = []
+    for contrib in contributions:
+        if contrib > 4:
+            colors.append("#1B5E20")  # Dark Green
+        elif contrib > 2:
+            colors.append("#4CAF50")  # Green
+        elif contrib > 1:
+            colors.append("#8BC34A")  # Light Green
+        elif contrib > 0:
+            colors.append("#FFC107")  # Yellow
+        elif contrib > -1:
+            colors.append("#FF9800")  # Orange
+        else:
+            colors.append("#F44336")  # Red
+    
+    fig.add_trace(
+        go.Bar(
+            x=tickers,
+            y=contributions,
+            marker=dict(color=colors),
+            text=[f"{c:.2f}%" for c in contributions],
+            textposition="outside",
+            hovertemplate="<b>%{x}</b><br>Contribution: %{y:.2f}%<extra></extra>",
+        )
+    )
+    
+    # Add zero line
+    fig.add_hline(
+        y=0,
+        line_dash="solid",
+        line_color=COLORS["text"],
+        line_width=1,
+    )
+    
+    layout = get_chart_layout(
+        title="Impact of Assets on Total Return",
+        yaxis=dict(title="Weighted Return Contribution (%)", tickformat=",.2f"),
+        xaxis=dict(title="Assets"),
+        showlegend=False,
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_impact_on_risk(
+    data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot impact on portfolio risk bar chart.
+    
+    Args:
+        data: Dictionary with 'tickers', 'risk_contributions'
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if not data or "tickers" not in data:
+        return fig
+    
+    tickers = data.get("tickers", [])
+    risk_contributions = data.get("risk_contributions", [])
+    
+    # Yellow to Red gradient based on contribution
+    colors = []
+    max_contrib = max(risk_contributions) if risk_contributions else 1
+    for contrib in risk_contributions:
+        # Normalize to 0-1 range
+        normalized = contrib / max_contrib if max_contrib > 0 else 0
+        # Gradient from yellow to red
+        if normalized > 0.8:
+            colors.append("#D32F2F")  # Dark Red
+        elif normalized > 0.6:
+            colors.append("#F44336")  # Red
+        elif normalized > 0.4:
+            colors.append("#FF5722")  # Red-Orange
+        elif normalized > 0.2:
+            colors.append("#FF9800")  # Orange
+        else:
+            colors.append("#FFC107")  # Yellow
+    
+    fig.add_trace(
+        go.Bar(
+            x=tickers,
+            y=risk_contributions,
+            marker=dict(color=colors),
+            text=[f"{c:.1f}%" for c in risk_contributions],
+            textposition="outside",
+            hovertemplate="<b>%{x}</b><br>Risk Contribution: %{y:.2f}%<extra></extra>",
+        )
+    )
+    
+    layout = get_chart_layout(
+        title="Impact of Assets on Overall Portfolio Risk",
+        yaxis=dict(title="Risk Contribution (%)", tickformat=",.1f"),
+        xaxis=dict(title="Assets"),
+        showlegend=False,
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_risk_vs_weight_comparison(
+    data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot comparison of risk impact, return impact vs asset weight (grouped bar chart).
+    
+    Args:
+        data: Dictionary with 'tickers', 'risk_impact', 'return_impact', 'weights'
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if not data or "tickers" not in data:
+        return fig
+    
+    tickers = data.get("tickers", [])
+    risk_impact = data.get("risk_impact", [])
+    return_impact = data.get("return_impact", [])
+    weights = data.get("weights", [])
+    
+    # Risk Impact bars (red)
+    fig.add_trace(
+        go.Bar(
+            name="Impact on Risk",
+            x=tickers,
+            y=risk_impact,
+            marker=dict(color=COLORS["danger"]),
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                "Risk Impact: %{y:.2f}%<extra></extra>"
+            ),
+        )
+    )
+    
+    # Return Impact bars (green)
+    if return_impact:
+        fig.add_trace(
+            go.Bar(
+                name="Impact on Return",
+                x=tickers,
+                y=return_impact,
+                marker=dict(color=COLORS["success"]),
+                hovertemplate=(
+                    "<b>%{x}</b><br>"
+                    "Return Impact: %{y:.2f}%<extra></extra>"
+                ),
+            )
+        )
+    
+    # Weight bars (orange)
+    fig.add_trace(
+        go.Bar(
+            name="Weight in Portfolio",
+            x=tickers,
+            y=weights,
+            marker=dict(color=COLORS["warning"]),
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                "Weight: %{y:.2f}%<extra></extra>"
+            ),
+        )
+    )
+    
+    layout = get_chart_layout(
+        title="Comparison of Risk & Return Impact and Asset Weighting",
+        yaxis=dict(title="Percentage (%)", tickformat=",.1f"),
+        xaxis=dict(title="Assets"),
+        barmode="group",
+        hovermode="x unified",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_correlation_matrix(
+    correlation_matrix: pd.DataFrame,
+) -> go.Figure:
+    """
+    Plot correlation matrix heatmap.
+    
+    Args:
+        correlation_matrix: Correlation matrix DataFrame
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if correlation_matrix.empty:
+        fig.add_annotation(
+            text="No data available",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+        return fig
+    
+    # Create heatmap with custom color scale
+    colorscale = [
+        [0.0, "#1E3A8A"],      # Dark Blue (-1.0)
+        [0.25, "#3B82F6"],     # Light Blue (-0.5)
+        [0.5, "#FFFFFF"],       # White (0.0)
+        [0.75, "#F87171"],     # Light Red (+0.5)
+        [1.0, "#DC2626"],      # Dark Red (+1.0)
+    ]
+    
+    fig.add_trace(
+        go.Heatmap(
+            z=correlation_matrix.values,
+            x=correlation_matrix.columns,
+            y=correlation_matrix.index,
+            colorscale=colorscale,
+            zmid=0,
+            zmin=-1,
+            zmax=1,
+            text=correlation_matrix.round(2).values,
+            texttemplate="%{text:.2f}",
+            textfont={"size": 10, "color": "black"},
+            colorbar=dict(title="Correlation"),
+            hovertemplate="<b>%{y}</b> vs <b>%{x}</b><br>Correlation: %{z:.2f}<extra></extra>",
+        )
+    )
+    
+    layout = get_chart_layout(
+        title="Correlation Matrix - All Assets + Benchmark",
+        xaxis=dict(title=""),
+        yaxis=dict(title=""),
+        height=600,
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_correlation_with_benchmark(
+    data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot bar chart of asset correlations with benchmark.
+    
+    Args:
+        data: Dictionary with tickers, correlations, betas
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if not data or "tickers" not in data:
+        return fig
+    
+    tickers = data.get("tickers", [])
+    correlations = data.get("correlations", [])
+    
+    if not tickers or not correlations:
+        return fig
+    
+    # Color gradient: Red (high) to Blue (low)
+    colors = []
+    for corr in correlations:
+        if corr > 0.7:
+            colors.append("#DC2626")  # Dark Red
+        elif corr > 0.5:
+            colors.append("#F87171")  # Light Red
+        elif corr > 0.3:
+            colors.append("#FCD34D")  # Yellow
+        elif corr > 0.1:
+            colors.append("#60A5FA")  # Light Blue
+        else:
+            colors.append("#1E3A8A")  # Dark Blue
+    
+    fig.add_trace(
+        go.Bar(
+            x=tickers,
+            y=correlations,
+            marker=dict(color=colors),
+            text=[f"{c:.2f}" for c in correlations],
+            textposition="outside",
+            hovertemplate="<b>%{x}</b><br>Correlation: %{y:.2f}<extra></extra>",
+        )
+    )
+    
+    # Reference line at 0.7 (high correlation threshold)
+    fig.add_hline(
+        y=0.7,
+        line_dash="dash",
+        line_color=COLORS["warning"],
+        line_width=2,
+        annotation_text="High Correlation (0.7)",
+        annotation_position="right",
+    )
+    
+    layout = get_chart_layout(
+        title="Asset Correlation with SPY",
+        yaxis=dict(title="Correlation Coefficient", tickformat=",.2f", range=[-1, 1]),
+        xaxis=dict(title="Assets"),
+        showlegend=False,
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_clustered_correlation_matrix(
+    clustered_matrix: pd.DataFrame,
+) -> go.Figure:
+    """
+    Plot clustered correlation matrix heatmap.
+    
+    Args:
+        clustered_matrix: Reordered correlation matrix DataFrame
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if clustered_matrix.empty:
+        return fig
+    
+    # Same color scale as regular correlation matrix
+    colorscale = [
+        [0.0, "#1E3A8A"],      # Dark Blue (-1.0)
+        [0.25, "#3B82F6"],     # Light Blue (-0.5)
+        [0.5, "#FFFFFF"],      # White (0.0)
+        [0.75, "#F87171"],     # Light Red (+0.5)
+        [1.0, "#DC2626"],      # Dark Red (+1.0)
+    ]
+    
+    fig.add_trace(
+        go.Heatmap(
+            z=clustered_matrix.values,
+            x=clustered_matrix.columns,
+            y=clustered_matrix.index,
+            colorscale=colorscale,
+            zmid=0,
+            zmin=-1,
+            zmax=1,
+            text=clustered_matrix.round(2).values,
+            texttemplate="%{text:.2f}",
+            textfont={"size": 10, "color": "black"},
+            colorbar=dict(title="Correlation"),
+            hovertemplate="<b>%{y}</b> vs <b>%{x}</b><br>Correlation: %{z:.2f}<extra></extra>",
+        )
+    )
+    
+    layout = get_chart_layout(
+        title="Clustered Correlation Matrix",
+        xaxis=dict(title=""),
+        yaxis=dict(title=""),
+        height=600,
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_dendrogram(
+    linkage_matrix: np.ndarray,
+    labels: list,
+    n_clusters: int = 3,
+) -> go.Figure:
+    """
+    Plot horizontal hierarchical clustering dendrogram.
+    
+    Args:
+        linkage_matrix: Linkage matrix from scipy.cluster.hierarchy
+        labels: List of asset tickers
+        n_clusters: Number of clusters to highlight
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    try:
+        from scipy.cluster.hierarchy import dendrogram, fcluster
+        from io import BytesIO
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        
+        # Calculate cluster assignments
+        cluster_assignments = fcluster(
+            linkage_matrix, n_clusters, criterion="maxclust"
+        )
+        
+        # Create vertical dendrogram using matplotlib (more standard)
+        # Larger figure size for better visibility
+        num_assets = len(labels)
+        fig_width = 14  # Increased width
+        fig_height = max(10, num_assets * 0.8)  # More height per asset
+        plt.figure(figsize=(fig_width, fig_height))
+        
+        # Set dark theme colors
+        plt.style.use("dark_background")
+        ax = plt.gca()
+        ax.set_facecolor("#1E1E1E")
+        fig_pyplot = plt.gcf()
+        fig_pyplot.patch.set_facecolor("#1E1E1E")
+        
+        # Create dendrogram (vertical orientation - standard)
+        dendro_data = dendrogram(
+            linkage_matrix,
+            labels=labels,
+            orientation="left",  # Labels on left, tree grows right
+            leaf_font_size=12,
+            leaf_rotation=0,
+            ax=ax,
+            color_threshold=0.7 * max(linkage_matrix[:, 2]),
+        )
+        
+        # Calculate cut line distance for optimal clusters
+        if len(linkage_matrix) >= n_clusters:
+            # Get distance at which we get n_clusters
+            cut_dist = linkage_matrix[-n_clusters+1, 2]
+        else:
+            cut_dist = linkage_matrix[-1, 2] * 0.7
+        
+        # Add cut line for optimal clusters (vertical line)
+        plt.axvline(x=cut_dist, color="yellow", linestyle="--", linewidth=2.5, 
+                   label=f"Cut line ({n_clusters} clusters)", alpha=0.8)
+        
+        plt.title("Asset Clustering Dendrogram", color="white", fontsize=14, pad=20, fontweight="bold")
+        plt.xlabel("Distance", color="white", fontsize=12, fontweight="bold")
+        plt.ylabel("Assets", color="white", fontsize=12, fontweight="bold")
+        plt.xticks(color="white", fontsize=10)
+        plt.yticks(color="white", fontsize=10)
+        plt.legend(loc="upper right", facecolor="#1E1E1E", edgecolor="yellow", 
+                  labelcolor="white", fontsize=10, framealpha=0.9)
+        plt.grid(True, alpha=0.2, color="gray", linestyle=":")
+        ax.spines['top'].set_color('white')
+        ax.spines['bottom'].set_color('white')
+        ax.spines['left'].set_color('white')
+        ax.spines['right'].set_color('white')
+        
+        # Convert to image with higher resolution
+        buf = BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight", dpi=150, 
+                   facecolor="#1E1E1E", edgecolor="none")
+        plt.close()
+        buf.seek(0)
+        
+        # Add image to plotly
+        import base64
+        img_str = base64.b64encode(buf.read()).decode()
+        
+        fig.add_layout_image(
+            dict(
+                source=f"data:image/png;base64,{img_str}",
+                xref="paper",
+                yref="paper",
+                x=0,
+                y=1,
+                sizex=1,
+                sizey=1,
+                xanchor="left",
+                yanchor="top",
+            )
+        )
+        
+        fig.update_xaxes(showgrid=False, showticklabels=False, zeroline=False)
+        fig.update_yaxes(showgrid=False, showticklabels=False, zeroline=False)
+        
+    except Exception as e:
+        logger.warning(f"Error creating dendrogram: {e}")
+        fig.add_annotation(
+            text="Dendrogram visualization not available",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+    
+    # Dynamic height based on number of assets
+    num_assets = len(labels) if labels else 8
+    chart_height = max(600, num_assets * 80)
+    
+    layout = get_chart_layout(
+        title="Asset Clustering Dendrogram",
+        height=chart_height,
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_asset_price_dynamics(
+    data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot normalized asset price dynamics (multi-line chart).
+    
+    Args:
+        data: Dictionary with price_series (ticker -> Series)
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if not data or "price_series" not in data:
+        return fig
+    
+    price_series = data.get("price_series", {})
+    
+    if not price_series:
+        return fig
+    
+    # Color palette for assets
+    asset_colors = [
+        COLORS["primary"],
+        COLORS["success"],
+        COLORS["warning"],
+        COLORS["danger"],
+        "#BF9FFB",  # Purple
+        "#00CC96",  # Green
+        "#FFA15A",  # Orange
+        "#EF553B",  # Red
+    ]
+    
+    # Plot each asset
+    for idx, (ticker, series) in enumerate(price_series.items()):
+        if ticker == "SPY":
+            # Benchmark as dashed orange line
+            fig.add_trace(
+                go.Scatter(
+                    x=series.index,
+                    y=series.values,
+                    mode="lines",
+                    name=f"{ticker} (Benchmark)",
+                    line=dict(
+                        color=COLORS["secondary"],
+                        width=2,
+                        dash="dash",
+                    ),
+                )
+            )
+        else:
+            # Assets as solid lines
+            color = asset_colors[idx % len(asset_colors)]
+            fig.add_trace(
+                go.Scatter(
+                    x=series.index,
+                    y=series.values,
+                    mode="lines",
+                    name=ticker,
+                    line=dict(color=color, width=2),
+                )
+            )
+    
+    # Add final returns to legend
+    for ticker, series in price_series.items():
+        if not series.empty:
+            final_return = series.iloc[-1]
+            # Update hover template to show final return
+            fig.data[list(price_series.keys()).index(ticker)].hovertemplate = (
+                f"<b>{ticker}</b><br>"
+                f"Date: %{{x}}<br>"
+                f"Return: %{{y:.2f}}%<br>"
+                f"Final: {final_return:.2f}%<extra></extra>"
+            )
+    
+    layout = get_chart_layout(
+        title="Asset Price Change (% from Start Date)",
+        yaxis=dict(title="% Change from Start", tickformat=",.1f"),
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_rolling_correlation_with_benchmark(
+    data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot rolling correlation with benchmark for multiple assets.
+    
+    Args:
+        data: Dictionary with rolling_correlations, portfolio_avg_correlation, window
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if not data or "rolling_correlations" not in data:
+        return fig
+    
+    rolling_correlations = data.get("rolling_correlations", {})
+    portfolio_avg_corr = data.get("portfolio_avg_correlation")
+    window = data.get("window", 60)
+    
+    # Color palette
+    asset_colors = [
+        COLORS["primary"],
+        COLORS["success"],
+        COLORS["warning"],
+        COLORS["danger"],
+        "#BF9FFB",
+        "#00CC96",
+        "#FFA15A",
+    ]
+    
+    # Plot each asset's rolling correlation
+    for idx, (ticker, series) in enumerate(rolling_correlations.items()):
+        color = asset_colors[idx % len(asset_colors)]
+        fig.add_trace(
+            go.Scatter(
+                x=series.index,
+                y=series.values,
+                mode="lines",
+                name=ticker,
+                line=dict(color=color, width=1.5),
+            )
+        )
+    
+    # Plot portfolio average correlation (thick purple line)
+    if portfolio_avg_corr is not None and not portfolio_avg_corr.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=portfolio_avg_corr.index,
+                y=portfolio_avg_corr.values,
+                mode="lines",
+                name="Portfolio Avg Correlation",
+                line=dict(color="#BF9FFB", width=3),
+            )
+        )
+    
+    # Reference lines
+    fig.add_hline(
+        y=0.7,
+        line_dash="dash",
+        line_color=COLORS["warning"],
+        line_width=1,
+        annotation_text="High (0.7)",
+    )
+    
+    fig.add_hline(
+        y=0.3,
+        line_dash="dash",
+        line_color=COLORS["success"],
+        line_width=1,
+        annotation_text="Low (0.3)",
+    )
+    
+    layout = get_chart_layout(
+        title=f"Rolling Correlation with SPY (Window: {window} days)",
+        yaxis=dict(title="Correlation Coefficient", tickformat=",.2f", range=[-1, 1]),
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+    
+    fig.update_layout(**layout)
+    return fig
+
+
+def plot_detailed_asset_price_volume(
+    prices: pd.Series,
+    returns: pd.Series,
+    ma50: Optional[pd.Series] = None,
+    ma200: Optional[pd.Series] = None,
+    ticker: str = "",
+) -> go.Figure:
+    """
+    Plot asset price chart with moving averages and volume.
+    
+    Args:
+        prices: Price series
+        returns: Returns series (for volume coloring)
+        ma50: Optional 50-day moving average
+        ma200: Optional 200-day moving average
+        ticker: Asset ticker
+        
+    Returns:
+        Plotly Figure with subplots
+    """
+    from plotly.subplots import make_subplots
+    
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.1,
+        row_heights=[0.7, 0.3],
+        subplot_titles=(f"{ticker} - Price and Moving Averages", "Volume"),
+    )
+    
+    # Price line (yellow)
+    fig.add_trace(
+        go.Scatter(
+            x=prices.index,
+            y=prices.values,
+            mode="lines",
+            name="Price",
+            line=dict(color="#FFD700", width=2),  # Yellow
+        ),
+        row=1,
+        col=1,
+    )
+    
+    # Moving averages
+    if ma50 is not None and not ma50.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=ma50.index,
+                y=ma50.values,
+                mode="lines",
+                name="MA50",
+                line=dict(color=COLORS["warning"], width=1.5, dash="dash"),
+            ),
+            row=1,
+            col=1,
+        )
+    
+    if ma200 is not None and not ma200.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=ma200.index,
+                y=ma200.values,
+                mode="lines",
+                name="MA200",
+                line=dict(color=COLORS["danger"], width=1.5, dash="dash"),
+            ),
+            row=1,
+            col=1,
+        )
+    
+    # Volume bars (colored by return direction)
+    if not returns.empty:
+        # Align returns with prices
+        aligned_returns = returns.reindex(prices.index, method="ffill").fillna(0)
+        
+        # Create volume bars (use returns magnitude as proxy for volume)
+        volume = abs(aligned_returns) * 1000  # Scale for visualization
+        
+        # Green for up days, red for down days
+        colors = ["#4CAF50" if r >= 0 else "#F44336" for r in aligned_returns]
+        
+        fig.add_trace(
+            go.Bar(
+                x=prices.index,
+                y=volume.values,
+                name="Volume",
+                marker_color=colors,
+                opacity=0.6,
+                showlegend=False,
+            ),
+            row=2,
+            col=1,
+        )
+    
+    # Update layout for subplots (use proper axis references)
+    base_layout = get_chart_layout(
+        title=f"{ticker} - Price and Volume Chart",
+        height=600,
+    )
+    
+    # Update base layout
+    fig.update_layout(**base_layout)
+    
+    # Update axes for subplots
+    fig.update_xaxes(title_text="Date", row=2, col=1)
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    
+    return fig
+
+
+def plot_asset_correlation_bar(
+    correlations: Dict[str, float],
+    ticker: str,
+) -> go.Figure:
+    """
+    Plot bar chart of asset correlations with other assets.
+    
+    Args:
+        correlations: Dictionary of ticker -> correlation
+        ticker: Asset ticker being analyzed
+        
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+    
+    if not correlations:
+        return fig
+    
+    # Sort by correlation
+    sorted_corr = sorted(correlations.items(), key=lambda x: x[1], reverse=True)
+    tickers = [t[0] for t in sorted_corr]
+    values = [t[1] for t in sorted_corr]
+    
+    # Color gradient
+    colors = []
+    for val in values:
+        if val > 0.7:
+            colors.append("#DC2626")  # Dark Red
+        elif val > 0.5:
+            colors.append("#F87171")  # Light Red
+        elif val > 0.3:
+            colors.append("#FCD34D")  # Yellow
+        elif val > 0.1:
+            colors.append("#60A5FA")  # Light Blue
+        else:
+            colors.append("#1E3A8A")  # Dark Blue
+    
+    fig.add_trace(
+        go.Bar(
+            x=tickers,
+            y=values,
+            marker=dict(color=colors),
+            text=[f"{v:.2f}" for v in values],
+            textposition="outside",
+            hovertemplate="<b>%{x}</b><br>Correlation: %{y:.2f}<extra></extra>",
+        )
+    )
+    
+    layout = get_chart_layout(
+        title=f"Correlations with Other Assets - {ticker}",
+        yaxis=dict(title="Correlation with " + ticker, tickformat=",.2f", range=[-1, 1]),
+        xaxis=dict(title="Assets"),
+        showlegend=False,
     )
     
     fig.update_layout(**layout)
