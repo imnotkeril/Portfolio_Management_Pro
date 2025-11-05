@@ -34,6 +34,7 @@ with st.sidebar:
             "Create Portfolio",
             "Portfolio List",
             "Portfolio Analysis",
+            "Portfolio Optimization",
         ],
         label_visibility="collapsed",
     )
@@ -74,3 +75,10 @@ elif page == "Portfolio Analysis":
     from streamlit_app.pages.portfolio_analysis import show
 
     show()
+
+elif page == "Portfolio Optimization":
+    from streamlit_app.pages.portfolio_optimization import (
+        render_optimization_page,
+    )
+
+    render_optimization_page()
