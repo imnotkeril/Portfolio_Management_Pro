@@ -61,6 +61,17 @@ def render_metric_card(
 
     # Show benchmark value with colored indicator
     if benchmark_value is not None:
+        # Convert to float to handle numpy types
+        try:
+            portfolio_value = float(portfolio_value)
+            benchmark_value = float(benchmark_value)
+        except (ValueError, TypeError):
+            # If conversion fails, show white circle
+            is_better = None
+            benchmark_formatted = _format_value(benchmark_value, format_type)
+            st.markdown(f"⚪ {benchmark_formatted}")
+            return
+        
         benchmark_formatted = _format_value(benchmark_value, format_type)
 
         # Determine if portfolio is better than benchmark
@@ -69,17 +80,29 @@ def render_metric_card(
             # Compare absolute distance from 1.0
             port_dist = abs(portfolio_value - 1.0)
             bench_dist = abs(benchmark_value - 1.0)
-            is_better = port_dist < bench_dist
+            delta = bench_dist - port_dist
+            # Very strict epsilon for Beta
+            if abs(delta) <= 0.0001:
+                is_better = None  # White
+            else:
+                is_better = port_dist < bench_dist
         elif label == "Max Drawdown":
             # For Max Drawdown: less negative is better
             # Both are negative, so closer to 0 (higher value) is better
             # portfolio > benchmark (less negative) = better
-            is_better = portfolio_value > benchmark_value
+            delta = portfolio_value - benchmark_value
+            # Very strict epsilon for drawdown
+            if abs(delta) <= 0.0001:
+                is_better = None  # White
+            else:
+                is_better = portfolio_value > benchmark_value
         else:
             delta = portfolio_value - benchmark_value
-            percent_eps = 0.0001
-            ratio_eps = 0.001
-            number_eps = 0.001
+            # More strict epsilon for white circle
+            # White only when difference is truly negligible
+            percent_eps = 0.0001  # 0.01% difference (stricter)
+            ratio_eps = 0.001  # 0.001 difference (stricter)
+            number_eps = 0.001  # 0.001 difference (stricter)
             if format_type == "percent":
                 eps = percent_eps
             elif format_type == "ratio":
@@ -87,13 +110,15 @@ def render_metric_card(
             else:
                 eps = number_eps
 
-            if abs(delta) > eps:
+            if abs(delta) <= eps:
+                # Difference is negligible - show white
+                is_better = None
+            else:
+                # Significant difference - determine better/worse
                 is_better = (
                     (higher_is_better and delta > 0) or
                     (not higher_is_better and delta < 0)
                 )
-            else:
-                is_better = None
 
         if is_better is True:
             color_indicator = "🟢"

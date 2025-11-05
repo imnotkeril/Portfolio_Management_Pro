@@ -273,9 +273,24 @@ class AnalyticsService:
                 if ticker == "CASH":
                     # Business-day date range
                     dr = pd.bdate_range(start=start_date, end=end_date, normalize=True)
+                    
+                    # Calculate CASH prices with risk-free rate compound interest
+                    # Daily return = (1 + annual_rate)^(1/252) - 1
+                    TRADING_DAYS_PER_YEAR = 252
+                    daily_return = (1 + self._engine.risk_free_rate) ** (
+                        1.0 / TRADING_DAYS_PER_YEAR
+                    ) - 1
+                    
+                    # Create prices starting from 1.0, compounding daily
+                    prices_list = []
+                    for i, date_val in enumerate(dr):
+                        # Compound interest: price = 1.0 * (1 + daily_return)^days
+                        price = (1.0 + daily_return) ** i
+                        prices_list.append(price)
+                    
                     prices = pd.DataFrame({
                         "Date": dr,
-                        "Adjusted_Close": 1.0,
+                        "Adjusted_Close": prices_list,
                     })
                 else:
                     prices = self._data_service.fetch_historical_prices(
@@ -369,11 +384,9 @@ class AnalyticsService:
             total_value = 0.0
             for ticker, shares in ticker_to_shares.items():
                 if ticker in filled_prices.columns:
-                    # Treat CASH as price 1.0
-                    if ticker == "CASH":
-                        price = 1.0
-                    else:
-                        price = float(filled_prices.loc[date_idx, ticker])
+                    # CASH prices now include risk-free rate growth
+                    # (already calculated in _fetch_portfolio_prices)
+                    price = float(filled_prices.loc[date_idx, ticker])
                     if pd.notna(price):
                         total_value += shares * price
 
@@ -424,10 +437,9 @@ class AnalyticsService:
             total_value = 0.0
             for ticker, shares in ticker_to_shares.items():
                 if ticker in filled_prices.columns:
-                    if ticker == "CASH":
-                        price = 1.0
-                    else:
-                        price = float(filled_prices.loc[date_idx, ticker])
+                    # CASH prices now include risk-free rate growth
+                    # (already calculated in _fetch_portfolio_prices)
+                    price = float(filled_prices.loc[date_idx, ticker])
                     if pd.notna(price):
                         total_value += shares * price
 
