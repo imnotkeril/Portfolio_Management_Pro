@@ -7,6 +7,7 @@ COLORS = {
     "background": "#0D1015",  # Dark background
     "success": "#00CC96",  # Green
     "danger": "#EF553B",  # Red
+    "error": "#EF553B",  # Red (alias for danger)
     "warning": "#FFA15A",  # Orange
     "info": "#19D3F3",  # Cyan
     "cash": "#C8C8C8",  # Gray for cash
@@ -47,5 +48,3 @@ def get_chart_layout(**overrides) -> dict:
     layout = DEFAULT_LAYOUT.copy()
     layout.update(overrides)
     return layout
-
-
