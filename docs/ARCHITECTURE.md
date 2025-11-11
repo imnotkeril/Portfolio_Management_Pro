@@ -458,7 +458,7 @@ User Request → Service Layer → Data Manager
 **Dependencies**:
 - Analytics Engine (metrics data)
 - Chart data (visualizations)
-- ReportLab, OpenPyXL
+- ReportLab, OpenPyXL, Playwright, img2pdf
 
 **Key Features**:
 - Comprehensive PDF reports with metrics and charts
@@ -1199,7 +1199,16 @@ This document will be **updated during development** with:
 **New Service Modules:**
 - `services/report_service.py` - ReportService class for tearsheet generation:
   - CSV export functionality, JSON export with returns data
-  - Excel export with multiple sheets, PDF generation structure (placeholder)
+  - Excel export with multiple sheets
+  - PDF generation with multiple methods:
+    - `generate_pdf_tearsheet()` - ReportLab-based PDF with dark theme
+    - `generate_pdf_screenshot_style()` - HTML-based screenshot-style PDF
+    - `generate_pdf_full_page_screenshot()` - Full page screenshot using Playwright (Phase 8)
+      - Uses Playwright to capture entire HTML page as screenshot
+      - Fixed viewport width (default 1920px) for consistent sizing
+      - Converts PNG screenshot to PDF using img2pdf
+      - Preserves dark theme background
+      - Captures full page including scrollable content
 
 **New UI Components:**
 - `streamlit_app/components/comparison_table.py` - Portfolio vs Benchmark comparison tables
@@ -2532,6 +2541,57 @@ Download file or copy to clipboard
 - ✅ Error handling and validation
 - ✅ Type safety with type hints
 - ✅ DRY principles
+
+---
+
+#### Update 2025-01-27: Phase 8 - Full Page Screenshot PDF Generation
+
+**Major Feature Implementation** - Full page screenshot PDF generation using Playwright:
+
+**New Method in ReportService:**
+- `services/report_service.py` - `generate_pdf_full_page_screenshot()`:
+  - Takes HTML content and generates full page screenshot
+  - Uses Playwright with Chromium browser (headless mode)
+  - Fixed viewport width (default 1920px) for consistent page sizing
+  - Full page screenshot captures entire scrollable content
+  - Converts PNG screenshot to PDF using img2pdf
+  - Preserves dark theme background (#0D1015)
+  - Automatic height adjustment based on content
+  - 2-second wait time for charts and styles to load
+
+**Key Features:**
+- `full_page=True` parameter captures entire page including scrollable content
+- Fixed width viewport ensures consistent page dimensions
+- Dark theme preservation (background color maintained in screenshot)
+- img2pdf preserves original image dimensions in PDF
+- Temporary file cleanup (PNG deleted after PDF conversion)
+
+**Dependencies Added:**
+- `playwright>=1.40.0` - Browser automation for screenshots
+- `img2pdf>=0.5.0` - PNG to PDF conversion
+
+**Usage:**
+```python
+report_service = ReportService()
+html_content = report_service._generate_html_page(...)
+success = report_service.generate_pdf_full_page_screenshot(
+    html_content=html_content,
+    output_path="report.pdf",
+    viewport_width=1920,
+    viewport_height=1080
+)
+```
+
+**Integration:**
+- Works with existing `_generate_html_page()` method
+- Can be used as alternative to `generate_pdf_tearsheet()` and `generate_pdf_screenshot_style()`
+- Suitable for generating PDFs that exactly match the visual appearance of the HTML page
+
+**Architecture Maintained:**
+- ✅ Separation of Concerns (HTML generation → Screenshot → PDF conversion)
+- ✅ Error handling and logging
+- ✅ Resource cleanup (temporary files)
+- ✅ DRY principles (reuses existing HTML generation)
 
 ---
 

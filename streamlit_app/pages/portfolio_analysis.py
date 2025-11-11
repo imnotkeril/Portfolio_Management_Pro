@@ -1,6 +1,8 @@
 """Portfolio Analysis page - Full implementation according to specification."""
 
 import logging
+import os
+import tempfile
 from datetime import date, timedelta
 import streamlit as st
 import pandas as pd
@@ -8,6 +10,7 @@ import numpy as np
 
 from services.portfolio_service import PortfolioService
 from services.analytics_service import AnalyticsService
+from services.report_service import ReportService
 from core.analytics_engine.chart_data import (
     get_cumulative_returns_data,
     get_return_distribution_data,
@@ -256,11 +259,12 @@ def show():
         positions = []
     
     # === MAIN TABS ===
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Overview",
         "Performance",
         "Risk",
-        "Assets & Correlations"
+        "Assets & Correlations",
+        "Export & Reports"
     ])
     
     # === TAB 1: OVERVIEW ===
@@ -291,6 +295,14 @@ def show():
         _render_assets_tab(
             positions, portfolio_returns, benchmark_returns,
             portfolio_id, portfolio_service
+        )
+    
+    # === TAB 5: EXPORT & REPORTS ===
+    with tab5:
+        _render_export_tab(
+            selected_name, perf, risk, ratios, market,
+            portfolio_returns, benchmark_returns, portfolio_values,
+            positions, start_date, end_date, risk_free_rate
         )
 
 
@@ -4156,5 +4168,180 @@ def _render_asset_details(positions, portfolio_returns, benchmark_returns, portf
         st.error(f"Error calculating asset details: {str(e)}")
 
 
-
+def _render_export_tab(
+    portfolio_name: str,
+    perf: dict,
+    risk: dict,
+    ratios: dict,
+    market: dict,
+    portfolio_returns: pd.Series,
+    benchmark_returns: pd.Series | None,
+    portfolio_values: pd.Series | None,
+    positions: list,
+    start_date: date,
+    end_date: date,
+    risk_free_rate: float,
+) -> None:
+    """Render Export & Reports tab with PDF generation."""
+    import tempfile
+    import os
+    
+    st.header("📄 Export & Reports")
+    st.markdown("Generate comprehensive PDF reports with full page screenshots.")
+    
+    report_service = ReportService()
+    
+    # PDF Generation Section
+    st.subheader("PDF Report Generation")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**Report Sections**")
+        tabs_config = {
+            "Overview": st.checkbox("Overview", value=True, key="pdf_overview"),
+            "Performance": st.checkbox("Performance", value=True, key="pdf_performance"),
+            "Risk": st.checkbox("Risk", value=True, key="pdf_risk"),
+            "Assets & Correlations": st.checkbox("Assets & Correlations", value=False, key="pdf_assets"),
+        }
+    
+    with col2:
+        st.markdown("**Settings**")
+        streamlit_url = st.text_input(
+            "Streamlit URL",
+            value="http://localhost:8501",
+            key="pdf_streamlit_url",
+            help="Base URL of your Streamlit app (default: http://localhost:8501)"
+        )
+    
+    st.markdown("---")
+    
+    # Viewport settings
+    st.markdown("**Page Settings**")
+    col1, col2 = st.columns(2)
+    with col1:
+        viewport_width = st.number_input(
+            "Viewport Width (px)",
+            min_value=800,
+            max_value=3840,
+            value=1920,
+            step=160,
+            key="pdf_viewport_width",
+            help="Width of the page for screenshot (default: 1920px)"
+        )
+    with col2:
+        viewport_height = st.number_input(
+            "Initial Viewport Height (px)",
+            min_value=600,
+            max_value=2160,
+            value=1080,
+            step=120,
+            key="pdf_viewport_height",
+            help="Initial height (will expand automatically)"
+        )
+    
+    st.markdown("---")
+    
+    # Generate PDF button
+    if st.button("📥 Generate PDF Report", type="primary", use_container_width=True):
+        if not portfolio_returns.empty:
+            # Count how many pages will be generated
+            total_pages = 0
+            for tab_name, enabled in tabs_config.items():
+                if not enabled:
+                    continue
+                if tab_name == "Overview":
+                    total_pages += 1
+                elif tab_name == "Performance":
+                    total_pages += 3  # 3 sub-tabs
+                elif tab_name == "Risk":
+                    total_pages += 4  # 4 sub-tabs
+                elif tab_name == "Assets & Correlations":
+                    total_pages += 3  # 3 sub-tabs
+            
+            if total_pages == 0:
+                st.warning("⚠️ Please select at least one section to generate PDF.")
+            else:
+                with st.spinner(f"Generating PDF report from {total_pages} tab(s)... This may take a minute."):
+                    try:
+                        # Create temporary file for PDF
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                            pdf_path = tmp.name
+                        
+                        # Generate PDF from Streamlit tabs
+                        success = report_service.generate_pdf_from_streamlit_tabs(
+                            streamlit_url=streamlit_url,
+                            output_path=pdf_path,
+                            tabs_config=tabs_config,
+                            viewport_width=int(viewport_width),
+                            viewport_height=int(viewport_height),
+                            wait_timeout=5000,
+                        )
+                        
+                        if success and os.path.exists(pdf_path):
+                            # Read PDF file
+                            with open(pdf_path, 'rb') as pdf_file:
+                                pdf_bytes = pdf_file.read()
+                            
+                            # Get file size
+                            file_size = len(pdf_bytes) / (1024 * 1024)  # MB
+                            
+                            # Download button
+                            st.success(f"✅ PDF generated successfully! ({file_size:.2f} MB, {total_pages} pages)")
+                            st.download_button(
+                                label="📥 Download PDF Report",
+                                data=pdf_bytes,
+                                file_name=f"{portfolio_name.replace(' ', '_')}_report_{start_date}_{end_date}.pdf",
+                                mime="application/pdf",
+                                type="primary",
+                                use_container_width=True,
+                            )
+                            
+                            # Clean up
+                            try:
+                                os.unlink(pdf_path)
+                            except Exception:
+                                pass
+                        else:
+                            st.error("❌ Failed to generate PDF. Please check the logs for details.")
+                            
+                    except Exception as e:
+                        logger.error(f"Error generating PDF: {e}", exc_info=True)
+                        st.error(f"Error generating PDF: {str(e)}")
+        else:
+            st.warning("⚠️ No portfolio returns data available. Please calculate metrics first.")
+    
+    st.markdown("---")
+    
+    # Info section
+    with st.expander("ℹ️ About PDF Reports"):
+        st.markdown("""
+        **Streamlit Tab Screenshot PDF Generation**
+        
+        This feature generates PDF reports by:
+        1. Opening your Streamlit app in a headless browser
+        2. Taking full page screenshots of each selected tab
+        3. Combining all screenshots into a single PDF document
+        
+        **How it works:**
+        - Each selected main tab = one or more PDF pages
+        - Overview tab = 1 page
+        - Performance tab = 3 pages (Returns Analysis, Periodic Analysis, Distribution)
+        - Risk tab = 4 pages (Key Metrics, Drawdown Analysis, VaR & CVaR, Rolling Risk Metrics)
+        - Assets & Correlations tab = 3 pages
+        
+        **Features:**
+        - ✅ Real Streamlit page screenshots (exact visual representation)
+        - ✅ Full page capture (includes all scrollable content)
+        - ✅ Dark theme preservation
+        - ✅ High-quality charts and visualizations
+        - ✅ Automatic tab switching and screenshot capture
+        
+        **Requirements:**
+        - Streamlit app must be running and accessible at the specified URL
+        - Default URL: http://localhost:8501
+        - Make sure you're on the Portfolio Analysis page when generating
+        
+        **Note:** The first generation may take longer as the browser needs to load and navigate through tabs.
+        """)
 
