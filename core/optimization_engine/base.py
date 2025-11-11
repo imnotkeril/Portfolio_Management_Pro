@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from core.exceptions import CalculationError
+from core.optimization_engine.constraints import OptimizationConstraints
 
 logger = logging.getLogger(__name__)
 
@@ -179,12 +180,77 @@ class BaseOptimizer(ABC):
         
         return True
     
-    def _normalize_weights(self, weights: np.ndarray) -> np.ndarray:
-        """Normalize weights to sum to 1.0."""
+    def _normalize_weights(
+        self,
+        weights: np.ndarray,
+        constraints_obj: Optional["OptimizationConstraints"] = None,
+    ) -> np.ndarray:
+        """
+        Normalize weights to sum to 1.0, respecting max_cash_weight constraint.
+        
+        If CASH is at max_cash_weight, normalize only non-CASH assets.
+        Otherwise, normalize all assets.
+        
+        Args:
+            weights: Weights array
+            constraints_obj: Optional constraints object with max_cash_weight
+        
+        Returns:
+            Normalized weights array
+        """
         weight_sum = weights.sum()
         if weight_sum == 0:
             raise CalculationError("Cannot normalize weights: sum is zero")
-        return weights / weight_sum
+        
+        # If no constraints or no max_cash_weight, normal normalization
+        if constraints_obj is None or constraints_obj.max_cash_weight is None:
+            return weights / weight_sum
+        
+        # Find CASH indices
+        cash_indices = [
+            i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
+        ]
+        
+        if not cash_indices:
+            # No CASH in portfolio, normal normalization
+            return weights / weight_sum
+        
+        # Check if CASH is at or above max_cash_weight
+        cash_weight = sum(weights[i] for i in cash_indices)
+        max_cash = constraints_obj.max_cash_weight
+        
+        if cash_weight >= max_cash - 1e-6:  # Allow small numerical error
+            # CASH is at maximum, fix it and normalize only non-CASH assets
+            normalized_weights = weights.copy()
+            
+            # Set CASH to max_cash_weight
+            for cash_idx in cash_indices:
+                normalized_weights[cash_idx] = max_cash / len(cash_indices)
+            
+            # Normalize non-CASH assets to sum to (1 - max_cash)
+            non_cash_mask = np.ones(len(weights), dtype=bool)
+            for cash_idx in cash_indices:
+                non_cash_mask[cash_idx] = False
+            
+            non_cash_weights = weights[non_cash_mask]
+            non_cash_sum = non_cash_weights.sum()
+            
+            if non_cash_sum > 1e-8:
+                # Normalize non-CASH to sum to (1 - max_cash)
+                target_sum = 1.0 - max_cash
+                normalized_non_cash = (non_cash_weights / non_cash_sum) * target_sum
+                normalized_weights[non_cash_mask] = normalized_non_cash
+            else:
+                # All non-CASH weights are zero, distribute equally
+                n_non_cash = non_cash_mask.sum()
+                if n_non_cash > 0:
+                    target_sum = 1.0 - max_cash
+                    normalized_weights[non_cash_mask] = target_sum / n_non_cash
+            
+            return normalized_weights
+        else:
+            # CASH is below max, normal normalization
+            return weights / weight_sum
     
     def _calculate_portfolio_metrics(
         self,
@@ -218,4 +284,102 @@ class BaseOptimizer(ABC):
             "volatility": volatility,
             "sharpe_ratio": sharpe_ratio,
         }
+    
+    def _build_constraints(
+        self, constraints: Optional[Dict[str, any]]
+    ) -> OptimizationConstraints:
+        """
+        Build constraints object from dictionary.
+        
+        Supports all constraint types:
+        - Weight constraints (min_weight, max_weight, long_only, weight_bounds)
+        - Group constraints (group_constraints)
+        - Risk constraints (max_volatility, max_var, max_cvar, max_beta)
+        - Turnover constraints (max_turnover, min_trade_size)
+        - Cardinality constraints (min_assets, max_assets)
+        
+        Args:
+            constraints: Dictionary of constraints
+        
+        Returns:
+            OptimizationConstraints object
+        """
+        constraints_obj = OptimizationConstraints(self.tickers)
+        
+        if not constraints:
+            return constraints_obj
+        
+        # Weight constraints
+        constraints_obj.set_weight_bounds(
+            min_weight=constraints.get("min_weight"),
+            max_weight=constraints.get("max_weight"),
+            long_only=constraints.get("long_only", True),
+        )
+        
+        # Asset-specific weight bounds
+        weight_bounds = constraints.get("weight_bounds", {})
+        for ticker, bounds in weight_bounds.items():
+            if isinstance(bounds, dict):
+                constraints_obj.set_asset_weight_bounds(
+                    ticker=ticker,
+                    min_weight=bounds.get("min"),
+                    max_weight=bounds.get("max"),
+                )
+            elif isinstance(bounds, tuple):
+                constraints_obj.set_asset_weight_bounds(
+                    ticker=ticker,
+                    min_weight=bounds[0],
+                    max_weight=bounds[1],
+                )
+        
+        # Group constraints
+        group_constraints = constraints.get("group_constraints", {})
+        for group_name, group_data in group_constraints.items():
+            if isinstance(group_data, dict):
+                tickers = group_data.get("tickers", [])
+                max_weight = group_data.get("max_weight")
+                if tickers and max_weight is not None:
+                    constraints_obj.set_group_constraint(
+                        group_name=group_name,
+                        tickers=tickers,
+                        max_weight=max_weight,
+                    )
+        
+        # Risk constraints
+        constraints_obj.set_risk_constraint(
+            max_volatility=constraints.get("max_volatility"),
+            max_var=constraints.get("max_var"),
+            max_cvar=constraints.get("max_cvar"),
+            max_beta=constraints.get("max_beta"),
+        )
+        
+        # Turnover constraints
+        constraints_obj.set_turnover_constraint(
+            max_turnover=constraints.get("max_turnover"),
+            min_trade_size=constraints.get("min_trade_size"),
+        )
+        
+        # Cardinality constraints
+        constraints_obj.set_cardinality_constraint(
+            min_assets=constraints.get("min_assets"),
+            max_assets=constraints.get("max_assets"),
+        )
+        
+        # Cash constraints
+        constraints_obj.set_cash_constraint(
+            max_cash_weight=constraints.get("max_cash_weight"),
+        )
+        
+        # Return constraints
+        constraints_obj.set_return_constraint(
+            min_return=constraints.get("min_return"),
+            target_return=constraints.get("target_return"),
+        )
+        
+        # Diversification regularization
+        constraints_obj.set_diversification_regularization(
+            diversification_lambda=constraints.get("diversification_lambda"),
+        )
+        
+        return constraints_obj
 

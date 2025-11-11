@@ -1,25 +1,44 @@
 """Optimization service for orchestrating portfolio optimization."""
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, List, Optional
 
 import pandas as pd
 
-from core.exceptions import InsufficientDataError
+from core.exceptions import (
+    CalculationError,
+    InsufficientDataError,
+)
 from core.optimization_engine.base import OptimizationResult
 from core.optimization_engine.efficient_frontier import EfficientFrontier
+from core.optimization_engine.black_litterman import (
+    BlackLittermanOptimizer,
+)
+from core.optimization_engine.cvar_optimization import CVaROptimizer
 from core.optimization_engine.equal_weight import EqualWeightOptimizer
+from core.optimization_engine.hrp import HRPOptimizer
+from core.optimization_engine.inverse_correlation import (
+    InverseCorrelationOptimizer,
+)
 from core.optimization_engine.kelly_criterion import KellyCriterionOptimizer
+from core.optimization_engine.market_cap import MarketCapOptimizer
 from core.optimization_engine.max_alpha import MaxAlphaOptimizer
+from core.optimization_engine.max_diversification import (
+    MaxDiversificationOptimizer,
+)
 from core.optimization_engine.max_return import MaxReturnOptimizer
 from core.optimization_engine.max_sharpe import MaxSharpeOptimizer
+from core.optimization_engine.mean_cvar import MeanCVaROptimizer
 from core.optimization_engine.mean_variance import MeanVarianceOptimizer
+from core.optimization_engine.min_correlation import MinCorrelationOptimizer
 from core.optimization_engine.min_tracking_error import (
     MinTrackingErrorOptimizer,
 )
 from core.optimization_engine.min_variance import MinVarianceOptimizer
 from core.optimization_engine.risk_parity import RiskParityOptimizer
+from core.optimization_engine.robust import RobustOptimizer
+from core.optimization_engine.sensitivity import SensitivityAnalyzer
 from services.data_service import DataService
 from services.portfolio_service import PortfolioService
 
@@ -40,6 +59,15 @@ OPTIMIZATION_METHODS = {
     "kelly_criterion": KellyCriterionOptimizer,
     "min_tracking_error": MinTrackingErrorOptimizer,
     "max_alpha": MaxAlphaOptimizer,
+    "hrp": HRPOptimizer,
+    "cvar_optimization": CVaROptimizer,
+    "mean_cvar": MeanCVaROptimizer,
+    "robust": RobustOptimizer,
+    "max_diversification": MaxDiversificationOptimizer,
+    "min_correlation": MinCorrelationOptimizer,
+    "inverse_correlation": InverseCorrelationOptimizer,
+    "market_cap": MarketCapOptimizer,
+    "black_litterman": BlackLittermanOptimizer,
 }
 
 
@@ -75,6 +103,8 @@ class OptimizationService:
         constraints: Optional[Dict[str, any]] = None,
         benchmark_ticker: Optional[str] = None,
         method_params: Optional[Dict[str, any]] = None,
+        out_of_sample: bool = False,
+        training_ratio: float = 0.3,
     ) -> OptimizationResult:
         """
         Optimize portfolio using specified method.
@@ -82,12 +112,15 @@ class OptimizationService:
         Args:
             portfolio_id: Portfolio ID to optimize
             method: Optimization method name
-            start_date: Start date for return calculation
-            end_date: End date for return calculation
+            start_date: Start date for return calculation (validation start if out_of_sample)
+            end_date: End date for return calculation (validation end)
             constraints: Optional constraints dictionary
             benchmark_ticker: Optional benchmark ticker (for methods that
                             require it)
             method_params: Optional method-specific parameters
+            out_of_sample: If True, use period BEFORE start_date for training
+            training_ratio: Ratio of analysis period to use for training
+                          (e.g., 0.3 = 30% of analysis period before start_date)
         
         Returns:
             OptimizationResult with optimal weights
@@ -122,17 +155,33 @@ class OptimizationService:
         if not tickers and not has_cash:
             raise ValueError("Portfolio has no valid tickers")
         
+        # Determine optimization period (training or analysis)
+        if out_of_sample:
+            # Out-of-sample: use period BEFORE start_date for training
+            analysis_days = (end_date - start_date).days
+            training_days = int(analysis_days * training_ratio)
+            optimization_start = start_date - timedelta(days=training_days)
+            optimization_end = start_date  # Up to validation start
+            logger.info(
+                f"Out-of-sample mode: training period {optimization_start} to {optimization_end}, "
+                f"validation period {start_date} to {end_date}"
+            )
+        else:
+            # Regular mode: use specified period
+            optimization_start = start_date
+            optimization_end = end_date
+        
         # Fetch price data using bulk method (if tickers exist)
         if tickers:
             logger.info(
                 f"Fetching price data for {len(tickers)} tickers "
-                f"from {start_date} to {end_date}"
+                f"from {optimization_start} to {optimization_end}"
             )
             
             price_data = self._data_service.fetch_bulk_prices(
                 tickers=tickers,
-                start_date=start_date,
-                end_date=end_date,
+                start_date=optimization_start,
+                end_date=optimization_end,
                 use_cache=True,
                 save_to_db=False,
             )
@@ -140,7 +189,7 @@ class OptimizationService:
             if price_data.empty:
                 raise InsufficientDataError(
                     f"No price data available for period "
-                    f"{start_date} to {end_date}"
+                    f"{optimization_start} to {optimization_end}"
                 )
             
             # Convert to pivot format (dates as index, tickers as columns)
@@ -167,8 +216,8 @@ class OptimizationService:
                 )
             
             # Filter by date range
-            start_ts = pd.Timestamp(start_date)
-            end_ts = pd.Timestamp(end_date)
+            start_ts = pd.Timestamp(optimization_start)
+            end_ts = pd.Timestamp(optimization_end)
             price_data = price_data[
                 (price_data.index >= start_ts) & (price_data.index <= end_ts)
             ]
@@ -176,14 +225,14 @@ class OptimizationService:
             if price_data.empty:
                 raise InsufficientDataError(
                     f"No price data available for period "
-                    f"{start_date} to {end_date}"
+                    f"{optimization_start} to {optimization_end}"
                 )
             
             # Calculate returns
             returns = price_data.pct_change().dropna()
         else:
             # Only CASH - create empty returns DataFrame with date index
-            dr = pd.bdate_range(start=start_date, end=end_date, normalize=True)
+            dr = pd.bdate_range(start=optimization_start, end=optimization_end, normalize=True)
             returns = pd.DataFrame(index=dr)
             returns.index = pd.to_datetime(returns.index, errors="coerce")
             returns.index = returns.index.tz_localize(None)
@@ -214,6 +263,22 @@ class OptimizationService:
         # Get optimizer class
         optimizer_class = OPTIMIZATION_METHODS[method]
         
+        # If using mean_variance with maximize_sharpe objective, use MaxSharpeOptimizer
+        # for consistency with Efficient Frontier calculation
+        if (
+            method == "mean_variance"
+            and method_params
+            and method_params.get("objective") == "maximize_sharpe"
+        ):
+            logger.info(
+                "Using MaxSharpeOptimizer for consistency with Efficient Frontier"
+            )
+            optimizer_class = MaxSharpeOptimizer
+            # Remove objective from method_params since MaxSharpeOptimizer doesn't need it
+            method_params = {
+                k: v for k, v in method_params.items() if k != "objective"
+            }
+        
         # Initialize optimizer
         if method in ["min_tracking_error", "max_alpha"]:
             # Methods that require benchmark
@@ -224,8 +289,8 @@ class OptimizationService:
             
             benchmark_prices = self._data_service.fetch_historical_prices(
                 ticker=benchmark_ticker,
-                start_date=start_date,
-                end_date=end_date,
+                start_date=optimization_start,
+                end_date=optimization_end,
                 use_cache=True,
                 save_to_db=False,
             )
@@ -285,15 +350,43 @@ class OptimizationService:
         else:
             optimizer = optimizer_class(returns)
         
-        # Apply method-specific parameters
-        if method_params:
-            # For methods that accept parameters in optimize()
-            pass
-        
-        # Run optimization
+        # Run optimization with method-specific parameters
         logger.info(f"Running {method} optimization...")
         
-        result = optimizer.optimize(constraints=constraints)
+        # Prepare optimize() arguments
+        optimize_kwargs = {"constraints": constraints}
+        
+        # Add method-specific parameters (including objective if present)
+        if method_params:
+            # Create a copy to avoid modifying original
+            params_to_add = method_params.copy()
+            
+            # Remove 'objective' for methods that don't support it
+            # These methods have fixed objectives and don't accept objective parameter
+            methods_without_objective = [
+                "risk_parity",
+                "hrp",
+                "cvar_optimization",
+                "mean_cvar",
+                "max_diversification",
+                "min_correlation",
+                "inverse_correlation",
+                "min_variance",
+                "max_return",
+                "max_sharpe",
+                "equal_weight",
+                "market_cap",
+                "kelly_criterion",
+                "min_tracking_error",
+                "max_alpha",
+            ]
+            
+            if method in methods_without_objective:
+                params_to_add.pop("objective", None)
+            
+            optimize_kwargs.update(params_to_add)
+        
+        result = optimizer.optimize(**optimize_kwargs)
         
         if not result.success:
             logger.warning(
@@ -421,12 +514,18 @@ class OptimizationService:
             )
         
         # Generate frontier
-        frontier = EfficientFrontier(returns)
+        # Pass risk_free_rate and periods_per_year to ensure consistency
+        frontier = EfficientFrontier(
+            returns,
+            risk_free_rate=self._risk_free_rate,
+            periods_per_year=TRADING_DAYS_PER_YEAR,
+        )
         returns_array, volatilities_array, portfolios = (
             frontier.generate_frontier(n_points, constraints)
         )
         
         # Get tangency and min variance portfolios
+        # These must use the SAME constraints as the frontier line
         tangency = frontier.get_tangency_portfolio(constraints)
         min_var = frontier.get_min_variance_portfolio(constraints)
         
@@ -552,4 +651,156 @@ class OptimizationService:
     def get_available_methods(self) -> List[str]:
         """Get list of available optimization methods."""
         return list(OPTIMIZATION_METHODS.keys())
+    
+    def perform_sensitivity_analysis(
+        self,
+        portfolio_id: str,
+        method: str,
+        start_date: date,
+        end_date: date,
+        base_constraints: Optional[Dict[str, any]] = None,
+        analysis_type: str = "returns",
+        variation_range: float = 0.1,
+        num_points: int = 10,
+    ) -> Dict[str, any]:
+        """
+        Perform sensitivity analysis on optimization results.
+        
+        Args:
+            portfolio_id: Portfolio ID
+            method: Optimization method name
+            start_date: Start date for return calculation
+            end_date: End date for return calculation
+            base_constraints: Base constraints dictionary
+            analysis_type: Type of analysis:
+                          "returns", "covariance", "constraints"
+            variation_range: Range of variation for returns/covariance
+            num_points: Number of points to test
+        
+        Returns:
+            Dictionary with sensitivity analysis results
+        """
+        # First, run base optimization
+        base_result = self.optimize_portfolio(
+            portfolio_id=portfolio_id,
+            method=method,
+            start_date=start_date,
+            end_date=end_date,
+            constraints=base_constraints,
+        )
+        
+        if not base_result.success:
+            raise CalculationError(
+                f"Base optimization failed: {base_result.message}"
+            )
+        
+        # Get portfolio and prepare optimizer
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        positions = portfolio.get_all_positions()
+        tickers = [
+            pos.ticker for pos in positions if pos.ticker != "CASH"
+        ]
+        
+        # Fetch returns (same as optimize_portfolio)
+        if tickers:
+            price_data = self._data_service.fetch_bulk_prices(
+                tickers=tickers,
+                start_date=start_date,
+                end_date=end_date,
+                use_cache=True,
+                save_to_db=False,
+            )
+            
+            if price_data.empty:
+                raise InsufficientDataError(
+                    f"No price data available for period "
+                    f"{start_date} to {end_date}"
+                )
+            
+            # Convert to pivot format
+            if "Ticker" in price_data.columns:
+                if "Date" in price_data.columns:
+                    price_data["Date"] = pd.to_datetime(
+                        price_data["Date"], errors="coerce"
+                    )
+                    price_data["Date"] = price_data["Date"].dt.tz_localize(
+                        None
+                    )
+                    pivot_df = price_data.pivot_table(
+                        index="Date",
+                        columns="Ticker",
+                        values="Adjusted_Close",
+                        aggfunc="last",
+                    )
+                    price_data = pivot_df
+            
+            returns = price_data.pct_change().dropna()
+        else:
+            dr = pd.bdate_range(
+                start=start_date, end=end_date, normalize=True
+            )
+            returns = pd.DataFrame(index=dr)
+        
+        # Add CASH if exists
+        has_cash = any(pos.ticker == "CASH" for pos in positions)
+        if has_cash:
+            daily_return = (1 + self._risk_free_rate) ** (
+                1.0 / TRADING_DAYS_PER_YEAR
+            ) - 1
+            cash_returns = pd.Series(
+                data=daily_return,
+                index=returns.index,
+                name="CASH",
+            )
+            returns["CASH"] = cash_returns
+        
+        if returns.empty or len(returns) < 30:
+            raise InsufficientDataError(
+                "Insufficient data for sensitivity analysis"
+            )
+        
+        # Get optimizer class and create instance
+        if method not in OPTIMIZATION_METHODS:
+            raise ValueError(f"Unknown method: {method}")
+        
+        optimizer_class = OPTIMIZATION_METHODS[method]
+        
+        # Handle methods that require benchmark
+        if method in ["min_tracking_error", "max_alpha"]:
+            # These require benchmark, skip sensitivity for now
+            raise ValueError(
+                f"Sensitivity analysis not yet supported for {method}"
+            )
+        
+        optimizer = optimizer_class(returns)
+        
+        # Create sensitivity analyzer
+        analyzer = SensitivityAnalyzer(optimizer, base_result)
+        
+        # Perform analysis based on type
+        if analysis_type == "returns":
+            results_df = analyzer.analyze_return_sensitivity(
+                variation_range=variation_range,
+                num_points=num_points,
+                constraints=base_constraints,
+            )
+        elif analysis_type == "covariance":
+            results_df = analyzer.analyze_covariance_sensitivity(
+                variation_range=variation_range,
+                num_points=num_points,
+                constraints=base_constraints,
+            )
+        else:
+            raise ValueError(
+                f"Unknown analysis type: {analysis_type}. "
+                "Use 'returns' or 'covariance'"
+            )
+        
+        return {
+            "analysis_type": analysis_type,
+            "results": results_df.to_dict("records"),
+            "base_weights": base_result.get_weights_dict(),
+            "variation_range": variation_range,
+            "num_points": num_points,
+        }
 

@@ -33,6 +33,7 @@ class OptimizationConstraints:
         # Risk constraints
         self.max_volatility: Optional[float] = None
         self.max_var: Optional[float] = None
+        self.max_cvar: Optional[float] = None
         self.max_beta: Optional[float] = None
         
         # Turnover constraints
@@ -42,6 +43,16 @@ class OptimizationConstraints:
         # Cardinality constraints
         self.min_assets: Optional[int] = None
         self.max_assets: Optional[int] = None
+        
+        # Cash constraints
+        self.max_cash_weight: Optional[float] = None
+        
+        # Return constraints
+        self.min_return: Optional[float] = None
+        self.target_return: Optional[float] = None
+        
+        # Diversification regularization
+        self.diversification_lambda: Optional[float] = None
     
     def set_weight_bounds(
         self,
@@ -148,6 +159,7 @@ class OptimizationConstraints:
         self,
         max_volatility: Optional[float] = None,
         max_var: Optional[float] = None,
+        max_cvar: Optional[float] = None,
         max_beta: Optional[float] = None,
     ) -> "OptimizationConstraints":
         """
@@ -156,6 +168,7 @@ class OptimizationConstraints:
         Args:
             max_volatility: Maximum portfolio volatility (annualized)
             max_var: Maximum Value at Risk (VaR)
+            max_cvar: Maximum Conditional Value at Risk (CVaR)
             max_beta: Maximum beta to benchmark
         
         Returns:
@@ -167,11 +180,15 @@ class OptimizationConstraints:
         if max_var is not None and max_var >= 0:
             raise ValueError("max_var must be negative (loss)")
         
+        if max_cvar is not None and max_cvar >= 0:
+            raise ValueError("max_cvar must be negative (loss)")
+        
         if max_beta is not None and max_beta <= 0:
             raise ValueError("max_beta must be positive")
         
         self.max_volatility = max_volatility
         self.max_var = max_var
+        self.max_cvar = max_cvar
         self.max_beta = max_beta
         
         return self
@@ -245,6 +262,69 @@ class OptimizationConstraints:
         
         return self
     
+    def set_cash_constraint(
+        self,
+        max_cash_weight: Optional[float] = None,
+        min_cash_weight: Optional[float] = None,
+    ) -> "OptimizationConstraints":
+        """
+        Set cash constraints.
+        
+        Args:
+            max_cash_weight: Maximum cash allocation (0.0 to 1.0)
+            min_cash_weight: Minimum cash allocation (0.0 to 1.0)
+        
+        Returns:
+            Self for method chaining
+        """
+        if max_cash_weight is not None and (max_cash_weight < 0 or max_cash_weight > 1):
+            raise ValueError("max_cash_weight must be between 0.0 and 1.0")
+        if min_cash_weight is not None and (min_cash_weight < 0 or min_cash_weight > 1):
+            raise ValueError("min_cash_weight must be between 0.0 and 1.0")
+        
+        self.max_cash_weight = max_cash_weight
+        # min_cash_weight not implemented yet
+        return self
+    
+    def set_return_constraint(
+        self,
+        min_return: Optional[float] = None,
+        target_return: Optional[float] = None,
+    ) -> "OptimizationConstraints":
+        """
+        Set return constraints.
+        
+        Args:
+            min_return: Minimum expected return (annualized)
+            target_return: Target expected return (annualized)
+        
+        Returns:
+            Self for method chaining
+        """
+        self.min_return = min_return
+        self.target_return = target_return
+        return self
+    
+    def set_diversification_regularization(
+        self,
+        diversification_lambda: Optional[float] = None,
+    ) -> "OptimizationConstraints":
+        """
+        Set diversification regularization parameter.
+        
+        Args:
+            diversification_lambda: Regularization strength (>= 0)
+                Higher values encourage more diversification
+        
+        Returns:
+            Self for method chaining
+        """
+        if diversification_lambda is not None and diversification_lambda < 0:
+            raise ValueError("diversification_lambda must be non-negative")
+        
+        self.diversification_lambda = diversification_lambda
+        return self
+    
     def to_dict(self) -> Dict[str, any]:
         """Convert constraints to dictionary."""
         return {
@@ -255,11 +335,16 @@ class OptimizationConstraints:
             "group_constraints": self.group_constraints,
             "max_volatility": self.max_volatility,
             "max_var": self.max_var,
+            "max_cvar": self.max_cvar,
             "max_beta": self.max_beta,
             "max_turnover": self.max_turnover,
             "min_trade_size": self.min_trade_size,
             "min_assets": self.min_assets,
             "max_assets": self.max_assets,
+            "max_cash_weight": self.max_cash_weight,
+            "min_return": self.min_return,
+            "target_return": self.target_return,
+            "diversification_lambda": self.diversification_lambda,
         }
     
     def get_weight_bounds_array(
@@ -267,6 +352,11 @@ class OptimizationConstraints:
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Get weight bounds as numpy arrays.
+        
+        Note: Group constraints (sector limits, asset class limits) are not
+        directly applied here as they require optimization constraints rather
+        than simple bounds. They should be handled in the optimizer's
+        constraint functions.
         
         Returns:
             Tuple of (min_bounds, max_bounds) arrays
@@ -289,5 +379,53 @@ class OptimizationConstraints:
             if max_w is not None:
                 max_bounds[idx] = min(max_bounds[idx], max_w)
         
+        # Apply cash constraint
+        if self.max_cash_weight is not None:
+            cash_indices = [
+                i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
+            ]
+            for cash_idx in cash_indices:
+                max_bounds[cash_idx] = min(
+                    max_bounds[cash_idx], self.max_cash_weight
+                )
+        
+        # Note: Group constraints (sector limits, asset class limits) require
+        # linear inequality constraints in the optimizer, not simple bounds.
+        # They are stored in self.group_constraints and should be applied
+        # as constraints in the optimizer's constraint list.
+        
         return min_bounds, max_bounds
+    
+    def get_group_constraints_list(
+        self,
+    ) -> List[Dict[str, any]]:
+        """
+        Get group constraints as list of constraint dictionaries for optimizer.
+        
+        Returns:
+            List of constraint dictionaries with 'type' and 'fun' keys
+        """
+        constraints_list = []
+        
+        for group_name, group_data in self.group_constraints.items():
+            tickers_in_group = group_data["tickers"]
+            max_weight = group_data["max_weight"]
+            
+            # Create constraint: sum of weights for group <= max_weight
+            def make_group_constraint(group_tickers, max_w):
+                def constraint(weights: np.ndarray) -> float:
+                    group_indices = [
+                        self.tickers.index(t) for t in group_tickers
+                    ]
+                    group_weight_sum = float(np.sum(weights[group_indices]))
+                    return max_w - group_weight_sum  # >= 0 means sum <= max_w
+                
+                return constraint
+            
+            constraints_list.append({
+                "type": "ineq",
+                "fun": make_group_constraint(tickers_in_group, max_weight),
+            })
+        
+        return constraints_list
 

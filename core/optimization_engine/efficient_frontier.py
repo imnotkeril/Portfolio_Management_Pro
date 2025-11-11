@@ -50,7 +50,8 @@ class EfficientFrontier:
         self._min_return = mean_returns.min()
         self._max_return = mean_returns.max()
         
-        # Find min variance portfolio
+        # Find min variance portfolio (without constraints for initialization)
+        # This is just for initial bounds, actual frontier will use constraints
         min_var_optimizer = MinVarianceOptimizer(
             returns, risk_free_rate, periods_per_year
         )

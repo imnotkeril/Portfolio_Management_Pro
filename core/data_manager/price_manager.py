@@ -62,8 +62,21 @@ class PriceManager:
             cache_key = f"prices:{ticker}:{start_date}:{end_date}"
             cached_data = self._cache.get(cache_key)
             if cached_data is not None:
-                logger.debug(f"Cache hit for historical prices: {ticker}")
-                return cached_data
+                # Verify cached data is a DataFrame
+                if not isinstance(cached_data, pd.DataFrame):
+                    logger.warning(
+                        f"Cache returned non-DataFrame for {ticker}: "
+                        f"{type(cached_data)}. Clearing cache entry."
+                    )
+                    # Clear corrupted cache entry
+                    try:
+                        self._cache.delete(cache_key)
+                    except Exception:
+                        pass
+                    # Continue to fetch from API
+                else:
+                    logger.debug(f"Cache hit for historical prices: {ticker}")
+                    return cached_data
 
         # Fetch from Yahoo Finance
         try:

@@ -1910,6 +1910,68 @@ def plot_rolling_volatility(
     return fig
 
 
+def plot_rolling_var(
+    data: Dict[str, any],
+) -> go.Figure:
+    """
+    Plot rolling VaR chart.
+
+    Args:
+        data: Dictionary with portfolio/benchmark series and statistics
+
+    Returns:
+        Plotly Figure
+    """
+    fig = go.Figure()
+
+    if not data or "portfolio" not in data:
+        return fig
+
+    portfolio_var = data.get("portfolio", pd.Series())
+    benchmark_var = data.get("benchmark", pd.Series())
+    window = data.get("window", 63)
+    confidence_level = data.get("confidence_level", 0.95)
+
+    # Portfolio line
+    if not portfolio_var.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=portfolio_var.index,
+                y=portfolio_var.values * 100,  # Convert to percentage
+                mode="lines",
+                name="Portfolio VaR",
+                line=dict(color=COLORS["danger"], width=2),
+            )
+        )
+
+    # Benchmark line (dashed)
+    if not benchmark_var.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=benchmark_var.index,
+                y=benchmark_var.values * 100,
+                mode="lines",
+                name="Benchmark VaR",
+                line=dict(
+                    color=COLORS["secondary"], width=2, dash="dash"
+                ),
+            )
+        )
+
+    layout = get_chart_layout(
+        title=(
+            f"Rolling VaR ({window} days, "
+            f"{int(confidence_level*100)}% confidence)"
+        ),
+        yaxis=dict(title="VaR (%)", tickformat=",.1f"),
+        xaxis=dict(title="Date"),
+        hovermode="x unified",
+    )
+
+    fig.update_layout(**layout)
+    return fig
+
+
 def plot_rolling_sortino(
     data: Dict[str, pd.Series],
     window: int = 63,

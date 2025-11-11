@@ -133,16 +133,38 @@ def load_portfolios_with_cache() -> List[Dict[str, Any]]:
         enriched_portfolios = []
         for portfolio in portfolios:
             try:
-                # Calculate additional metrics
-                metrics = portfolio_service.calculate_portfolio_metrics(portfolio.id)
+                # Calculate current value using same logic as create_portfolio
+                # This ensures consistency across the application
+                try:
+                    from services.data_service import DataService
+                    data_service = DataService()
+                    positions = portfolio.get_all_positions()
+                    tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
+                    prices = data_service.get_latest_prices(tickers) if tickers else {}
+                    
+                    current_value = 0.0
+                    for pos in positions:
+                        if pos.ticker == "CASH":
+                            current_value += pos.shares  # CASH shares = dollar amount
+                        else:
+                            price = prices.get(pos.ticker, pos.purchase_price or 0.0)
+                            if price > 0:
+                                current_value += pos.shares * price
+                    
+                    # Fallback to starting_capital if calculation fails
+                    if current_value <= 0:
+                        current_value = portfolio.starting_capital
+                except Exception as e:
+                    logger.warning(f"Error calculating current value for {portfolio.name}: {e}")
+                    current_value = portfolio.starting_capital
 
                 enriched_portfolios.append({
                     'id': portfolio.id,
                     'name': portfolio.name,
                     'description': portfolio.description or '',
                     'starting_capital': portfolio.starting_capital,
-                    'current_value': metrics.get('current_value', portfolio.starting_capital),
-                    'asset_count': metrics.get('positions_count', len(portfolio.get_all_positions())),
+                    'current_value': current_value,
+                    'asset_count': len(portfolio.get_all_positions()),
                     'portfolio_object': portfolio
                 })
             except Exception as e:

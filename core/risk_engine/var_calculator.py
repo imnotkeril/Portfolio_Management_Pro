@@ -7,7 +7,7 @@ Historical, Parametric, Monte Carlo, and Cornish-Fisher approaches.
 
 import numpy as np
 import pandas as pd
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from core.analytics_engine.risk_metrics import (
     calculate_var as calculate_var_base,
@@ -198,5 +198,100 @@ def calculate_var_all_methods(
         results["monte_carlo"] = None
 
     return results
+
+
+def calculate_portfolio_var_covariance(
+    returns_df: pd.DataFrame,
+    weights: np.ndarray,
+    confidence_level: float = 0.95,
+    time_horizon: int = 1,
+) -> Dict[str, Any]:
+    """
+    Calculate Portfolio VaR using covariance matrix.
+
+    Formula: VaR = Z_α × √(w^T × Σ × w) × √(time_horizon)
+
+    Args:
+        returns_df: DataFrame with asset returns (columns = assets)
+        weights: Array of portfolio weights (must sum to 1)
+        confidence_level: Confidence level (0.90, 0.95, or 0.99)
+        time_horizon: Time horizon in days (for scaling)
+
+    Returns:
+        Dictionary with:
+        - portfolio_var: Portfolio VaR value
+        - marginal_var: Marginal VaR for each asset
+        - component_var: Component VaR for each asset
+        - var_contribution_pct: Percentage contribution to VaR
+    """
+    if returns_df.empty:
+        raise InsufficientDataError("Returns DataFrame is empty")
+
+    if confidence_level not in [0.90, 0.95, 0.99]:
+        raise ValueError(
+            "Confidence level must be 0.90, 0.95, or 0.99"
+        )
+
+    # Normalize weights
+    weights = np.array(weights)
+    weights = weights / weights.sum()
+
+    # Calculate covariance matrix (annualized)
+    cov_matrix = returns_df.cov().values * 252  # Annualize
+
+    # Portfolio variance
+    portfolio_variance = weights.T @ cov_matrix @ weights
+
+    # Portfolio volatility (annualized)
+    portfolio_volatility = np.sqrt(portfolio_variance)
+
+    # Z-score for confidence level
+    from scipy import stats
+    alpha = 1.0 - confidence_level
+    z_score = abs(stats.norm.ppf(alpha))
+
+    # Portfolio VaR (annualized, then scaled to time_horizon)
+    portfolio_var = (
+        -z_score * portfolio_volatility * np.sqrt(time_horizon / 252)
+    )
+
+    # Calculate Marginal VaR (derivative of VaR w.r.t. weight)
+    # Marginal VaR = -Z_α × (Σ × w) / σ_portfolio × √(time_horizon/252)
+    marginal_var = (
+        -z_score
+        * (cov_matrix @ weights)
+        / portfolio_volatility
+        * np.sqrt(time_horizon / 252)
+    )
+
+    # Component VaR = weight × Marginal VaR
+    component_var = weights * marginal_var
+
+    # Percentage contribution
+    total_component_var = np.sum(component_var)
+    if abs(total_component_var) > 1e-10:
+        var_contribution_pct = (component_var / total_component_var) * 100
+    else:
+        var_contribution_pct = np.zeros_like(component_var)
+
+    # Get asset names
+    asset_names = list(returns_df.columns)
+
+    return {
+        "portfolio_var": float(portfolio_var),
+        "portfolio_volatility": float(portfolio_volatility),
+        "marginal_var": {
+            asset_names[i]: float(marginal_var[i])
+            for i in range(len(asset_names))
+        },
+        "component_var": {
+            asset_names[i]: float(component_var[i])
+            for i in range(len(asset_names))
+        },
+        "var_contribution_pct": {
+            asset_names[i]: float(var_contribution_pct[i])
+            for i in range(len(asset_names))
+        },
+    }
 
 

@@ -1458,6 +1458,78 @@ def get_risk_return_scatter_data(
         return None
 
 
+def get_rolling_var_data(
+    portfolio_returns: pd.Series,
+    benchmark_returns: Optional[pd.Series] = None,
+    window: int = 63,
+    confidence_level: float = 0.95,
+) -> Optional[Dict[str, any]]:
+    """
+    Prepare data for rolling VaR chart.
+
+    Args:
+        portfolio_returns: Series of portfolio returns
+        benchmark_returns: Optional benchmark returns
+        window: Rolling window size in days
+        confidence_level: Confidence level (0.90, 0.95, or 0.99)
+
+    Returns:
+        Dictionary with rolling VaR series and statistics or None
+    """
+    if portfolio_returns.empty:
+        return None
+
+    try:
+        from core.analytics_engine.risk_metrics import calculate_var
+
+        # Calculate rolling VaR
+        portfolio_var = portfolio_returns.rolling(window=window).apply(
+            lambda x: calculate_var(x, confidence_level, "historical")
+            if len(x) >= window else np.nan,
+            raw=False,
+        )
+
+        result = {
+            "portfolio": portfolio_var,
+            "window": window,
+            "confidence_level": confidence_level,
+            "portfolio_stats": {
+                "avg": float(portfolio_var.mean()),
+                "median": float(portfolio_var.median()),
+                "min": float(portfolio_var.min()),
+                "max": float(portfolio_var.max()),
+            },
+        }
+
+        # Calculate benchmark rolling VaR if available
+        if benchmark_returns is not None and not benchmark_returns.empty:
+            aligned_benchmark = benchmark_returns.reindex(
+                portfolio_returns.index, method="ffill"
+            ).fillna(0)
+
+            benchmark_var = aligned_benchmark.rolling(
+                window=window
+            ).apply(
+                lambda x: calculate_var(x, confidence_level, "historical")
+                if len(x) >= window else np.nan,
+                raw=False,
+            )
+
+            result["benchmark"] = benchmark_var
+            result["benchmark_stats"] = {
+                "avg": float(benchmark_var.mean()),
+                "median": float(benchmark_var.median()),
+                "min": float(benchmark_var.min()),
+                "max": float(benchmark_var.max()),
+            }
+
+        return result
+
+    except Exception as e:
+        logger.warning(f"Error preparing rolling VaR data: {e}")
+        return None
+
+
 def get_rolling_volatility_data(
     portfolio_returns: pd.Series,
     benchmark_returns: Optional[pd.Series] = None,
@@ -2632,6 +2704,186 @@ def get_asset_price_dynamics_data(
         
     except Exception as e:
         logger.warning(f"Error calculating asset price dynamics: {e}")
+        return None
+
+
+def get_rolling_correlations_data(
+    positions: list,
+    price_data: pd.DataFrame,
+    window: int = 60,
+    selected_pairs: Optional[list] = None,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate rolling correlations between asset pairs.
+
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data
+        window: Rolling window size in days
+        selected_pairs: Optional list of (ticker1, ticker2) tuples
+
+    Returns:
+        Dictionary with rolling correlation series for each pair
+    """
+    if not positions or price_data.empty:
+        return None
+
+    try:
+        # Calculate returns
+        returns_df = price_data.pct_change().dropna()
+
+        if returns_df.empty or len(returns_df) < window:
+            return None
+
+        # Exclude CASH
+        if "CASH" in returns_df.columns:
+            returns_df = returns_df.drop(columns=["CASH"])
+
+        tickers = [pos.ticker for pos in positions
+                   if pos.ticker in returns_df.columns]
+
+        if len(tickers) < 2:
+            return None
+
+        # If no pairs specified, use all pairs
+        if selected_pairs is None:
+            selected_pairs = []
+            for i, ticker1 in enumerate(tickers):
+                for ticker2 in tickers[i+1:]:
+                    selected_pairs.append((ticker1, ticker2))
+
+        rolling_correlations = {}
+
+        for ticker1, ticker2 in selected_pairs:
+            if ticker1 not in returns_df.columns:
+                continue
+            if ticker2 not in returns_df.columns:
+                continue
+
+            # Calculate rolling correlation manually
+            rolling_corr_list = []
+            rolling_dates = []
+
+            for i in range(window, len(returns_df) + 1):
+                window_data = returns_df.iloc[i-window:i]
+                asset1 = window_data[ticker1].dropna()
+                asset2 = window_data[ticker2].dropna()
+
+                # Align data
+                aligned = pd.DataFrame({
+                    "asset1": asset1,
+                    "asset2": asset2,
+                }).dropna()
+
+                if len(aligned) >= window // 2:
+                    corr = aligned["asset1"].corr(aligned["asset2"])
+                    if not np.isnan(corr):
+                        rolling_corr_list.append(corr)
+                        rolling_dates.append(returns_df.index[i-1])
+
+            if rolling_corr_list:
+                pair_name = f"{ticker1}-{ticker2}"
+                rolling_correlations[pair_name] = pd.Series(
+                    rolling_corr_list, index=rolling_dates
+                )
+
+        if not rolling_correlations:
+            return None
+
+        return {
+            "rolling_correlations": rolling_correlations,
+            "window": window,
+            "pairs": selected_pairs,
+        }
+
+    except Exception as e:
+        logger.warning(f"Error calculating rolling correlations: {e}")
+        return None
+
+
+def get_average_correlation_to_portfolio_data(
+    positions: list,
+    price_data: pd.DataFrame,
+) -> Optional[Dict[str, any]]:
+    """
+    Calculate average correlation of each asset to the rest of portfolio.
+
+    Args:
+        positions: List of Position objects
+        price_data: DataFrame with price data
+
+    Returns:
+        Dictionary with average correlations and diversification scores
+    """
+    if not positions or price_data.empty:
+        return None
+
+    try:
+        # Calculate returns
+        returns_df = price_data.pct_change().dropna()
+
+        if returns_df.empty:
+            return None
+
+        # Exclude CASH
+        if "CASH" in returns_df.columns:
+            returns_df = returns_df.drop(columns=["CASH"])
+
+        tickers = [pos.ticker for pos in positions
+                   if pos.ticker in returns_df.columns]
+
+        if len(tickers) < 2:
+            return None
+
+        # Calculate correlation matrix
+        corr_matrix = returns_df[tickers].corr()
+
+        # For each asset, calculate average correlation to others
+        avg_correlations = {}
+        diversification_scores = {}
+
+        for ticker in tickers:
+            if ticker not in corr_matrix.columns:
+                continue
+
+            # Get correlations to all other assets
+            other_tickers = [t for t in tickers if t != ticker]
+            correlations_to_others = [
+                corr_matrix.loc[ticker, other]
+                for other in other_tickers
+                if other in corr_matrix.columns
+            ]
+
+            if correlations_to_others:
+                avg_corr = float(np.nanmean(correlations_to_others))
+                avg_correlations[ticker] = avg_corr
+                # Diversification score = 1 - avg_correlation
+                diversification_scores[ticker] = 1.0 - avg_corr
+
+        if not avg_correlations:
+            return None
+
+        # Sort by diversification score (highest first)
+        sorted_tickers = sorted(
+            diversification_scores.keys(),
+            key=lambda t: diversification_scores[t],
+            reverse=True
+        )
+
+        return {
+            "tickers": sorted_tickers,
+            "avg_correlations": [
+                avg_correlations[t] for t in sorted_tickers
+            ],
+            "diversification_scores": [
+                diversification_scores[t] for t in sorted_tickers
+            ],
+        }
+
+    except Exception as e:
+        logger.warning(
+            f"Error calculating average correlation to portfolio: {e}"
+        )
         return None
 
 

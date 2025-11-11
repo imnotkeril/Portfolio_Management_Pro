@@ -10,7 +10,7 @@ from sqlalchemy import and_
 from core.data_manager.cache import Cache
 from core.data_manager.price_manager import PriceManager
 from core.data_manager.ticker_validator import TickerInfo, TickerValidator
-from core.exceptions import ValidationError
+from core.exceptions import DataFetchError, ValidationError
 from database.session import get_db_session
 from models.price_history import PriceHistory
 
@@ -124,52 +124,85 @@ class DataService:
         # Check database first (and backfill gaps if needed)
         if use_cache and use_db_cache:
             db_data = self._get_prices_from_db(ticker, start_date, end_date)
-            if db_data is not None and not db_data.empty:
-                # If DB covers full requested range, return it
-                db_start = pd.to_datetime(db_data["Date"].min()).date()
-                db_end = pd.to_datetime(db_data["Date"].max()).date()
-                if db_start <= start_date and db_end >= end_date:
-                    logger.info(
-                        f"Loaded {len(db_data)} records from database for {ticker} (full range)"
+            # Verify db_data is a DataFrame
+            if db_data is not None:
+                if not isinstance(db_data, pd.DataFrame):
+                    logger.warning(
+                        f"Database returned non-DataFrame for {ticker}: "
+                        f"{type(db_data)}. Fetching from API instead."
                     )
-                    return db_data
-                # Otherwise, fetch missing parts from API and merge
-                missing_segments: list[tuple[date, date]] = []
-                if db_start > start_date:
-                    missing_segments.append((start_date, min(db_start, end_date)))
-                if db_end < end_date:
-                    # add a day after db_end to avoid overlap
-                    from datetime import timedelta
-                    seg_start = min(end_date, db_end + timedelta(days=1))
-                    if seg_start <= end_date:
-                        missing_segments.append((seg_start, end_date))
-                merged = db_data.copy()
-                for seg_start, seg_end in missing_segments:
-                    try:
-                        if seg_start <= seg_end:
-                            api_df = self._price_manager.fetch_historical_prices(
-                                ticker, seg_start, seg_end, use_cache=use_cache
-                            )
-                            if not api_df.empty:
-                                if save_to_db:
-                                    self._save_prices_to_db(ticker, api_df)
-                                merged = pd.concat([merged, api_df], ignore_index=True)
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to backfill prices for {ticker} {seg_start}..{seg_end}: {e}"
+                    db_data = None
+                elif not db_data.empty:
+                    # If DB covers full requested range, return it
+                    db_start = pd.to_datetime(db_data["Date"].min()).date()
+                    db_end = pd.to_datetime(db_data["Date"].max()).date()
+                    if db_start <= start_date and db_end >= end_date:
+                        logger.info(
+                            f"Loaded {len(db_data)} records from database "
+                            f"for {ticker} (full range)"
                         )
-                # Deduplicate and sort
-                if not merged.empty:
-                    merged = (
-                        merged.drop_duplicates(subset=["Date"]).sort_values("Date").reset_index(drop=True)
-                    )
-                return merged
+                        return db_data
+                    # Otherwise, fetch missing parts from API and merge
+                    missing_segments: list[tuple[date, date]] = []
+                    if db_start > start_date:
+                        missing_segments.append(
+                            (start_date, min(db_start, end_date))
+                        )
+                    if db_end < end_date:
+                        # add a day after db_end to avoid overlap
+                        from datetime import timedelta
+                        seg_start = min(end_date, db_end + timedelta(days=1))
+                        if seg_start <= end_date:
+                            missing_segments.append((seg_start, end_date))
+                    merged = db_data.copy()
+                    for seg_start, seg_end in missing_segments:
+                        try:
+                            if seg_start <= seg_end:
+                                api_df = (
+                                    self._price_manager.fetch_historical_prices(
+                                        ticker, seg_start, seg_end,
+                                        use_cache=use_cache
+                                    )
+                                )
+                                # Verify api_df is DataFrame
+                                if (
+                                    isinstance(api_df, pd.DataFrame)
+                                    and not api_df.empty
+                                ):
+                                    if save_to_db:
+                                        self._save_prices_to_db(ticker, api_df)
+                                    merged = pd.concat(
+                                        [merged, api_df], ignore_index=True
+                                    )
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to backfill prices for {ticker} "
+                                f"{seg_start}..{seg_end}: {e}"
+                            )
+                    # Deduplicate and sort
+                    if not merged.empty:
+                        merged = (
+                            merged.drop_duplicates(subset=["Date"])
+                            .sort_values("Date")
+                            .reset_index(drop=True)
+                        )
+                    return merged
 
         # Fetch from API
         logger.info(f"Fetching prices from API for {ticker} ({start_date} to {end_date})")
         df = self._price_manager.fetch_historical_prices(
             ticker, start_date, end_date, use_cache=use_cache
         )
+
+        # Verify df is a DataFrame
+        if not isinstance(df, pd.DataFrame):
+            logger.error(
+                f"price_manager.fetch_historical_prices returned "
+                f"non-DataFrame for {ticker}: {type(df)}"
+            )
+            raise DataFetchError(
+                f"Invalid data type returned for {ticker}: {type(df)}"
+            )
 
         # Save to database only for benchmark/index tickers
         if save_to_db and use_db_cache and not df.empty:

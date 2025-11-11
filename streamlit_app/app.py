@@ -36,6 +36,7 @@ with st.sidebar:
             "Portfolio Analysis",
             "Portfolio Optimization",
             "Risk Analysis",
+            "Forecasting",
         ],
         label_visibility="collapsed",
     )
@@ -90,3 +91,8 @@ elif page == "Risk Analysis":
     )
 
     render_risk_analysis_page()
+
+elif page == "Forecasting":
+    from streamlit_app.pages.forecasting import render_forecasting_page
+
+    render_forecasting_page()

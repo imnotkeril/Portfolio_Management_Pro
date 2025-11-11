@@ -888,11 +888,28 @@ def render_wizard_step_5() -> None:
                 st.metric("Total Assets", len(portfolio.get_all_positions()))
 
             with col2:
+                # Calculate total value from positions using creation prices
+                # This ensures consistency with asset allocation table
                 try:
-                    portfolio_service: PortfolioService = st.session_state.portfolio_service
-                    metrics = portfolio_service.calculate_portfolio_metrics(portfolio.id)
-                    total_value = metrics.get("current_value", portfolio.starting_capital)
-                except Exception:
+                    portfolio_positions = portfolio.get_all_positions()
+                    data_service = st.session_state.data_service
+                    tickers = [pos.ticker for pos in portfolio_positions if pos.ticker != "CASH"]
+                    prices = data_service.get_latest_prices(tickers) if tickers else {}
+                    
+                    total_value = 0.0
+                    for pos in portfolio_positions:
+                        if pos.ticker == "CASH":
+                            total_value += pos.shares  # CASH shares = dollar amount
+                        else:
+                            price = prices.get(pos.ticker, pos.purchase_price or 0.0)
+                            if price > 0:
+                                total_value += pos.shares * price
+                    
+                    # Fallback to starting_capital if calculation fails
+                    if total_value <= 0:
+                        total_value = portfolio.starting_capital
+                except Exception as e:
+                    logger.warning(f"Error calculating total value: {e}")
                     total_value = portfolio.starting_capital
                 st.metric("Total Value", f"${total_value:,.2f}")
 

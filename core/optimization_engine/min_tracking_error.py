@@ -116,7 +116,7 @@ class MinTrackingErrorOptimizer(BaseOptimizer):
                     f"Optimization failed: {result.message}"
                 )
             
-            weights = self._normalize_weights(result.x)
+            weights = self._normalize_weights(result.x, constraints_obj)
             metrics = self._calculate_portfolio_metrics(weights)
             
             # Calculate tracking error
@@ -159,15 +159,6 @@ class MinTrackingErrorOptimizer(BaseOptimizer):
         self, constraints: Optional[Dict[str, any]]
     ) -> OptimizationConstraints:
         """Build constraints object from dictionary."""
-        constraints_obj = OptimizationConstraints(self.tickers)
-        
-        if constraints:
-            # Call set_weight_bounds once with all parameters
-            constraints_obj.set_weight_bounds(
-                min_weight=constraints.get("min_weight"),
-                max_weight=constraints.get("max_weight"),
-                long_only=constraints.get("long_only", True),
-            )
-        
-        return constraints_obj
+        # Call base class method to get all constraints including max_cash_weight, min_return, diversification_lambda
+        return super()._build_constraints(constraints)
 
