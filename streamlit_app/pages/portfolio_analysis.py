@@ -3357,14 +3357,106 @@ def _render_correlations(positions, portfolio_returns, benchmark_returns):
                 with col6:
                     st.metric("Pairs < 0.2 (low)", corr_stats['low_corr_count'])
                 
-                # Interpretation
+                # Interpretation and Recommendations
                 avg_corr = corr_stats['average_correlation']
+                high_corr_count = corr_stats['high_corr_count']
+                low_corr_count = corr_stats['low_corr_count']
+                min_corr = corr_stats['min_correlation']
+                
+                st.markdown("---")
+                st.subheader("Correlation Analysis & Recommendations")
+                
+                # Overall assessment
                 if avg_corr < 0.3:
-                    st.success("✓ Low average correlation - Excellent diversification potential")
+                    st.success(
+                        "✓ Low average correlation - Excellent "
+                        "diversification potential"
+                    )
                 elif avg_corr < 0.5:
-                    st.success("✓ Moderate average correlation - Good diversification potential")
+                    st.success(
+                        "✓ Moderate average correlation - Good "
+                        "diversification potential"
+                    )
                 else:
-                    st.warning("⚠ High average correlation - Limited diversification")
+                    st.warning(
+                        "⚠ High average correlation - Limited "
+                        "diversification"
+                    )
+                
+                # Detailed recommendations
+                recommendations = []
+                
+                # Check for high correlation pairs
+                if high_corr_count > 0:
+                    recommendations.append({
+                        "type": "warning",
+                        "message": (
+                            f"⚠ Found {high_corr_count} pair(s) with "
+                            f"correlation > 0.8 - Risk of concentration. "
+                            f"Consider reducing weight of highly correlated "
+                            f"assets."
+                        )
+                    })
+                
+                # Check for low correlation opportunities
+                if low_corr_count > 0:
+                    recommendations.append({
+                        "type": "info",
+                        "message": (
+                            f"✓ Found {low_corr_count} pair(s) with "
+                            f"correlation < 0.2 - Good diversification "
+                            f"opportunities present."
+                        )
+                    })
+                else:
+                    recommendations.append({
+                        "type": "warning",
+                        "message": (
+                            "⚠ No pairs with correlation < 0.2 found. "
+                            "Consider adding assets with lower correlation "
+                            "for better diversification."
+                        )
+                    })
+                
+                # Check for negative correlation (hedging)
+                if min_corr < 0:
+                    recommendations.append({
+                        "type": "success",
+                        "message": (
+                            f"✓ Found negative correlation ({min_corr:.2f}) - "
+                            f"Natural hedging opportunity present."
+                        )
+                    })
+                else:
+                    recommendations.append({
+                        "type": "info",
+                        "message": (
+                            "ℹ No negative correlations found. Consider "
+                            "adding assets with negative correlation "
+                            "(e.g., bonds vs stocks) for hedging."
+                        )
+                    })
+                
+                # Check average correlation level
+                if avg_corr > 0.5:
+                    recommendations.append({
+                        "type": "warning",
+                        "message": (
+                            f"⚠ Average correlation ({avg_corr:.2f}) is high. "
+                            f"Portfolio may be under-diversified. Consider "
+                            f"adding assets from different sectors or asset "
+                            f"classes."
+                        )
+                    })
+                
+                # Display recommendations
+                for rec in recommendations:
+                    if rec["type"] == "success":
+                        st.success(rec["message"])
+                    elif rec["type"] == "warning":
+                        st.warning(rec["message"])
+                    else:
+                        st.info(rec["message"])
         
         # === Section 4.2.3: Correlation with Benchmark ===
         st.markdown("---")
@@ -3396,7 +3488,171 @@ def _render_correlations(positions, portfolio_returns, benchmark_returns):
         else:
             st.info("Benchmark data not available")
         
-        # === Section 4.2.4: Cluster Analysis ===
+        # === Section 4.2.4: Average Correlation to Portfolio ===
+        st.markdown("---")
+        st.subheader("Average Correlation to Portfolio")
+        
+        if corr_matrix_data and price_data is not None:
+            from core.analytics_engine.chart_data import (
+                get_average_correlation_to_portfolio_data,
+            )
+            
+            avg_corr_data = get_average_correlation_to_portfolio_data(
+                positions, price_data
+            )
+            
+            if avg_corr_data:
+                # Bar chart
+                fig_avg = go.Figure()
+                fig_avg.add_trace(
+                    go.Bar(
+                        x=avg_corr_data["tickers"],
+                        y=[c * 100 for c in avg_corr_data["avg_correlations"]],
+                        marker=dict(
+                            color=[
+                                COLORS["success"] if c < 0.3
+                                else COLORS["warning"] if c < 0.5
+                                else COLORS["danger"]
+                                for c in avg_corr_data["avg_correlations"]
+                            ]
+                        ),
+                        text=[
+                            f"{c*100:.1f}%"
+                            for c in avg_corr_data["avg_correlations"]
+                        ],
+                        textposition="outside",
+                    )
+                )
+                
+                fig_avg.update_layout(
+                    title="Average Correlation to Other Assets",
+                    xaxis_title="Asset",
+                    yaxis_title="Average Correlation (%)",
+                    height=400,
+                    template="plotly_dark",
+                )
+                
+                st.plotly_chart(fig_avg, use_container_width=True)
+                
+                # Table with diversification scores
+                avg_corr_df = pd.DataFrame({
+                    "Asset": avg_corr_data["tickers"],
+                    "Avg Correlation": [
+                        f"{c:.3f}"
+                        for c in avg_corr_data["avg_correlations"]
+                    ],
+                    "Diversification Score": [
+                        f"{d:.3f}"
+                        for d in avg_corr_data["diversification_scores"]
+                    ],
+                })
+                st.dataframe(avg_corr_df, use_container_width=True)
+                
+                st.caption(
+                    "**Diversification Score = 1 - Avg Correlation.** "
+                    "Higher score = better diversification. "
+                    "Target: < 0.3 correlation for good diversification."
+                )
+        
+        # === Section 4.2.5: Rolling Correlations ===
+        st.markdown("---")
+        st.subheader("Rolling Correlations Between Assets")
+        
+        if price_data is not None:
+            from core.analytics_engine.chart_data import (
+                get_rolling_correlations_data,
+            )
+            
+            # Window selector
+            rolling_window_corr = st.slider(
+                "Rolling Window (days)",
+                min_value=30,
+                max_value=252,
+                value=60,
+                step=30,
+                key="rolling_corr_window_assets",
+                help="Window size for rolling correlation calculation",
+            )
+            
+            # Get top pairs to display (highest and lowest correlation)
+            if corr_matrix_data and corr_matrix_data.get("correlation_matrix") is not None:
+                corr_matrix = corr_matrix_data["correlation_matrix"]
+                
+                # Get all pairs with their correlations
+                pairs_data = []
+                tickers_list = list(corr_matrix.columns)
+                for i, ticker1 in enumerate(tickers_list):
+                    for ticker2 in tickers_list[i+1:]:
+                        corr_val = corr_matrix.loc[ticker1, ticker2]
+                        if not np.isnan(corr_val):
+                            pairs_data.append({
+                                "pair": (ticker1, ticker2),
+                                "correlation": corr_val,
+                            })
+                
+                # Sort by absolute correlation
+                pairs_data.sort(key=lambda x: abs(x["correlation"]), reverse=True)
+                
+                # Select top 5 pairs to display
+                top_pairs = [p["pair"] for p in pairs_data[:5]]
+                
+                rolling_corr_data = get_rolling_correlations_data(
+                    positions,
+                    price_data,
+                    window=rolling_window_corr,
+                    selected_pairs=top_pairs,
+                )
+                
+                if rolling_corr_data:
+                    fig_rolling = go.Figure()
+                    
+                    for pair_name, corr_series in rolling_corr_data["rolling_correlations"].items():
+                        if not corr_series.empty:
+                            fig_rolling.add_trace(
+                                go.Scatter(
+                                    x=corr_series.index,
+                                    y=corr_series.values * 100,
+                                    mode="lines",
+                                    name=pair_name,
+                                    line=dict(width=2),
+                                )
+                            )
+                    
+                    fig_rolling.update_layout(
+                        title=(
+                            f"Rolling Correlations "
+                            f"({rolling_window_corr} days)"
+                        ),
+                        xaxis_title="Date",
+                        yaxis_title="Correlation (%)",
+                        height=500,
+                        template="plotly_dark",
+                        hovermode="x unified",
+                    )
+                    
+                    # Add horizontal lines for reference
+                    fig_rolling.add_hline(
+                        y=30,
+                        line_dash="dash",
+                        line_color="green",
+                        annotation_text="Good diversification (< 0.3)",
+                    )
+                    fig_rolling.add_hline(
+                        y=70,
+                        line_dash="dash",
+                        line_color="orange",
+                        annotation_text="High correlation (> 0.7)",
+                    )
+                    
+                    st.plotly_chart(fig_rolling, use_container_width=True)
+                    
+                    st.caption(
+                        "**Interpretation:** Shows how correlations between "
+                        "asset pairs change over time. Spikes in correlations "
+                        "often occur during market crises."
+                    )
+        
+        # === Section 4.2.6: Cluster Analysis ===
         st.markdown("---")
         st.subheader("Cluster Analysis of Correlations")
         

@@ -1,7 +1,7 @@
 # WILD MARKET CAPITAL - System Architecture
 
 **Version**: 1.0 (Initial)  
-**Last Updated**: 2025-11-07  
+**Last Updated**: 2025-01-27  
 **Status**: 🟡 Living Document - Will be updated during development
 
 ---
@@ -256,7 +256,7 @@ User Request → Service Layer → Data Manager
 ### 3.4 Optimization Engine Module
 
 **Path**: `core/optimization_engine/`  
-**Status**: 🟢 Phase 6 Implemented (Partial - 9 methods)
+**Status**: 🟢 Phase 6 Implemented (17 methods)
 
 **Purpose**: Optimize portfolio weights using multiple optimization methods with customizable constraints.
 
@@ -264,7 +264,8 @@ User Request → Service Layer → Data Manager
 - ✅ `base.py` - Base optimizer abstract class with OptimizationResult dataclass
 - ✅ `constraints.py` - Constraint builders (weight, group, risk, turnover, cardinality)
 - ✅ `efficient_frontier.py` - Generate efficient frontier
-- ✅ **Optimizers** (9 methods implemented):
+- ✅ `sensitivity.py` - Sensitivity analysis for parameter variations
+- ✅ **Optimizers** (17 methods implemented):
   - ✅ `equal_weight.py` - Equal weight (1/N)
   - ✅ `mean_variance.py` - Markowitz optimization (max Sharpe, min variance, max return)
   - ✅ `min_variance.py` - Minimum variance
@@ -274,10 +275,15 @@ User Request → Service Layer → Data Manager
   - ✅ `kelly_criterion.py` - Kelly Criterion (Full, Half, Quarter)
   - ✅ `min_tracking_error.py` - Minimum tracking error
   - ✅ `max_alpha.py` - Maximum alpha
-  - 🔲 `hrp.py` - Hierarchical Risk Parity (Future)
-  - 🔲 `black_litterman.py` - Black-Litterman with views (Future)
-  - 🔲 `cvar_optimization.py` - CVaR optimization (Future)
-  - 🔲 ... (5 more methods - Future)
+  - ✅ `hrp.py` - Hierarchical Risk Parity (HRP)
+  - ✅ `cvar_optimization.py` - CVaR optimization
+  - ✅ `mean_cvar.py` - Mean-CVaR optimization
+  - ✅ `robust.py` - Robust optimization with uncertainty sets
+  - ✅ `max_diversification.py` - Maximum diversification
+  - ✅ `min_correlation.py` - Minimum correlation
+  - ✅ `inverse_correlation.py` - Inverse correlation weighting
+  - ✅ `market_cap.py` - Market cap weighting
+  - ✅ `black_litterman.py` - Black-Litterman with views
 
 **Dependencies**:
 - Analytics Engine (returns, covariance)
@@ -293,11 +299,19 @@ User Request → Service Layer → Data Manager
 - Transaction cost modeling
 
 **Constraint Types**:
-- Weight constraints (min, max, specific bounds)
-- Group constraints (sector limits, asset class limits)
-- Risk constraints (max volatility, max VaR, max beta)
-- Turnover constraints (max turnover, min trade size)
-- Cardinality constraints (min/max assets)
+- ✅ Weight constraints (min, max, specific bounds, long-only)
+- ✅ Group constraints (sector limits, asset class limits) - via get_group_constraints_list()
+- ✅ Risk constraints (max volatility, max VaR, max CVaR, max beta)
+- ✅ Turnover constraints (max turnover, min trade size)
+- ✅ Cardinality constraints (min/max assets)
+
+**Additional Features**:
+- ✅ Sensitivity analysis (returns, covariance, constraints)
+- ✅ Method-specific parameters (confidence levels, uncertainty radii, etc.)
+- ✅ Comprehensive constraint system with group constraint support
+- ✅ Objective function selection (maximize Sharpe, minimize volatility, maximize return, minimize CVaR, equal risk contribution)
+- ✅ Out-of-sample testing with configurable training window (30%, 50%, 60%)
+- ✅ Weight constraint validation (prevents impossible configurations)
 
 ---
 
@@ -351,7 +365,85 @@ User Request → Service Layer → Data Manager
 
 ---
 
-### 3.7 Reporting Engine Module
+### 3.7 Forecasting Engine Module
+
+**Path**: `core/forecasting_engine/`  
+**Status**: 🟢 Implemented (7 methods: Prophet, ARIMA, XGBoost, Random Forest, Ensemble, LSTM, TCN)
+
+**Purpose**: Forecast future prices and returns using various forecasting models (classical, ML, deep learning).
+
+**Components**:
+- ✅ `base.py` - BaseForecaster abstract class and ForecastResult dataclass
+- ✅ `utils.py` - Utility functions (metrics, confidence intervals, feature preparation)
+- ✅ `simple/prophet.py` - ProphetForecaster (Facebook/Meta Prophet)
+- ✅ `classical/arima.py` - ARIMAForecaster (with auto ARIMA support)
+- ✅ `ml/xgboost_forecaster.py` - XGBoostForecaster (with feature engineering)
+- ✅ `ml/random_forest.py` - RandomForestForecaster
+- ✅ `ensemble.py` - EnsembleForecaster (weighted average by MAPE)
+- ✅ `deep_learning/lstm.py` - LSTMForecaster (TensorFlow/Keras with Bidirectional support)
+- ✅ `deep_learning/tcn.py` - TCNForecaster (Temporal Convolutional Network with GlobalAveragePooling1D)
+- 🔲 `classical/garch.py` - GARCHForecaster (volatility forecasting)
+- 🔲 `classical/arima_garch.py` - ARIMAGARCHForecaster (combined model)
+- 🔲 `ml/svm_forecaster.py` - SVMForecaster
+
+**Dependencies**:
+- Data Manager (price data)
+- Prophet, statsmodels, pmdarima, xgboost, scikit-learn
+- TensorFlow/Keras (for deep learning models, required for LSTM/TCN)
+
+**Key Features**:
+- **Multiple Forecasting Methods**: Prophet, ARIMA, XGBoost, Random Forest, Ensemble, LSTM, TCN
+- **Out-of-Sample Testing**: Training/validation split with configurable ratios (30%, 50%, 60%)
+- **Quality Metrics**: MAPE, RMSE, MAE, Direction Accuracy, R²
+- **Confidence Intervals**: 95% and 80% confidence intervals for forecasts
+- **Feature Engineering**: Technical indicators, lagged returns, moving averages
+- **Ensemble Methods**: Weighted average (by MAPE) and simple average
+- **Portfolio Forecasting**: Support for both single assets and portfolios
+- **Deep Learning Best Practices**:
+  - Temporal data split before scaling (prevents data leakage)
+  - StandardScaler for financial time series (better than MinMaxScaler)
+  - Log returns support (auto-enabled for long horizons)
+  - Bidirectional LSTM layers (optional, for better pattern recognition)
+  - Stability checks during iterative forecasting (prevents constant predictions)
+  - GlobalAveragePooling1D for TCN (better feature aggregation)
+
+**LSTM Forecaster Features**:
+- Bidirectional LSTM support (optional)
+- Log returns forecasting (auto-enabled for horizons > 30 days)
+- StandardScaler with temporal split (train/test split before scaling)
+- Stability noise injection (prevents constant predictions during iterative forecasting)
+- Directional accuracy metrics
+- Configurable architecture (units, layers, dropout, epochs)
+
+**TCN Forecaster Features**:
+- Causal convolutions with residual connections
+- GlobalAveragePooling1D for feature aggregation
+- Log returns forecasting (auto-enabled for horizons > 30 days)
+- StandardScaler with temporal split
+- Stability noise injection
+- Directional accuracy metrics
+- Configurable architecture (num_filters, kernel_size, dilations)
+
+**Forecast Result Structure**:
+- Forecast dates and values
+- Forecast returns
+- Confidence intervals (upper/lower bounds)
+- Validation metrics (if out-of-sample enabled)
+- Model information (parameters, AIC, BIC, training time)
+- Residuals for diagnostics
+- Directional accuracy (for deep learning models)
+
+**Performance Targets**:
+- Prophet: <1s for 1-year data
+- ARIMA: <2s for 1-year data
+- XGBoost: <5s for 1-year data with features
+- LSTM: <30s for 1-year data (depends on epochs, default 100)
+- TCN: <25s for 1-year data (depends on epochs, default 100)
+- Ensemble: <10s for combining 3-4 methods
+
+---
+
+### 3.8 Reporting Engine Module
 
 **Path**: `core/reporting_engine/`  
 **Status**: 🔲 Not Implemented
@@ -379,7 +471,7 @@ User Request → Service Layer → Data Manager
 ### 3.8 Service Layer
 
 **Path**: `services/`  
-**Status**: 🟢 Phase 1-3 Implemented (Partial)
+**Status**: 🟢 Phase 1-7 Implemented (Partial)
 
 **Purpose**: Orchestrate business operations, validate inputs, manage transactions.
 
@@ -391,6 +483,7 @@ User Request → Service Layer → Data Manager
 - ✅ `report_service.py` - PDF report generation (Phase 4)
 - ✅ `optimization_service.py` - Optimization orchestration (Phase 6)
 - ✅ `risk_service.py` - Risk analysis orchestration (Phase 7)
+- ✅ `forecasting_service.py` - Forecasting orchestration (Forecasting)
 
 **Dependencies**:
 - All Core Modules
@@ -434,6 +527,7 @@ User Request → Service Layer → Data Manager
 - ✅ `pages/portfolio_analysis.py` - Comprehensive analytics display (Phase 4)
 - ✅ `pages/portfolio_optimization.py` - Optimization interface (Phase 6)
 - ✅ `pages/risk_analysis.py` - Risk analysis interface (Phase 7) - VaR, Monte Carlo, Historical Scenarios, Custom Scenarios, Scenario Chains (all in one page)
+- ✅ `pages/forecasting.py` - Forecasting interface (Forecasting) - Price and returns forecasting with multiple methods
 - 🔲 `pages/reports.py` - Report generation (Phase 8)
 
 **Reusable Components**:
@@ -448,6 +542,11 @@ User Request → Service Layer → Data Manager
   - Q-Q Plot (distribution analysis)
   - Rolling Sharpe Ratio (with threshold)
   - Monthly Heatmap (returns by year/month)
+- ✅ `components/forecast_charts.py` - Forecast visualization components (Forecasting):
+  - Forecast comparison (all methods)
+  - Individual forecast with confidence intervals
+  - Forecast quality metrics visualization
+  - Residuals analysis
 - 🔲 `components/optimization_results.py` - Optimization results display (Phase 6)
 
 **Utilities**:
@@ -1919,6 +2018,54 @@ Download file or copy to clipboard
 
 ---
 
+#### Update 2025-01-XX: Optimization Engine - Complete Implementation (17 Methods)
+
+**Major Feature Implementation** - Complete Optimization Engine with all 17 optimization methods, Sensitivity Analysis, and expanded constraint system.
+
+**New Core Modules:**
+- `core/optimization_engine/hrp.py` - Hierarchical Risk Parity (HRP) optimizer
+- `core/optimization_engine/cvar_optimization.py` - CVaR optimization
+- `core/optimization_engine/mean_cvar.py` - Mean-CVaR optimization
+- `core/optimization_engine/robust.py` - Robust optimization with uncertainty sets
+- `core/optimization_engine/max_diversification.py` - Maximum diversification optimizer
+- `core/optimization_engine/min_correlation.py` - Minimum correlation optimizer
+- `core/optimization_engine/inverse_correlation.py` - Inverse correlation weighting
+- `core/optimization_engine/market_cap.py` - Market cap weighting
+- `core/optimization_engine/black_litterman.py` - Black-Litterman optimizer
+- `core/optimization_engine/sensitivity.py` - Sensitivity analysis module
+
+**Updated Core Modules:**
+- `core/optimization_engine/constraints.py` - Added max_cvar support, group constraints via get_group_constraints_list()
+- `core/optimization_engine/base.py` - Enhanced _build_constraints() to support all constraint types
+
+**Updated Service Module:**
+- `services/optimization_service.py`:
+  - Added 8 new optimization methods to OPTIMIZATION_METHODS
+  - Added perform_sensitivity_analysis() method
+  - Enhanced optimize_portfolio() to support method_params
+
+**Updated UI:**
+- `streamlit_app/pages/portfolio_optimization.py`:
+  - Added UI for all 8 new optimization methods
+  - Added method-specific parameter controls (confidence levels, uncertainty radii)
+  - Added Advanced Constraints section (risk, turnover, cardinality)
+  - Added Sensitivity Analysis UI with heatmaps and line charts
+
+**Key Features:**
+- ✅ All 17 optimization methods implemented
+- ✅ Comprehensive constraint system (weight, group, risk, turnover, cardinality)
+- ✅ Sensitivity analysis for parameter variations
+- ✅ Method-specific parameters support
+- ✅ Enhanced UI with advanced constraints
+
+**Architecture Maintained:**
+- ✅ Separation of Concerns (Backend → Service → UI)
+- ✅ Error handling and logging
+- ✅ Type safety with type hints
+- ✅ DRY principles
+
+---
+
 #### Update 2025-11-05: Phase 6 - Optimization Engine - Complete Implementation
 
 **Major Feature Implementation** - Complete Optimization Engine with 9 optimization methods, Efficient Frontier, and Streamlit UI.
@@ -2160,6 +2307,233 @@ Download file or copy to clipboard
 - Removed separate scenarios page: All scenario functionality consolidated into risk_analysis.py for better UX
 
 **Note:** Phase 7 provides comprehensive risk analysis capabilities. Some advanced features (GARCH model, more sophisticated jump diffusion, full sector mapping) are planned for future enhancements.
+
+---
+
+#### Update 2025-01-27: Deep Learning Forecasting Models - LSTM & TCN Improvements
+
+**Major Enhancement** - Improved LSTM and TCN forecasting models with best practices for financial time series.
+
+**LSTM Forecaster Improvements** (`core/forecasting_engine/deep_learning/lstm.py`):
+- ✅ Added Bidirectional LSTM support (optional parameter)
+- ✅ Implemented log returns forecasting (auto-enabled for horizons > 30 days)
+- ✅ Fixed data leakage: temporal split before scaling (train/test split before StandardScaler)
+- ✅ Stability checks during iterative forecasting (prevents constant predictions)
+- ✅ Directional accuracy metrics calculation
+- ✅ Enhanced model architecture (additional Dense layers, configurable units/layers/dropout)
+- ✅ Improved price conversion logic from log returns with minimal safety bounds
+- ✅ Default parameters updated: units=64, epochs=100, lookback=30
+
+**TCN Forecaster Improvements** (`core/forecasting_engine/deep_learning/tcn.py`):
+- ✅ Added GlobalAveragePooling1D for better feature aggregation
+- ✅ Implemented log returns forecasting (auto-enabled for horizons > 30 days)
+- ✅ Fixed data leakage: temporal split before scaling (train/test split before StandardScaler)
+- ✅ Stability checks during iterative forecasting (prevents constant predictions)
+- ✅ Directional accuracy metrics calculation
+- ✅ Enhanced model architecture (additional Dense layers, configurable filters/kernel/dilations)
+- ✅ Improved price conversion logic from log returns with minimal safety bounds
+- ✅ Default parameters updated: num_filters=32, lookback=30
+
+**Key Technical Improvements**:
+- **Data Preprocessing**: Temporal split before scaling prevents data leakage (critical for time series)
+- **Scaling Method**: StandardScaler instead of MinMaxScaler (better for financial data with outliers)
+- **Log Returns**: Auto-enabled for long horizons (>30 days) for better stationarity
+- **Stability**: Noise injection when predictions become too constant during iterative forecasting
+- **Architecture**: Bidirectional LSTM and GlobalAveragePooling1D for better pattern recognition
+- **Metrics**: Directional accuracy added (important for trading decisions)
+
+**Problem Solved**:
+- Previous issue: Models produced constant predictions ("straight lines")
+- Root cause: Data leakage (scaling before split) and inappropriate scaling method
+- Solution: Temporal split before scaling + StandardScaler + stability checks
+
+**Files Modified:**
+- `core/forecasting_engine/deep_learning/lstm.py` (major refactoring)
+- `core/forecasting_engine/deep_learning/tcn.py` (major refactoring)
+- `streamlit_app/components/forecast_charts.py` (auto-scaling fixes for residual plots)
+
+**Architecture Maintained:**
+- ✅ Separation of Concerns (Backend → Service → UI)
+- ✅ Type-safe with full type hints
+- ✅ SOLID principles and DRY
+- ✅ Best practices for financial time series forecasting
+
+**Impact:**
+- LSTM and TCN models now produce realistic forecasts (no more constant predictions)
+- Better handling of long-term forecasting with log returns
+- Improved model stability during iterative forecasting
+- Better metrics for model evaluation (directional accuracy)
+
+---
+
+#### Update 2025-11-07: Forecasting Engine - Complete Implementation
+
+**Major Feature Implementation** - Complete Forecasting Engine with multiple forecasting methods, out-of-sample testing, and comprehensive UI.
+
+**New Core Modules:**
+- `core/forecasting_engine/base.py` - BaseForecaster abstract class and ForecastResult dataclass
+- `core/forecasting_engine/utils.py` - Utility functions:
+  - `evaluate_forecast_metrics()` - Calculate MAPE, RMSE, MAE, Direction Accuracy, R²
+  - `calculate_confidence_intervals()` - Generate confidence intervals
+  - `prepare_features()` - Feature engineering for ML models
+  - `calculate_technical_indicators()` - Technical indicators (SMA, RSI, Bollinger Bands, etc.)
+- `core/forecasting_engine/simple/prophet.py` - ProphetForecaster (Facebook/Meta Prophet)
+- `core/forecasting_engine/classical/arima.py` - ARIMAForecaster with auto ARIMA support
+- `core/forecasting_engine/ml/xgboost_forecaster.py` - XGBoostForecaster with feature engineering
+- `core/forecasting_engine/ml/random_forest.py` - RandomForestForecaster
+- `core/forecasting_engine/ensemble.py` - EnsembleForecaster (weighted average by MAPE)
+
+**New Service Module:**
+- `services/forecasting_service.py` - ForecastingService class:
+  - `forecast_asset()` - Forecast for single asset
+  - `forecast_portfolio()` - Forecast for portfolio
+  - `run_multiple_forecasts()` - Run multiple methods simultaneously
+  - `create_ensemble()` - Create ensemble forecast
+  - Out-of-sample testing support (training/validation split)
+
+**New UI Page:**
+- `streamlit_app/pages/forecasting.py` - Complete forecasting interface:
+  - Asset/Portfolio selection (Single Asset or Portfolio)
+  - Training period configuration (start_date, end_date)
+  - Out-of-Sample Testing (checkbox + training_ratio selector: 30%, 50%, 60%)
+  - Forecast horizon selection (1 day to 1 year, custom)
+  - Method selection (5 tabs: Classical, ML, Deep Learning, Simple, Ensemble)
+  - Results display (4 tabs):
+    - Forecasts Comparison - All methods comparison with historical data
+    - Individual Forecasts - Detailed view with confidence intervals
+    - Forecast Quality - Metrics visualization (MAPE, RMSE, MAE, Direction Accuracy, R²)
+    - Detailed Analysis - Model info, residuals, full data
+
+**New UI Components:**
+- `streamlit_app/components/forecast_charts.py`:
+  - `plot_forecast_comparison()` - Compare all forecasts with historical data
+  - `plot_individual_forecast()` - Individual forecast with confidence intervals
+  - `plot_forecast_quality()` - Quality metrics visualization
+  - `plot_residuals()` - Residuals analysis
+
+**Key Features:**
+- 5 forecasting methods implemented: Prophet, ARIMA, XGBoost, Random Forest, Ensemble
+- Out-of-sample testing with configurable training ratios (30%, 50%, 60%)
+- Comprehensive quality metrics: MAPE, RMSE, MAE, Direction Accuracy, R²
+- Confidence intervals (95% and 80%) for all forecasts
+- Feature engineering for ML models (technical indicators, lagged returns)
+- Ensemble forecasting with weighted average (by MAPE)
+- Support for both single assets and portfolios
+- Historical data integration in visualizations
+- Validation period highlighting in charts
+
+**Forecast Visualization Logic (Updated 2025-01-XX):**
+- **Training Period (Blue Zone)**: `training_start` → `start_date`
+  - Model training on historical data
+  - Display: Only historical line (purple solid)
+- **Validation Period (Red Zone)**: `start_date` → `end_date`
+  - First model forecast for quality evaluation
+  - Display: Solid line in method color (not dashed)
+  - Used only for metrics calculation, not for future prediction
+- **Forecast Period (Green Zone)**: `end_date` → `forecast_end`
+  - New forecast starting from end of history (`end_date`)
+  - Uses trend (avg daily return) and volatility from Validation Period
+  - Formula: `price[t+1] = price[t] * (1 + avg_daily_return + random_shock)`
+  - Display: Dashed line in method color, connected to end of historical line
+- **Chart Display:**
+  - X-axis: Exact range from `training_start` to `forecast_end` (no padding)
+  - Y-axis: Min to max with 10% padding
+  - Historical data filtered to end at `validation_end` (end_date)
+  - Forecast Period starts from `validation_end` (end of historical line)
+
+**Integration:**
+- Uses existing DataService for price fetching
+- Uses PortfolioService for portfolio forecasting
+- Maintains separation of concerns (Backend → Service → UI)
+- Type-safe with full type hints
+- Comprehensive error handling
+
+**Performance:**
+- Prophet: <1s for 1-year data
+- ARIMA: <2s for 1-year data
+- XGBoost: <5s for 1-year data with features
+- Ensemble: <10s for combining 3-4 methods
+
+**Files Created:**
+- 8 new core modules (forecasting_engine: base, utils, 5 forecasters, ensemble)
+- 1 new service module
+- 1 new UI page
+- 1 new component file
+- Updated navigation in `app.py`
+- Updated `requirements.txt` with forecasting dependencies
+
+**Dependencies Added:**
+- `prophet>=1.1.0` - Facebook Prophet
+- `arch>=6.2.0` - GARCH models
+- `xgboost>=2.0.0` - XGBoost
+- `scikit-learn>=1.3.0` - Random Forest, SVM
+- `pmdarima>=2.0.0` - Auto ARIMA
+
+**Architecture Maintained:**
+- ✅ Separation of Concerns (Backend → Service → UI)
+- ✅ All core modules are pure Python (no UI dependencies)
+- ✅ Type-safe with full type hints
+- ✅ SOLID principles and DRY
+- ✅ Comprehensive error handling and logging
+
+**Note:** Some advanced methods (LSTM, TCN, GARCH, ARIMA-GARCH, SVM) are planned for future implementation. Current implementation provides robust foundation with 5 core methods.
+
+---
+
+#### Update 2025-01-XX: Portfolio Optimization UI Improvements
+
+**Major UI Enhancement** - Improved user experience for portfolio optimization with conditional sections, validation, objective selection, and out-of-sample testing.
+
+**Updated UI Module:**
+- `streamlit_app/pages/portfolio_optimization.py`:
+  - ✅ Conditional display of sections (Constraints, Objective Function, Out-of-Sample) after method selection
+  - ✅ Weight constraint validation: checks `min_weight × num_assets ≤ 1.0` with warnings
+  - ✅ Objective function selection with method-specific filtering:
+    - Maximize Sharpe Ratio (Mean-Variance, Black-Litterman, Robust)
+    - Minimize Volatility (Mean-Variance, Black-Litterman, Risk Parity, HRP, Min Variance)
+    - Maximize Expected Return (Mean-Variance, Black-Litterman, Max Return)
+    - Minimize CVaR (CVaR Optimization, Mean-CVaR)
+    - Equal Risk Contribution (Risk Parity, HRP)
+  - ✅ Out-of-Sample Testing:
+    - Checkbox to enable/disable out-of-sample mode
+    - Training window size selection (30%, 50%, 60% with descriptions)
+    - Period visualization (training vs validation)
+  - ✅ Default values handling:
+    - Automatic min_weight/max_weight defaults based on long_only setting
+    - Default objective selection per method
+    - Informative messages about defaults
+
+**Updated Core Modules:**
+- `core/optimization_engine/mean_variance.py`:
+  - Added `objective` parameter support (maximize_sharpe, minimize_volatility, maximize_return)
+  - Enhanced `_minimize_variance_with_return()` and `_maximize_return_with_risk()` to work without constraints
+- `core/optimization_engine/black_litterman.py`:
+  - Added `objective` parameter support
+  - Passes objective to underlying MeanVarianceOptimizer
+- `core/optimization_engine/robust.py`:
+  - Added `objective` parameter support
+  - Falls back to MeanVarianceOptimizer for non-maximize_sharpe objectives
+
+**Updated Service Module:**
+- `services/optimization_service.py`:
+  - Added `out_of_sample` and `training_ratio` parameters to `optimize_portfolio()`
+  - Implements training period calculation: `training_start = start_date - (end_date - start_date) * training_ratio`
+  - Uses training period for optimization, validation period for results
+
+**Key Features:**
+- ✅ Progressive UI: sections appear only after method selection
+- ✅ Input validation prevents logical conflicts
+- ✅ Flexible objective selection based on method capabilities
+- ✅ Out-of-sample testing for model validation
+- ✅ Clear default values and informative messages
+
+**Architecture Maintained:**
+- ✅ Separation of Concerns (UI → Service → Core)
+- ✅ Error handling and validation
+- ✅ Type safety with type hints
+- ✅ DRY principles
+
+---
 
 **END OF ARCHITECTURE DOCUMENT**
 

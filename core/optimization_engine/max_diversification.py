@@ -1,4 +1,4 @@
-"""Risk Parity optimization."""
+"""Maximum Diversification optimization."""
 
 import logging
 from typing import Dict, Optional
@@ -13,16 +13,19 @@ from core.optimization_engine.constraints import OptimizationConstraints
 logger = logging.getLogger(__name__)
 
 
-class RiskParityOptimizer(BaseOptimizer):
+class MaxDiversificationOptimizer(BaseOptimizer):
     """
-    Risk Parity optimizer.
+    Maximum Diversification optimizer.
     
-    Allocates weights so that each asset contributes equally to
-    portfolio risk. This typically results in better diversification
-    than equal weights.
+    Maximizes the diversification ratio, which measures the benefit
+    from diversification.
     
-    Algorithm: Minimize sum of squared differences between risk contributions
-    and their mean (target equal risk contribution).
+    Formula: max (Σ Weight[i] × Vol[i]) / Portfolio Vol
+    
+    Higher ratio indicates better diversification benefit.
+    
+    Note: CASH is excluded from optimization as it has zero volatility
+    and would distort the diversification ratio.
     """
 
     def optimize(
@@ -30,13 +33,13 @@ class RiskParityOptimizer(BaseOptimizer):
         constraints: Optional[Dict[str, any]] = None,
     ) -> OptimizationResult:
         """
-        Optimize portfolio using risk parity.
+        Optimize portfolio to maximize diversification ratio.
         
         Args:
             constraints: Optional constraints dictionary
         
         Returns:
-            OptimizationResult with risk parity weights
+            OptimizationResult with maximum diversification weights
         """
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
@@ -44,7 +47,6 @@ class RiskParityOptimizer(BaseOptimizer):
         n = len(self.tickers)
         
         # Handle CASH: set minimum volatility to avoid division by zero
-        # CASH typically has zero volatility, which breaks risk parity
         cov_matrix = self._cov_matrix.values.copy()
         cash_indices = [
             i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
@@ -54,29 +56,28 @@ class RiskParityOptimizer(BaseOptimizer):
             if cov_matrix[cash_idx, cash_idx] < 1e-8:
                 cov_matrix[cash_idx, cash_idx] = 1e-8
 
-        # Risk parity: minimize sum of squared differences in risk
-        # contributions from their mean
+        # Calculate individual asset volatilities
+        individual_vols = np.sqrt(np.diag(cov_matrix))
+
+        # Objective: maximize diversification ratio
+        # Ratio = (Σ w_i * σ_i) / σ_portfolio
+        # Maximize ratio = minimize negative ratio
         def objective(weights: np.ndarray) -> float:
-            # Calculate portfolio volatility
+            # Weighted sum of individual volatilities
+            weighted_sum_vols = np.dot(weights, individual_vols)
+
+            # Portfolio volatility
             portfolio_variance = weights.T @ cov_matrix @ weights
             portfolio_vol = np.sqrt(portfolio_variance)
 
             if portfolio_vol < 1e-8:
                 return 1e10
 
-            # Marginal contribution to risk (MCR)
-            # MCR[i] = d(portfolio_vol) / d(weight[i])
-            mcr = (cov_matrix @ weights) / portfolio_vol
+            # Diversification ratio
+            div_ratio = weighted_sum_vols / portfolio_vol
 
-            # Risk contribution per asset: RC[i] = weight[i] * MCR[i]
-            risk_contrib = weights * mcr
-
-            # Target: equal risk contribution for all assets
-            # Minimize sum of squared differences from mean
-            mean_rc = np.mean(risk_contrib)
-            diff = risk_contrib - mean_rc
-
-            return float(np.sum(diff ** 2))
+            # Minimize negative = maximize
+            return -div_ratio
 
         constraints_list = [
             {
@@ -108,7 +109,6 @@ class RiskParityOptimizer(BaseOptimizer):
                 })
 
         # Initial guess: inverse volatility weights
-        individual_vols = np.sqrt(np.diag(cov_matrix))
         inv_vols = 1.0 / (individual_vols + 1e-6)
         x0 = inv_vols / inv_vols.sum()
 
@@ -124,7 +124,7 @@ class RiskParityOptimizer(BaseOptimizer):
 
             if not result.success:
                 logger.warning(
-                    f"Risk parity optimization did not fully converge: "
+                    f"Max diversification optimization did not fully converge: "
                     f"{result.message}. Using best result."
                 )
 
@@ -139,23 +139,34 @@ class RiskParityOptimizer(BaseOptimizer):
 
             metrics = self._calculate_portfolio_metrics(weights)
 
+            # Calculate diversification ratio for metadata
+            # Use full covariance matrix for calculation
+            full_individual_vols = np.sqrt(np.diag(self._cov_matrix.values))
+            weighted_sum_vols = np.dot(weights, full_individual_vols)
+            portfolio_vol = metrics["volatility"]
+            div_ratio = (
+                weighted_sum_vols / portfolio_vol
+                if portfolio_vol > 0
+                else 0.0
+            )
+
             return OptimizationResult(
                 weights=weights,
                 tickers=self.tickers,
                 expected_return=metrics["expected_return"],
                 volatility=metrics["volatility"],
                 sharpe_ratio=metrics["sharpe_ratio"],
-                method="Risk Parity",
+                method="Maximum Diversification",
                 success=True,
-                message="Risk parity optimization completed",
+                message="Maximum diversification optimization completed",
                 metadata={
+                    "diversification_ratio": float(div_ratio),
                     "iterations": result.nit,
-                    "fun": float(result.fun),
                 },
             )
         except Exception as e:
-            logger.error(f"Risk parity optimization failed: {e}")
-            # Fallback to inverse volatility weights
+            logger.error(f"Max diversification optimization failed: {e}")
+            # Fallback to inverse volatility weights (excluding CASH)
             weights = np.zeros(n)
             individual_vols = np.sqrt(np.diag(self._cov_matrix.values))
             inv_vols = 1.0 / (individual_vols + 1e-6)
@@ -173,7 +184,7 @@ class RiskParityOptimizer(BaseOptimizer):
             return OptimizationResult(
                 weights=weights,
                 tickers=self.tickers,
-                method="Risk Parity",
+                method="Maximum Diversification",
                 success=False,
                 message=f"Optimization failed: {str(e)}",
             )
@@ -182,5 +193,4 @@ class RiskParityOptimizer(BaseOptimizer):
         self, constraints: Optional[Dict[str, any]]
     ) -> OptimizationConstraints:
         """Build constraints object from dictionary."""
-        # Call base class method to get all constraints including max_cash_weight, min_return, diversification_lambda
         return super()._build_constraints(constraints)

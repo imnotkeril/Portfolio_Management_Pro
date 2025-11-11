@@ -1,4 +1,4 @@
-"""Risk Parity optimization."""
+"""Minimum Correlation optimization."""
 
 import logging
 from typing import Dict, Optional
@@ -13,38 +13,34 @@ from core.optimization_engine.constraints import OptimizationConstraints
 logger = logging.getLogger(__name__)
 
 
-class RiskParityOptimizer(BaseOptimizer):
+class MinCorrelationOptimizer(BaseOptimizer):
     """
-    Risk Parity optimizer.
+    Minimum Correlation optimizer.
     
-    Allocates weights so that each asset contributes equally to
-    portfolio risk. This typically results in better diversification
-    than equal weights.
-    
-    Algorithm: Minimize sum of squared differences between risk contributions
-    and their mean (target equal risk contribution).
+    Minimizes the average pairwise correlation between assets in the
+    portfolio. This results in assets that move independently,
+    providing better diversification and crisis resistance.
     """
-
+    
     def optimize(
         self,
         constraints: Optional[Dict[str, any]] = None,
     ) -> OptimizationResult:
         """
-        Optimize portfolio using risk parity.
+        Optimize portfolio to minimize average pairwise correlation.
         
         Args:
             constraints: Optional constraints dictionary
         
         Returns:
-            OptimizationResult with risk parity weights
+            OptimizationResult with minimum correlation weights
         """
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
-
+        
         n = len(self.tickers)
         
         # Handle CASH: set minimum volatility to avoid division by zero
-        # CASH typically has zero volatility, which breaks risk parity
         cov_matrix = self._cov_matrix.values.copy()
         cash_indices = [
             i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
@@ -53,31 +49,33 @@ class RiskParityOptimizer(BaseOptimizer):
         for cash_idx in cash_indices:
             if cov_matrix[cash_idx, cash_idx] < 1e-8:
                 cov_matrix[cash_idx, cash_idx] = 1e-8
-
-        # Risk parity: minimize sum of squared differences in risk
-        # contributions from their mean
+        
+        # Build correlation matrix
+        std_devs = np.sqrt(np.diag(cov_matrix))
+        corr_matrix = cov_matrix / np.outer(std_devs, std_devs)
+        corr_matrix = np.nan_to_num(corr_matrix, nan=0.0)
+        
+        # Objective: minimize average pairwise correlation
+        # Average correlation = Σ_i Σ_j>i w_i * w_j * corr(i,j) / pairs
         def objective(weights: np.ndarray) -> float:
-            # Calculate portfolio volatility
-            portfolio_variance = weights.T @ cov_matrix @ weights
-            portfolio_vol = np.sqrt(portfolio_variance)
-
-            if portfolio_vol < 1e-8:
-                return 1e10
-
-            # Marginal contribution to risk (MCR)
-            # MCR[i] = d(portfolio_vol) / d(weight[i])
-            mcr = (cov_matrix @ weights) / portfolio_vol
-
-            # Risk contribution per asset: RC[i] = weight[i] * MCR[i]
-            risk_contrib = weights * mcr
-
-            # Target: equal risk contribution for all assets
-            # Minimize sum of squared differences from mean
-            mean_rc = np.mean(risk_contrib)
-            diff = risk_contrib - mean_rc
-
-            return float(np.sum(diff ** 2))
-
+            # Calculate weighted average correlation
+            # Sum of weighted correlations for all pairs
+            total_corr = 0.0
+            pair_count = 0
+            
+            for i in range(n):
+                for j in range(i + 1, n):
+                    pair_weight = weights[i] * weights[j]
+                    pair_corr = corr_matrix[i, j]
+                    total_corr += pair_weight * pair_corr
+                    pair_count += 1
+            
+            if pair_count == 0:
+                return 0.0
+            
+            avg_corr = total_corr / pair_count
+            return float(avg_corr)
+        
         constraints_list = [
             {
                 "type": "eq",
@@ -107,11 +105,9 @@ class RiskParityOptimizer(BaseOptimizer):
                     ),
                 })
 
-        # Initial guess: inverse volatility weights
-        individual_vols = np.sqrt(np.diag(cov_matrix))
-        inv_vols = 1.0 / (individual_vols + 1e-6)
-        x0 = inv_vols / inv_vols.sum()
-
+        # Initial guess: equal weights
+        x0 = np.ones(n) / n
+        
         try:
             result = scipy_opt.minimize(
                 objective,
@@ -121,66 +117,55 @@ class RiskParityOptimizer(BaseOptimizer):
                 constraints=constraints_list,
                 options={"maxiter": 2000, "ftol": 1e-9},
             )
-
+            
             if not result.success:
                 logger.warning(
-                    f"Risk parity optimization did not fully converge: "
+                    f"Min correlation optimization did not fully converge: "
                     f"{result.message}. Using best result."
                 )
-
+            
             weights = result.x
-
-            # Normalize to ensure sum = 1.0
             weights = self._normalize_weights(weights, constraints_obj)
-
-            # Apply bounds to full weights array
             weights = np.clip(weights, min_bounds, max_bounds)
             weights = self._normalize_weights(weights, constraints_obj)
-
+            
             metrics = self._calculate_portfolio_metrics(weights)
-
+            
+            # Calculate actual average correlation (non-CASH only)
+            avg_corr = objective(result.x)
+            
             return OptimizationResult(
                 weights=weights,
                 tickers=self.tickers,
                 expected_return=metrics["expected_return"],
                 volatility=metrics["volatility"],
                 sharpe_ratio=metrics["sharpe_ratio"],
-                method="Risk Parity",
+                method="Minimum Correlation",
                 success=True,
-                message="Risk parity optimization completed",
+                message="Minimum correlation optimization completed",
                 metadata={
+                    "average_correlation": float(avg_corr),
                     "iterations": result.nit,
-                    "fun": float(result.fun),
                 },
             )
         except Exception as e:
-            logger.error(f"Risk parity optimization failed: {e}")
-            # Fallback to inverse volatility weights
-            weights = np.zeros(n)
-            individual_vols = np.sqrt(np.diag(self._cov_matrix.values))
-            inv_vols = 1.0 / (individual_vols + 1e-6)
-            # Set CASH weight to zero
-            for i, ticker in enumerate(self.tickers):
-                if ticker == "CASH":
-                    inv_vols[i] = 0.0
-            if inv_vols.sum() > 0:
-                weights = inv_vols / inv_vols.sum()
-            else:
-                weights = np.ones(n) / n
+            logger.error(f"Min correlation optimization failed: {e}")
+            # Fallback to equal weights
+            weights = np.ones(n) / n
             weights = np.clip(weights, min_bounds, max_bounds)
             weights = self._normalize_weights(weights, constraints_obj)
-
+            
             return OptimizationResult(
                 weights=weights,
                 tickers=self.tickers,
-                method="Risk Parity",
+                method="Minimum Correlation",
                 success=False,
                 message=f"Optimization failed: {str(e)}",
             )
-
+    
     def _build_constraints(
         self, constraints: Optional[Dict[str, any]]
     ) -> OptimizationConstraints:
         """Build constraints object from dictionary."""
-        # Call base class method to get all constraints including max_cash_weight, min_return, diversification_lambda
         return super()._build_constraints(constraints)
+
