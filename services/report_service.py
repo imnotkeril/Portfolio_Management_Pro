@@ -1395,9 +1395,85 @@ except Exception as e:
                             logger.error(f"Files in temp_dir: {os.listdir(temp_dir)}")
                         return False
                     
+                    # Crop empty space from bottom of each screenshot before PDF conversion
+                    cropped_screenshots = []
+                    try:
+                        from PIL import Image
+                        for screenshot_file in screenshot_files:
+                            try:
+                                img = Image.open(screenshot_file)
+                                # Convert to RGB if needed
+                                if img.mode != 'RGB':
+                                    img = img.convert('RGB')
+                                
+                                # Find the bottom of actual content
+                                # Look for the last row with non-white pixels
+                                width, height = img.size
+                                pixels = img.load()
+                                
+                                # Start from bottom and find last row with content
+                                last_content_row = 0
+                                for y in range(height - 1, -1, -1):
+                                    has_content = False
+                                    # Sample pixels across width (every 10th pixel for speed)
+                                    for x in range(0, width, 10):
+                                        pixel = pixels[x, y]
+                                        # Check if pixel is not white/transparent
+                                        if isinstance(pixel, tuple):
+                                            if len(pixel) >= 3:
+                                                r, g, b = pixel[0], pixel[1], pixel[2]
+                                                # Not white (allow tolerance for anti-aliasing)
+                                                if not (r > 250 and g > 250 and b > 250):
+                                                    has_content = True
+                                                    break
+                                    if has_content:
+                                        last_content_row = y
+                                        break
+                                
+                                # Crop to content (add small padding at bottom)
+                                padding = 50  # Add 50px padding at bottom
+                                crop_height = min(last_content_row + padding + 1, height)
+                                
+                                if crop_height < height:
+                                    # Crop the image
+                                    cropped_img = img.crop((0, 0, width, crop_height))
+                                    # Save cropped version temporarily
+                                    cropped_path = screenshot_file.replace('.png', '_cropped.png')
+                                    cropped_img.save(cropped_path, 'PNG')
+                                    cropped_screenshots.append(cropped_path)
+                                    logger.debug(f"Cropped screenshot: {height}px -> {crop_height}px")
+                                else:
+                                    # No cropping needed
+                                    cropped_screenshots.append(screenshot_file)
+                            except ImportError:
+                                # PIL not available, use original screenshots
+                                cropped_screenshots = screenshot_files
+                                break
+                            except Exception as e:
+                                logger.warning(f"Could not crop {screenshot_file}: {e}")
+                                # Use original if cropping fails
+                                cropped_screenshots.append(screenshot_file)
+                    except ImportError:
+                        # PIL not available, use original screenshots
+                        cropped_screenshots = screenshot_files
+                    except Exception as e:
+                        logger.warning(f"Error during cropping: {e}")
+                        cropped_screenshots = screenshot_files
+                    
+                    # Use cropped screenshots if available, otherwise original
+                    screenshots_to_convert = cropped_screenshots if cropped_screenshots else screenshot_files
+                    
                     # Convert all screenshots to PDF (one page per screenshot)
                     with open(output_path, 'wb') as pdf_file:
-                        pdf_file.write(img2pdf.convert(screenshot_files))
+                        pdf_file.write(img2pdf.convert(screenshots_to_convert))
+                    
+                    # Clean up cropped files
+                    for cropped_file in cropped_screenshots:
+                        if cropped_file.endswith('_cropped.png') and os.path.exists(cropped_file):
+                            try:
+                                os.unlink(cropped_file)
+                            except Exception:
+                                pass
                     
                     logger.info(f"PDF from Streamlit tabs generated: {output_path} ({len(screenshot_files)} pages)")
                     return True
