@@ -23,6 +23,569 @@ from streamlit_app.components.charts import plot_var_distribution
 logger = logging.getLogger(__name__)
 
 
+def _interpret_var_metrics(var_95: float, cvar_95: float, var_99: float, cvar_99: float) -> str:
+    """Interpret VaR and CVaR metrics."""
+    if var_95 is None or cvar_95 is None:
+        return ""
+    
+    parts = []
+    parts.append("**VaR & CVaR Analysis:**")
+    
+    # VaR 95% interpretation
+    if abs(var_95) < 0.02:
+        parts.append(f"VaR (95%): {var_95*100:.2f}% - Low daily risk exposure")
+    elif abs(var_95) < 0.05:
+        parts.append(f"VaR (95%): {var_95*100:.2f}% - Moderate daily risk exposure")
+    else:
+        parts.append(f"⚠ VaR (95%): {var_95*100:.2f}% - High daily risk exposure")
+    
+    # CVaR vs VaR comparison
+    if cvar_95 and var_95:
+        cvar_excess = abs(cvar_95) - abs(var_95)
+        if cvar_excess > 0.01:
+            parts.append(f"CVaR (95%): {cvar_95*100:.2f}% - Tail risk is {cvar_excess*100:.2f}% higher than VaR, indicating significant tail risk")
+        else:
+            parts.append(f"CVaR (95%): {cvar_95*100:.2f}% - Tail risk is similar to VaR")
+    
+    # VaR 99% interpretation
+    if var_99 is not None:
+        if abs(var_99) < 0.03:
+            parts.append(f"VaR (99%): {var_99*100:.2f}% - Low extreme risk exposure")
+        elif abs(var_99) < 0.08:
+            parts.append(f"VaR (99%): {var_99*100:.2f}% - Moderate extreme risk exposure")
+        else:
+            parts.append(f"⚠ VaR (99%): {var_99*100:.2f}% - High extreme risk exposure")
+    
+    # Overall assessment
+    if var_95 and var_99:
+        if abs(var_99) > abs(var_95) * 1.5:
+            parts.append(f"\n⚠ Significant jump from 95% to 99% VaR - Portfolio has fat tails (extreme events risk)")
+        else:
+            parts.append(f"\nModerate increase from 95% to 99% VaR - Relatively stable tail distribution")
+    
+    return "\n".join(parts)
+
+
+def _interpret_var_methods_comparison(var_data: dict, confidence_level: float) -> str:
+    """Interpret comparison of different VaR calculation methods."""
+    if not var_data:
+        return ""
+    
+    parts = []
+    parts.append("**VaR Methods Comparison:**")
+    
+    methods = ["historical", "parametric", "cornish_fisher", "monte_carlo"]
+    method_names = {
+        "historical": "Historical",
+        "parametric": "Parametric",
+        "cornish_fisher": "Cornish-Fisher",
+        "monte_carlo": "Monte Carlo",
+    }
+    
+    values = {}
+    for method in methods:
+        val = var_data.get(method)
+        if val is not None and not isinstance(val, str):
+            values[method] = val
+    
+    if not values:
+        return ""
+    
+    # Find min and max
+    min_method = min(values, key=values.get)
+    max_method = max(values, key=values.get)
+    min_val = values[min_method]
+    max_val = values[max_method]
+    
+    spread = max_val - min_val
+    
+    if spread < 0.01:
+        parts.append(f"All methods show similar VaR values (spread: {spread*100:.2f}%) - Consistent risk estimate")
+    elif spread < 0.03:
+        parts.append(f"Methods show moderate variation (spread: {spread*100:.2f}%) - Some model uncertainty")
+    else:
+        parts.append(f"⚠ Methods show significant variation (spread: {spread*100:.2f}%) - High model uncertainty, consider using multiple methods")
+    
+    # Method-specific insights
+    if "historical" in values and "parametric" in values:
+        hist_val = values["historical"]
+        param_val = values["parametric"]
+        diff = abs(hist_val - param_val)
+        if diff > 0.02:
+            parts.append(f"Historical ({hist_val*100:.2f}%) vs Parametric ({param_val*100:.2f}%) differ by {diff*100:.2f}% - Returns may not be normally distributed")
+    
+    if "cornish_fisher" in values:
+        cf_val = values["cornish_fisher"]
+        parts.append(f"Cornish-Fisher ({cf_val*100:.2f}%) accounts for skewness and kurtosis - May be more accurate if returns are non-normal")
+    
+    return "\n".join(parts)
+
+
+def _interpret_portfolio_var_decomposition(decomposition_data: list, portfolio_var: float) -> str:
+    """Interpret VaR decomposition by asset."""
+    if not decomposition_data or portfolio_var is None:
+        return ""
+    
+    parts = []
+    parts.append("**VaR Decomposition Analysis:**")
+    
+    # Find largest contributors
+    contributions = []
+    for item in decomposition_data:
+        contrib_pct = float(item.get("Contribution (%)", 0).replace("%", ""))
+        ticker = item.get("Asset", "")
+        weight = float(item.get("Weight (%)", 0))
+        contrib_var = float(item.get("Component VaR (%)", 0).replace("%", ""))
+        contributions.append((ticker, weight, contrib_pct, contrib_var))
+    
+    if not contributions:
+        return ""
+    
+    # Sort by contribution
+    contributions.sort(key=lambda x: x[2], reverse=True)
+    
+    # Largest contributor
+    top_ticker, top_weight, top_contrib, top_var = contributions[0]
+    parts.append(f"Largest risk contributor: {top_ticker} ({top_weight:.1f}% weight, {top_contrib:.1f}% of VaR)")
+    
+    # Check concentration
+    top_3_contrib = sum(c[2] for c in contributions[:3])
+    if top_3_contrib > 70:
+        parts.append(f"⚠ High concentration: Top 3 assets contribute {top_3_contrib:.1f}% of total VaR - Consider diversification")
+    elif top_3_contrib > 50:
+        parts.append(f"Moderate concentration: Top 3 assets contribute {top_3_contrib:.1f}% of total VaR")
+    else:
+        parts.append(f"✓ Well-diversified: Top 3 assets contribute {top_3_contrib:.1f}% of total VaR")
+    
+    # Check weight vs risk mismatch
+    mismatches = []
+    for ticker, weight, contrib, var in contributions:
+        if weight > 0:
+            risk_weight_ratio = contrib / weight if weight > 0 else 0
+            if risk_weight_ratio > 1.5:
+                mismatches.append((ticker, weight, contrib, risk_weight_ratio))
+    
+    if mismatches:
+        worst = mismatches[0]
+        parts.append(f"⚠ Risk/weight mismatch: {worst[0]} has {worst[1]:.1f}% weight but {worst[2]:.1f}% VaR contribution (ratio: {worst[3]:.1f}x) - Asset is riskier than its weight suggests")
+    
+    return "\n".join(parts)
+
+
+def _interpret_monte_carlo_statistics(stats: dict, initial_value: float) -> str:
+    """Interpret Monte Carlo simulation statistics."""
+    if not stats:
+        return ""
+    
+    parts = []
+    parts.append("**Monte Carlo Simulation Analysis:**")
+    
+    mean = stats.get("mean", 0)
+    median = stats.get("median", 0)
+    std = stats.get("std", 0)
+    min_val = stats.get("min", 0)
+    max_val = stats.get("max", 0)
+    
+    # Return analysis
+    mean_return = (mean / initial_value - 1) * 100 if initial_value > 0 else 0
+    median_return = (median / initial_value - 1) * 100 if initial_value > 0 else 0
+    
+    parts.append(f"Expected value: ${mean:,.2f} ({mean_return:+.2f}% return)")
+    parts.append(f"Median value: ${median:,.2f} ({median_return:+.2f}% return)")
+    
+    # Skewness check
+    if mean > median * 1.1:
+        parts.append(f"Positive skew: Mean > Median - Upside potential exists")
+    elif mean < median * 0.9:
+        parts.append(f"Negative skew: Mean < Median - Downside risk dominates")
+    else:
+        parts.append(f"Symmetric distribution: Mean ≈ Median")
+    
+    # Volatility
+    vol_pct = (std / initial_value) * 100 if initial_value > 0 else 0
+    if vol_pct < 5:
+        parts.append(f"Low volatility: {vol_pct:.1f}% std dev - Relatively stable outcomes")
+    elif vol_pct < 15:
+        parts.append(f"Moderate volatility: {vol_pct:.1f}% std dev")
+    else:
+        parts.append(f"⚠ High volatility: {vol_pct:.1f}% std dev - Wide range of possible outcomes")
+    
+    # Range
+    range_pct = ((max_val - min_val) / initial_value) * 100 if initial_value > 0 else 0
+    parts.append(f"Outcome range: ${min_val:,.2f} to ${max_val:,.2f} ({range_pct:.1f}% spread)")
+    
+    return "\n".join(parts)
+
+
+def _interpret_monte_carlo_percentiles(percentiles: dict, initial_value: float) -> str:
+    """Interpret Monte Carlo percentile outcomes."""
+    if not percentiles:
+        return ""
+    
+    parts = []
+    parts.append("**Percentile Analysis:**")
+    
+    # Key percentiles - use float keys (5.0, 25.0, etc.) as they are stored in dict
+    p5 = percentiles.get(5.0) or percentiles.get(5)
+    p25 = percentiles.get(25.0) or percentiles.get(25)
+    p50 = percentiles.get(50.0) or percentiles.get(50)
+    p75 = percentiles.get(75.0) or percentiles.get(75)
+    p95 = percentiles.get(95.0) or percentiles.get(95)
+    
+    if p5 is not None:
+        p5_return = (p5 / initial_value - 1) * 100 if initial_value > 0 else 0
+        parts.append(f"5th percentile (worst 5%): ${p5:,.2f} ({p5_return:+.2f}% return) - Downside risk")
+    
+    if p95 is not None:
+        p95_return = (p95 / initial_value - 1) * 100 if initial_value > 0 else 0
+        parts.append(f"95th percentile (best 5%): ${p95:,.2f} ({p95_return:+.2f}% return) - Upside potential")
+    
+    # Interquartile range
+    if p25 is not None and p75 is not None:
+        iqr = p75 - p25
+        iqr_pct = (iqr / initial_value) * 100 if initial_value > 0 else 0
+        parts.append(f"Interquartile range (50% of outcomes): {iqr_pct:.1f}% spread - Most likely outcomes")
+    
+    # Downside vs upside
+    if p5 is not None and p95 is not None:
+        downside = abs(initial_value - p5)
+        upside = abs(p95 - initial_value)
+        if downside > upside * 1.5:
+            parts.append(f"⚠ Asymmetric risk: Downside ({downside/initial_value*100:.1f}%) > Upside ({upside/initial_value*100:.1f}%) - Negative skew")
+        elif upside > downside * 1.5:
+            parts.append(f"Positive asymmetry: Upside ({upside/initial_value*100:.1f}%) > Downside ({downside/initial_value*100:.1f}%) - Positive skew")
+        else:
+            parts.append(f"Balanced: Similar upside and downside potential")
+    
+    return "\n".join(parts)
+
+
+def _interpret_monte_carlo_var_comparison(historical_var: float, mc_var: float, confidence: float) -> str:
+    """Interpret comparison between historical and Monte Carlo VaR."""
+    if historical_var is None or mc_var is None:
+        return ""
+    
+    parts = []
+    parts.append("**Historical vs Monte Carlo VaR Comparison:**")
+    
+    parts.append(f"Historical VaR ({confidence*100:.0f}%): {historical_var*100:.2f}%")
+    parts.append(f"Monte Carlo VaR ({confidence*100:.0f}%): {mc_var*100:.2f}%")
+    
+    diff = mc_var - historical_var
+    diff_pct = abs(diff) / abs(historical_var) * 100 if historical_var != 0 else 0
+    
+    if abs(diff) < 0.01:
+        parts.append(f"Methods agree (difference: {diff*100:.2f}%) - Consistent risk estimate")
+    elif diff_pct < 20:
+        parts.append(f"Moderate difference: {diff*100:.2f}% ({diff_pct:.1f}% relative) - Some model variation")
+    else:
+        if diff > 0:
+            parts.append(f"⚠ Monte Carlo shows higher risk ({diff*100:.2f}% higher) - Forward-looking model suggests more risk than historical data")
+        else:
+            parts.append(f"Monte Carlo shows lower risk ({abs(diff)*100:.2f}% lower) - Forward-looking model suggests less risk than historical data")
+    
+    return "\n".join(parts)
+
+
+def _interpret_extreme_scenarios(extreme_df, initial_value: float) -> str:
+    """Interpret extreme scenarios from Monte Carlo."""
+    if extreme_df is None or extreme_df.empty:
+        return ""
+    
+    import pandas as pd
+    
+    parts = []
+    parts.append("**Extreme Scenarios Analysis:**")
+    
+    # Check if it's a DataFrame
+    if isinstance(extreme_df, pd.DataFrame):
+        if "Scenario" in extreme_df.columns and "Value" in extreme_df.columns:
+            # Worst case
+            worst_row = extreme_df[extreme_df["Scenario"].str.contains("Worst", case=False, na=False)]
+            if not worst_row.empty:
+                worst_val_str = worst_row["Value"].iloc[0]
+                if isinstance(worst_val_str, str):
+                    worst_val = float(worst_val_str.replace("$", "").replace(",", ""))
+                else:
+                    worst_val = float(worst_val_str)
+                worst_return = (worst_val / initial_value - 1) * 100 if initial_value > 0 else 0
+                parts.append(f"Worst case: ${worst_val:,.2f} ({worst_return:+.2f}% return) - Maximum loss scenario")
+            
+            # Best case
+            best_row = extreme_df[extreme_df["Scenario"].str.contains("Best", case=False, na=False)]
+            if not best_row.empty:
+                best_val_str = best_row["Value"].iloc[0]
+                if isinstance(best_val_str, str):
+                    best_val = float(best_val_str.replace("$", "").replace(",", ""))
+                else:
+                    best_val = float(best_val_str)
+                best_return = (best_val / initial_value - 1) * 100 if initial_value > 0 else 0
+                parts.append(f"Best case: ${best_val:,.2f} ({best_return:+.2f}% return) - Maximum gain scenario")
+    
+    return "\n".join(parts)
+
+
+def _interpret_scenario_results(results: list) -> str:
+    """Interpret stress test or scenario results."""
+    if not results:
+        return ""
+    
+    parts = []
+    parts.append("**Scenario Analysis:**")
+    
+    # Calculate statistics
+    impacts = [r.get("portfolio_impact_pct", 0) * 100 for r in results]
+    worst_impact = min(impacts) if impacts else 0
+    best_impact = max(impacts) if impacts else 0
+    avg_impact = np.mean(impacts) if impacts else 0
+    
+    # Worst scenario
+    worst_scenario = min(results, key=lambda x: x.get("portfolio_impact_pct", 0))
+    worst_name = worst_scenario.get("scenario_name", "Unknown")
+    worst_val = worst_scenario.get("portfolio_impact_pct", 0) * 100
+    
+    parts.append(f"Worst scenario: {worst_name} ({worst_val:.2f}% impact)")
+    
+    # Best scenario
+    best_scenario = max(results, key=lambda x: x.get("portfolio_impact_pct", 0))
+    best_name = best_scenario.get("scenario_name", "Unknown")
+    best_val = best_scenario.get("portfolio_impact_pct", 0) * 100
+    
+    if best_val > 0:
+        parts.append(f"Best scenario: {best_name} ({best_val:.2f}% gain)")
+    else:
+        parts.append(f"Least negative: {best_name} ({best_val:.2f}% impact)")
+    
+    # Average impact
+    parts.append(f"Average impact: {avg_impact:.2f}% across all scenarios")
+    
+    # Risk assessment
+    if worst_impact < -30:
+        parts.append(f"⚠ High risk: Worst case shows {abs(worst_impact):.1f}% loss - Significant downside exposure")
+    elif worst_impact < -15:
+        parts.append(f"Moderate risk: Worst case shows {abs(worst_impact):.1f}% loss")
+    else:
+        parts.append(f"✓ Low risk: Worst case shows {abs(worst_impact):.1f}% loss - Portfolio is resilient")
+    
+    # Recovery analysis
+    recovery_times = [r.get("recovery_time_days") for r in results if r.get("recovery_time_days")]
+    if recovery_times:
+        avg_recovery = np.mean(recovery_times)
+        max_recovery = max(recovery_times)
+        parts.append(f"Recovery: Average {avg_recovery:.0f} days, maximum {max_recovery:.0f} days")
+    
+    return "\n".join(parts)
+
+
+def _interpret_scenario_recovery(recovery_data: dict) -> str:
+    """Interpret portfolio recovery timeline."""
+    if not recovery_data or not recovery_data.get("results"):
+        return ""
+    
+    parts = []
+    parts.append("**Recovery Timeline Analysis:**")
+    
+    results = recovery_data.get("results", [])
+    scenarios = recovery_data.get("scenarios", {})
+    
+    # Analyze recovery times
+    recovery_times = []
+    for r in results:
+        recovery_days = r.get("recovery_time_days")
+        if recovery_days and recovery_days > 0:
+            recovery_times.append({
+                "name": r.get("scenario_name", "Unknown"),
+                "days": recovery_days,
+                "impact": r.get("portfolio_impact_pct", 0) * 100
+            })
+    
+    if recovery_times:
+        # Fastest recovery
+        fastest = min(recovery_times, key=lambda x: x["days"])
+        parts.append(f"Fastest recovery: {fastest['name']} ({fastest['days']:.0f} days) - Most resilient scenario")
+        
+        # Slowest recovery
+        slowest = max(recovery_times, key=lambda x: x["days"])
+        parts.append(f"Slowest recovery: {slowest['name']} ({slowest['days']:.0f} days) - Most challenging scenario")
+        
+        # Average recovery
+        avg_recovery = np.mean([r["days"] for r in recovery_times])
+        parts.append(f"Average recovery time: {avg_recovery:.0f} days")
+        
+        # Recovery vs impact relationship
+        if len(recovery_times) > 1:
+            # Check if larger impacts lead to longer recovery
+            impacts = [r["impact"] for r in recovery_times]
+            days = [r["days"] for r in recovery_times]
+            if abs(impacts[0]) > 0 and abs(days[0]) > 0:
+                # Simple correlation check
+                larger_impact_longer_recovery = any(
+                    abs(impacts[i]) > abs(impacts[j]) and days[i] > days[j]
+                    for i in range(len(recovery_times))
+                    for j in range(len(recovery_times))
+                    if i != j
+                )
+                if larger_impact_longer_recovery:
+                    parts.append(f"Larger impacts generally require longer recovery periods")
+    else:
+        parts.append("Recovery data not available for analysis")
+    
+    return "\n".join(parts)
+
+
+def _interpret_rolling_var(rolling_stats: dict) -> str:
+    """Interpret rolling VaR statistics."""
+    if not rolling_stats:
+        return ""
+    
+    parts = []
+    parts.append("**Rolling VaR Analysis:**")
+    
+    avg = rolling_stats.get("avg", 0)
+    median = rolling_stats.get("median", 0)
+    min_var = rolling_stats.get("min", 0)
+    max_var = rolling_stats.get("max", 0)
+    
+    parts.append(f"Average VaR: {avg*100:.2f}%")
+    parts.append(f"Median VaR: {median*100:.2f}%")
+    
+    # Volatility of VaR
+    if max_var and min_var:
+        var_range = max_var - min_var
+        if var_range > 0.05:
+            parts.append(f"⚠ High VaR volatility: Range from {min_var*100:.2f}% to {max_var*100:.2f}% ({var_range*100:.2f}% spread) - Risk levels change significantly over time")
+        elif var_range > 0.02:
+            parts.append(f"Moderate VaR volatility: Range from {min_var*100:.2f}% to {max_var*100:.2f}% ({var_range*100:.2f}% spread)")
+        else:
+            parts.append(f"Stable VaR: Range from {min_var*100:.2f}% to {max_var*100:.2f}% ({var_range*100:.2f}% spread) - Consistent risk levels")
+    
+    return "\n".join(parts)
+
+
+def _interpret_confidence_intervals(final_values: np.ndarray, initial_value: float) -> str:
+    """Interpret confidence intervals on distribution."""
+    if final_values is None or len(final_values) == 0:
+        return ""
+    
+    parts = []
+    parts.append("**Confidence Intervals Analysis:**")
+    
+    # Calculate confidence intervals
+    ci_levels = [0.90, 0.95, 0.99]
+    
+    for ci in ci_levels:
+        lower = np.percentile(final_values, (1 - ci) / 2 * 100)
+        upper = np.percentile(final_values, (1 + ci) / 2 * 100)
+        
+        lower_return = (lower / initial_value - 1) * 100 if initial_value > 0 else 0
+        upper_return = (upper / initial_value - 1) * 100 if initial_value > 0 else 0
+        range_pct = ((upper - lower) / initial_value) * 100 if initial_value > 0 else 0
+        
+        parts.append(f"{int(ci*100)}% CI: ${lower:,.2f} to ${upper:,.2f} ({range_pct:.1f}% range, {lower_return:+.1f}% to {upper_return:+.1f}% return)")
+    
+    # Overall assessment
+    ci_90_lower = np.percentile(final_values, 5)
+    ci_90_upper = np.percentile(final_values, 95)
+    ci_99_lower = np.percentile(final_values, 0.5)
+    ci_99_upper = np.percentile(final_values, 99.5)
+    
+    tail_width_90 = (ci_90_upper - ci_90_lower) / initial_value * 100 if initial_value > 0 else 0
+    tail_width_99 = (ci_99_upper - ci_99_lower) / initial_value * 100 if initial_value > 0 else 0
+    
+    if tail_width_90 < 10:
+        parts.append(f"\nNarrow 90% range ({tail_width_90:.1f}%) - Relatively predictable outcomes")
+    elif tail_width_90 < 25:
+        parts.append(f"\nModerate 90% range ({tail_width_90:.1f}%) - Some outcome variability")
+    else:
+        parts.append(f"\n⚠ Wide 90% range ({tail_width_90:.1f}%) - High outcome uncertainty")
+    
+    tail_expansion = tail_width_99 / tail_width_90 if tail_width_90 > 0 else 0
+    if tail_expansion > 1.5:
+        parts.append(f"Significant tail expansion (99% range is {tail_expansion:.1f}x wider) - Fat tails, extreme events possible")
+    else:
+        parts.append(f"Moderate tail expansion (99% range is {tail_expansion:.1f}x wider) - Relatively normal distribution")
+    
+    return "\n".join(parts)
+
+
+def _interpret_portfolio_var_covariance(portfolio_var: float, confidence: float) -> str:
+    """Interpret Portfolio VaR calculated with covariance method."""
+    if portfolio_var is None:
+        return ""
+    
+    parts = []
+    parts.append("**Portfolio VaR (Covariance Method) Analysis:**")
+    
+    parts.append(f"Portfolio VaR ({confidence*100:.0f}%): {abs(portfolio_var)*100:.2f}%")
+    
+    # Risk assessment
+    if abs(portfolio_var) < 0.02:
+        parts.append(f"Low portfolio risk - Daily loss unlikely to exceed {abs(portfolio_var)*100:.2f}%")
+    elif abs(portfolio_var) < 0.05:
+        parts.append(f"Moderate portfolio risk - Daily loss may reach {abs(portfolio_var)*100:.2f}%")
+    else:
+        parts.append(f"⚠ High portfolio risk - Daily loss could exceed {abs(portfolio_var)*100:.2f}%")
+    
+    parts.append(f"\nThis method accounts for correlations between assets, providing a more accurate portfolio-level risk measure than individual asset VaR.")
+    
+    return "\n".join(parts)
+
+
+def _interpret_position_impact_breakdown(position_impacts: dict, scenario_name: str) -> str:
+    """Interpret position impact breakdown for a scenario."""
+    if not position_impacts:
+        return ""
+    
+    parts = []
+    parts.append(f"**Position Impact Analysis ({scenario_name}):**")
+    
+    # Convert to list for sorting
+    impacts_list = [
+        (ticker, impact * 100) 
+        for ticker, impact in position_impacts.items()
+    ]
+    
+    if not impacts_list:
+        return ""
+    
+    # Sort by impact (most negative first)
+    impacts_list.sort(key=lambda x: x[1])
+    
+    # Worst impacted
+    worst_ticker, worst_impact = impacts_list[0]
+    parts.append(f"Worst impacted: {worst_ticker} ({worst_impact:.2f}%)")
+    
+    # Best impacted (if positive)
+    best_ticker, best_impact = impacts_list[-1]
+    if best_impact > 0:
+        parts.append(f"Best impacted: {best_ticker} ({best_impact:.2f}%)")
+    
+    # Count losses vs gains
+    losses = [x for x in impacts_list if x[1] < 0]
+    gains = [x for x in impacts_list if x[1] > 0]
+    
+    if len(losses) > len(gains):
+        parts.append(f"Most positions show losses ({len(losses)} vs {len(gains)} gains) - Scenario is broadly negative")
+    elif len(gains) > len(losses):
+        parts.append(f"Most positions show gains ({len(gains)} vs {len(losses)} losses) - Scenario is broadly positive")
+    else:
+        parts.append(f"Mixed impact: {len(losses)} losses, {len(gains)} gains")
+    
+    # Concentration of impact
+    if len(impacts_list) > 1:
+        abs_impacts = [abs(x[1]) for x in impacts_list]
+        top_2_impact = sum(sorted(abs_impacts, reverse=True)[:2])
+        total_impact = sum(abs_impacts)
+        if total_impact > 0:
+            concentration = top_2_impact / total_impact * 100
+            if concentration > 70:
+                parts.append(f"High impact concentration: Top 2 assets account for {concentration:.1f}% of total impact")
+            elif concentration > 50:
+                parts.append(f"Moderate impact concentration: Top 2 assets account for {concentration:.1f}% of total impact")
+    
+    return "\n".join(parts)
+
+
 def render_risk_analysis_page() -> None:
     """Render risk analysis page."""
     st.title("Risk Analysis")
@@ -231,6 +794,11 @@ def _render_var_analysis(
                         help="Expected loss beyond VaR at 99% confidence"
                     )
 
+                # Interpretation: VaR metrics
+                interpretation = _interpret_var_metrics(var_95_hist, cvar_95, var_99_hist, cvar_99)
+                if interpretation:
+                    st.info(interpretation)
+
                 st.markdown("---")
 
                 # Create comparison table
@@ -275,6 +843,11 @@ def _render_var_analysis(
                     import pandas as pd
                     df = pd.DataFrame(comparison_data)
                     st.dataframe(df, use_container_width=True)
+                    
+                    # Interpretation: VaR methods comparison
+                    interpretation = _interpret_var_methods_comparison(var_data, conf_decimal)
+                    if interpretation:
+                        st.info(interpretation)
 
                     # Add distribution chart
                     if (
@@ -468,12 +1041,10 @@ def _render_var_analysis(
                                         f"{stats.get('max', 0)*100:.2f}%",
                                     )
 
-                                st.caption(
-                                    "**Interpretation:** Rolling VaR shows "
-                                    "how maximum potential loss changes over "
-                                    "time. Higher values indicate periods of "
-                                    "increased risk."
-                                )
+                                # Interpretation: Rolling VaR
+                                interpretation = _interpret_rolling_var(stats)
+                                if interpretation:
+                                    st.info(interpretation)
                     except Exception as e:
                         logger.warning(
                             f"Error creating rolling VaR chart: {e}"
@@ -584,6 +1155,14 @@ def _render_var_analysis(
                                             "correlations between assets"
                                         ),
                                     )
+                                    
+                                    # Interpretation: Portfolio VaR
+                                    interpretation = _interpret_portfolio_var_covariance(
+                                        portfolio_var_result['portfolio_var'],
+                                        conf_decimal
+                                    )
+                                    if interpretation:
+                                        st.info(interpretation)
 
                                     # VaR Decomposition
                                     st.markdown("#### VaR Decomposition")
@@ -629,6 +1208,14 @@ def _render_var_analysis(
                                         st.dataframe(
                                             decomp_df, use_container_width=True
                                         )
+                                        
+                                        # Interpretation: VaR decomposition
+                                        interpretation = _interpret_portfolio_var_decomposition(
+                                            decomposition_data,
+                                            portfolio_var_result['portfolio_var']
+                                        )
+                                        if interpretation:
+                                            st.info(interpretation)
 
                                         # Bar chart of contributions
                                         fig_decomp = go.Figure()
@@ -738,6 +1325,13 @@ def _render_var_analysis(
                         )
 
                         st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Interpretation: VaR comparison chart
+                        interpretation = _interpret_var_methods_comparison(
+                            var_data, confidence_level / 100
+                        )
+                        if interpretation:
+                            st.info(interpretation)
                     except Exception as chart_error:
                         logger.warning(
                             f"Error creating VaR chart: {chart_error}"
@@ -850,6 +1444,11 @@ def _render_monte_carlo(
                     st.metric("Min", f"${stats['min']:,.2f}")
                 with col3:
                     st.metric("Max", f"${stats['max']:,.2f}")
+                
+                # Interpretation: Monte Carlo statistics
+                interpretation = _interpret_monte_carlo_statistics(stats, initial_value)
+                if interpretation:
+                    st.info(interpretation)
 
                 # Percentiles
                 st.markdown("### Percentile Outcomes")
@@ -860,48 +1459,248 @@ def _render_monte_carlo(
                 import pandas as pd
                 df = pd.DataFrame(percentile_data)
                 st.dataframe(df, use_container_width=True)
+                
+                # Interpretation: Percentiles
+                interpretation = _interpret_monte_carlo_percentiles(percentiles, initial_value)
+                if interpretation:
+                    st.info(interpretation)
 
-                # Distribution histogram
+                # Distribution histogram - use same style as other distributions
                 final_values = results["final_values"]
+                final_values_array = np.array(final_values)
+                
+                # Create histogram data similar to get_return_distribution_data
+                counts, edges = np.histogram(final_values_array, bins=50)
+                mean_val = float(np.mean(final_values_array))
+                std_val = float(np.std(final_values_array))
+                
                 fig = go.Figure()
-
+                
+                # Histogram bars (purple)
+                bin_centers = (edges[:-1] + edges[1:]) / 2
                 fig.add_trace(
-                    go.Histogram(
-                        x=final_values,
-                        nbinsx=50,
+                    go.Bar(
+                        x=bin_centers,
+                        y=counts,
+                        name="Final Value Distribution",
                         marker_color=COLORS["primary"],
-                        name="Final Values",
+                        opacity=0.7,
                     )
                 )
-
-                # Add percentile lines with % above, values below
-                for p, v in percentiles.items():
-                    fig.add_vline(
-                        x=v,
-                        line_dash="dash",
-                        line_color="yellow",
-                        annotation_text=f"{p}%",
-                        annotation_position="top",
+                
+                # Mean line (blue dashed)
+                fig.add_vline(
+                    x=mean_val,
+                    line_dash="dash",
+                    line_color=COLORS["secondary"],  # Blue
+                    annotation_text=f"Mean: ${mean_val:,.0f}",
+                    annotation_position="top",
+                )
+                
+                # Normal distribution overlay (orange dashed)
+                if std_val > 0:
+                    from scipy import stats as scipy_stats
+                    x_norm = np.linspace(edges[0], edges[-1], 100)
+                    pdf_values = scipy_stats.norm.pdf(x_norm, loc=mean_val, scale=std_val)
+                    y_norm = pdf_values * len(counts) * (edges[1] - edges[0])
+                    fig.add_trace(
+                        go.Scatter(
+                            x=x_norm,
+                            y=y_norm,
+                            mode="lines",
+                            name="Normal Distribution",
+                            line=dict(color=COLORS["warning"], width=2, dash="dash"),  # Orange
+                        )
                     )
-                    # Add value below
+                
+                # Add percentile lines (90%, 95%, 99%) - like other distributions
+                # Lower tail (negative side)
+                p5 = percentiles.get(5.0) or percentiles.get(5)
+                p10 = percentiles.get(10.0) or percentiles.get(10)
+                if p5 is not None:
                     fig.add_annotation(
-                        x=v,
-                        y=0,
-                        text=f"${int(v):,}",
+                        x=p5,
+                        y=1.0,
+                        xref="x",
+                        yref="paper",
+                        text=f"${p5:,.0f}",
                         showarrow=False,
-                        yshift=-30,
-                        font=dict(size=10, color="yellow"),
+                        font=dict(size=10, color=COLORS["danger"]),
+                        bgcolor="rgba(0,0,0,0.7)",
                     )
-
-                fig.update_layout(
-                    title="Monte Carlo Simulation: Final Value Distribution",
-                    xaxis_title="Portfolio Value ($)",
-                    yaxis_title="Frequency",
-                    height=500,
-                    template="plotly_dark",
+                    fig.add_vline(
+                        x=p5,
+                        line_dash="dot",
+                        line_color=COLORS["danger"],
+                        annotation_text="5%",
+                        annotation_position="bottom",
+                        line_width=1,
+                    )
+                if p10 is not None:
+                    fig.add_annotation(
+                        x=p10,
+                        y=1.0,
+                        xref="x",
+                        yref="paper",
+                        text=f"${p10:,.0f}",
+                        showarrow=False,
+                        font=dict(size=10, color=COLORS["danger"]),
+                        bgcolor="rgba(0,0,0,0.7)",
+                    )
+                    fig.add_vline(
+                        x=p10,
+                        line_dash="dot",
+                        line_color=COLORS["danger"],
+                        annotation_text="10%",
+                        annotation_position="bottom",
+                        line_width=1,
+                    )
+                
+                # Upper tail (positive side)
+                p90 = percentiles.get(90.0) or percentiles.get(90)
+                p95 = percentiles.get(95.0) or percentiles.get(95)
+                p99 = percentiles.get(99.0) or percentiles.get(99)
+                if p90 is not None:
+                    fig.add_annotation(
+                        x=p90,
+                        y=1.0,
+                        xref="x",
+                        yref="paper",
+                        text=f"${p90:,.0f}",
+                        showarrow=False,
+                        font=dict(size=10, color=COLORS["success"]),
+                        bgcolor="rgba(0,0,0,0.7)",
+                    )
+                    fig.add_vline(
+                        x=p90,
+                        line_dash="dot",
+                        line_color=COLORS["success"],
+                        annotation_text="90%",
+                        annotation_position="bottom",
+                        line_width=1,
+                    )
+                if p95 is not None:
+                    fig.add_annotation(
+                        x=p95,
+                        y=1.0,
+                        xref="x",
+                        yref="paper",
+                        text=f"${p95:,.0f}",
+                        showarrow=False,
+                        font=dict(size=10, color=COLORS["success"]),
+                        bgcolor="rgba(0,0,0,0.7)",
+                    )
+                    fig.add_vline(
+                        x=p95,
+                        line_dash="dot",
+                        line_color=COLORS["success"],
+                        annotation_text="95%",
+                        annotation_position="bottom",
+                        line_width=1,
+                    )
+                if p99 is not None:
+                    fig.add_annotation(
+                        x=p99,
+                        y=1.0,
+                        xref="x",
+                        yref="paper",
+                        text=f"${p99:,.0f}",
+                        showarrow=False,
+                        font=dict(size=10, color=COLORS["success"]),
+                        bgcolor="rgba(0,0,0,0.7)",
+                    )
+                    fig.add_vline(
+                        x=p99,
+                        line_dash="dot",
+                        line_color=COLORS["success"],
+                        annotation_text="99%",
+                        annotation_position="bottom",
+                        line_width=1,
+                    )
+                
+                # Add initial value line (white)
+                fig.add_vline(
+                    x=initial_value,
+                    line_dash="dash",
+                    line_color="white",
+                    annotation_text=f"Initial: ${initial_value:,.0f}",
+                    annotation_position="top",
                 )
+
+                from streamlit_app.utils.chart_config import get_chart_layout
+                layout = get_chart_layout(
+                    title="Monte Carlo Simulation: Final Value Distribution",
+                    xaxis=dict(title="Portfolio Value ($)", tickformat="$,.0f"),
+                    yaxis=dict(title="Frequency"),
+                    hovermode="x unified",
+                )
+                fig.update_layout(**layout)
 
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # Interpretation: Final value distribution with confidence intervals
+                parts = []
+                parts.append("**Final Value Distribution Analysis:**")
+                
+                # Distribution shape
+                statistics = results.get("statistics", {})
+                mean_val = statistics.get("mean", 0) if isinstance(statistics, dict) else 0
+                median_val = statistics.get("median", 0) if isinstance(statistics, dict) else 0
+                if mean_val > median_val * 1.05:
+                    parts.append("Right-skewed distribution - More upside potential than downside risk")
+                elif mean_val < median_val * 0.95:
+                    parts.append("Left-skewed distribution - More downside risk than upside potential")
+                else:
+                    parts.append("Symmetric distribution - Balanced upside and downside")
+                
+                # Confidence Intervals Analysis (from second chart)
+                final_values_array = np.array(final_values)
+                ci_levels = [0.90, 0.95, 0.99]
+                
+                for ci in ci_levels:
+                    lower = np.percentile(final_values_array, (1 - ci) / 2 * 100)
+                    upper = np.percentile(final_values_array, (1 + ci) / 2 * 100)
+                    
+                    lower_return = (lower / initial_value - 1) * 100 if initial_value > 0 else 0
+                    upper_return = (upper / initial_value - 1) * 100 if initial_value > 0 else 0
+                    range_pct = ((upper - lower) / initial_value) * 100 if initial_value > 0 else 0
+                    
+                    # Format with HTML non-breaking spaces to prevent awkward line breaks
+                    lower_str = f"${lower:,.2f}".replace(" ", "\u00A0")
+                    upper_str = f"${upper:,.2f}".replace(" ", "\u00A0")
+                    parts.append(
+                        f"{int(ci*100)}% CI: {lower_str}\u00A0to\u00A0{upper_str} "
+                        f"({range_pct:.1f}% range, "
+                        f"{lower_return:+.1f}%\u00A0to\u00A0{upper_return:+.1f}% return)"
+                    )
+                
+                # Overall assessment (from confidence intervals)
+                ci_90_lower = np.percentile(final_values_array, 5)
+                ci_90_upper = np.percentile(final_values_array, 95)
+                ci_99_lower = np.percentile(final_values_array, 0.5)
+                ci_99_upper = np.percentile(final_values_array, 99.5)
+                
+                tail_width_90 = (ci_90_upper - ci_90_lower) / initial_value * 100 if initial_value > 0 else 0
+                tail_width_99 = (ci_99_upper - ci_99_lower) / initial_value * 100 if initial_value > 0 else 0
+                
+                if tail_width_90 < 10:
+                    parts.append(f"Narrow 90% range ({tail_width_90:.1f}%) - Relatively predictable outcomes")
+                elif tail_width_90 < 25:
+                    parts.append(f"Moderate 90% range ({tail_width_90:.1f}%) - Some outcome variability")
+                else:
+                    parts.append(f"⚠ Wide 90% range ({tail_width_90:.1f}%) - High outcome uncertainty")
+                
+                tail_expansion = tail_width_99 / tail_width_90 if tail_width_90 > 0 else 0
+                if tail_expansion > 1.5:
+                    parts.append(f"Significant tail expansion (99% range is {tail_expansion:.1f}x wider) - Fat tails, extreme events possible")
+                elif tail_expansion > 1.2:
+                    parts.append(f"Moderate tail expansion (99% range is {tail_expansion:.1f}x wider) - Some tail risk")
+                else:
+                    parts.append(f"Normal tail behavior (99% range is {tail_expansion:.1f}x wider) - Relatively normal distribution")
+                
+                interpretation = "\n".join(parts)
+                if interpretation:
+                    st.info(interpretation)
 
                 # VaR/CVaR from simulations
                 st.markdown("---")
@@ -947,6 +1746,43 @@ def _render_monte_carlo(
                     import pandas as pd
                     var_cvar_df = pd.DataFrame(var_cvar_data)
                     st.dataframe(var_cvar_df, use_container_width=True)
+                    
+                    # Interpretation: VaR & CVaR from simulations
+                    parts = []
+                    parts.append("**VaR & CVaR Analysis:**")
+                    
+                    # Get 95% VaR and CVaR
+                    var_95_data = next((d for d in var_cvar_data if d["Confidence"] == "95%"), None)
+                    if var_95_data:
+                        var_95_pct = float(var_95_data["VaR (%)"].replace("%", ""))
+                        cvar_95_pct = float(var_95_data["CVaR (%)"].replace("%", ""))
+                        
+                        parts.append(f"95% VaR: {abs(var_95_pct):.2f}% - Expected loss in worst 5% of scenarios")
+                        parts.append(f"95% CVaR: {abs(cvar_95_pct):.2f}% - Average loss in worst 5% of scenarios")
+                        
+                        # CVaR vs VaR spread
+                        cvar_spread = abs(cvar_95_pct) - abs(var_95_pct)
+                        if cvar_spread > 2:
+                            parts.append(f"Large CVaR-VaR spread ({cvar_spread:.2f}%) - Significant tail risk beyond VaR threshold")
+                        elif cvar_spread > 1:
+                            parts.append(f"Moderate CVaR-VaR spread ({cvar_spread:.2f}%) - Some tail risk")
+                        else:
+                            parts.append(f"Small CVaR-VaR spread ({cvar_spread:.2f}%) - Limited tail risk")
+                    
+                    # Compare across confidence levels
+                    if len(var_cvar_data) >= 2:
+                        var_90 = float(next((d for d in var_cvar_data if d["Confidence"] == "90%"), {}).get("VaR (%)", "0").replace("%", ""))
+                        var_99 = float(next((d for d in var_cvar_data if d["Confidence"] == "99%"), {}).get("VaR (%)", "0").replace("%", ""))
+                        if var_90 and var_99:
+                            var_expansion = abs(var_99) / abs(var_90) if abs(var_90) > 0 else 0
+                            if var_expansion > 2:
+                                parts.append(f"⚠ High risk escalation: 99% VaR is {var_expansion:.1f}x higher than 90% VaR - Extreme events significantly increase risk")
+                            elif var_expansion > 1.5:
+                                parts.append(f"Moderate risk escalation: 99% VaR is {var_expansion:.1f}x higher than 90% VaR")
+                    
+                    interpretation = "\n".join(parts)
+                    if interpretation:
+                        st.info(interpretation)
 
                     # Compare with historical VaR
                     st.markdown("---")
@@ -992,6 +1828,19 @@ def _render_monte_carlo(
 
                             comp_df = pd.DataFrame(comparison_data)
                             st.dataframe(comp_df, use_container_width=True)
+                            
+                            # Interpretation: VaR comparison (use 95% confidence)
+                            hist_var_95 = calculate_var(
+                                portfolio_returns, 0.95, "historical"
+                            )
+                            mc_var_95 = np.percentile(
+                                returns_sim, (1 - 0.95) * 100
+                            )
+                            interpretation = _interpret_monte_carlo_var_comparison(
+                                hist_var_95, mc_var_95, 0.95
+                            )
+                            if interpretation:
+                                st.info(interpretation)
 
                             # Visual comparison
                             fig_comp = go.Figure()
@@ -1037,6 +1886,43 @@ def _render_monte_carlo(
                             st.plotly_chart(
                                 fig_comp, use_container_width=True
                             )
+                            
+                            # Interpretation: Historical vs Monte Carlo VaR chart
+                            parts = []
+                            parts.append("**Historical vs Monte Carlo VaR Comparison (Chart):**")
+                            
+                            # Calculate differences for all confidence levels
+                            differences = []
+                            for cl in confidence_levels_mc:
+                                hist_var = calculate_var(portfolio_returns, cl, "historical")
+                                mc_var = np.percentile(returns_sim, (1 - cl) * 100)
+                                diff = mc_var - hist_var
+                                differences.append({
+                                    "confidence": cl,
+                                    "diff": diff,
+                                    "hist": hist_var,
+                                    "mc": mc_var
+                                })
+                            
+                            # Overall pattern
+                            avg_diff = np.mean([d["diff"] for d in differences])
+                            if abs(avg_diff) < 0.01:
+                                parts.append("Methods agree closely - Historical and Monte Carlo VaR are consistent across confidence levels")
+                            elif avg_diff > 0:
+                                parts.append(f"Monte Carlo consistently higher ({avg_diff*100:.2f}% avg) - Forward-looking model suggests more risk than historical patterns")
+                            else:
+                                parts.append(f"Monte Carlo consistently lower ({abs(avg_diff)*100:.2f}% avg) - Forward-looking model suggests less risk than historical patterns")
+                            
+                            # Confidence level analysis
+                            if len(differences) >= 2:
+                                low_conf_diff = differences[0]["diff"]
+                                high_conf_diff = differences[-1]["diff"]
+                                if abs(high_conf_diff) > abs(low_conf_diff) * 1.5:
+                                    parts.append("Difference increases at higher confidence levels - Model uncertainty grows for extreme events")
+                            
+                            interpretation = "\n".join(parts)
+                            if interpretation:
+                                st.info(interpretation)
 
                     except Exception as e:
                         logger.warning(
@@ -1046,119 +1932,6 @@ def _render_monte_carlo(
                 except Exception as e:
                     logger.warning(
                         f"Error calculating VaR/CVaR from simulations: {e}"
-                    )
-
-                # Confidence intervals on distribution chart
-                st.markdown("---")
-                st.markdown("### Distribution with Confidence Intervals")
-                try:
-                    fig_ci = go.Figure()
-
-                    # Histogram
-                    fig_ci.add_trace(
-                        go.Histogram(
-                            x=final_values,
-                            nbinsx=50,
-                            marker_color=COLORS["primary"],
-                            opacity=0.7,
-                            name="Final Values",
-                        )
-                    )
-
-                    # Add confidence intervals
-                    ci_levels = [0.90, 0.95, 0.99]
-                    ci_colors = [
-                        COLORS["success"],
-                        COLORS["warning"],
-                        COLORS["danger"],
-                    ]
-
-                    for ci, color in zip(ci_levels, ci_colors):
-                        lower = np.percentile(
-                            final_values, (1 - ci) / 2 * 100
-                        )
-                        upper = np.percentile(
-                            final_values, (1 + ci) / 2 * 100
-                        )
-
-                        # Shaded area
-                        fig_ci.add_vrect(
-                            x0=lower,
-                            x1=upper,
-                            fillcolor=f"rgba({int(color[1:3], 16)}, {int(color[3:5], 16)}, {int(color[5:7], 16)}, 0.2)",
-                            layer="below",
-                            line_width=0,
-                            annotation_text=f"{int(ci*100)}% CI",
-                            annotation_position="top left",
-                        )
-
-                        # Lines without annotations to avoid overlap
-                        fig_ci.add_vline(
-                            x=lower,
-                            line_dash="dash",
-                            line_color=color,
-                        )
-                        fig_ci.add_vline(
-                            x=upper,
-                            line_dash="dash",
-                            line_color=color,
-                        )
-                        
-                        # Add annotations separately with better positioning
-                        # Get histogram max height for positioning
-                        hist_counts, _ = np.histogram(final_values, bins=50)
-                        max_height = np.max(hist_counts)
-
-                        # Left annotation (lower bound)
-                        lower_pct = int((1 - ci) / 2 * 100)
-                        fig_ci.add_annotation(
-                            x=lower,
-                            y=max_height * 0.95,
-                            text=f"{lower_pct}%",
-                            showarrow=True,
-                            arrowhead=2,
-                            arrowcolor=color,
-                            font=dict(color=color, size=10),
-                            bgcolor="rgba(0, 0, 0, 0.7)",
-                            bordercolor=color,
-                            borderwidth=1,
-                            xanchor="right",
-                            yanchor="top",
-                        )
-
-                        # Right annotation (upper bound)
-                        upper_pct = int((1 + ci) / 2 * 100)
-                        fig_ci.add_annotation(
-                            x=upper,
-                            y=max_height * 0.95,
-                            text=f"{upper_pct}%",
-                            showarrow=True,
-                            arrowhead=2,
-                            arrowcolor=color,
-                            font=dict(color=color, size=10),
-                            bgcolor="rgba(0, 0, 0, 0.7)",
-                            bordercolor=color,
-                            borderwidth=1,
-                            xanchor="left",
-                            yanchor="top",
-                        )
-
-                    fig_ci.update_layout(
-                        title=(
-                            "Final Value Distribution with "
-                            "Confidence Intervals"
-                        ),
-                        xaxis_title="Portfolio Value ($)",
-                        yaxis_title="Frequency",
-                        height=500,
-                        template="plotly_dark",
-                    )
-
-                    st.plotly_chart(fig_ci, use_container_width=True)
-
-                except Exception as e:
-                    logger.warning(
-                        f"Error creating confidence intervals chart: {e}"
                     )
 
                 # Extreme scenarios analysis
@@ -1236,6 +2009,11 @@ def _render_monte_carlo(
 
                     extreme_df = pd.DataFrame(extreme_data)
                     st.dataframe(extreme_df, use_container_width=True)
+                    
+                    # Interpretation: Extreme scenarios
+                    interpretation = _interpret_extreme_scenarios(extreme_df, initial_value)
+                    if interpretation:
+                        st.info(interpretation)
 
                     # Visual comparison
                     fig_extreme = go.Figure()
@@ -1262,11 +2040,11 @@ def _render_monte_carlo(
                         )
                     )
 
-                    # Add initial value line
+                    # Add initial value line (white)
                     fig_extreme.add_hline(
                         y=initial_value,
                         line_dash="dash",
-                        line_color="yellow",
+                        line_color="white",
                         annotation_text=f"Initial: ${initial_value:,.0f}",
                     )
 
@@ -1326,33 +2104,33 @@ def _render_monte_carlo(
                             )
                         )
 
-                    # Add max path
+                    # Add max path (green from palette)
                     fig_paths.add_trace(
                         go.Scatter(
                             x=list(range(time_horizon)),
                             y=max_path,
                             mode="lines",
-                            line=dict(width=2, color="green"),
+                            line=dict(width=2, color=COLORS["success"]),  # Green
                             name="Max Path",
                         )
                     )
                     
-                    # Add min path
+                    # Add min path (red from palette)
                     fig_paths.add_trace(
                         go.Scatter(
                             x=list(range(time_horizon)),
                             y=min_path,
                             mode="lines",
-                            line=dict(width=2, color="red"),
+                            line=dict(width=2, color=COLORS["danger"]),  # Red
                             name="Min Path",
                         )
                     )
 
-                    # Add current value line
+                    # Add initial value line (white)
                     fig_paths.add_hline(
                         y=initial_value,
                         line_dash="dash",
-                        line_color="yellow",
+                        line_color="white",
                         annotation_text=f"Initial: ${initial_value:,.0f}",
                     )
 
@@ -1389,7 +2167,7 @@ def _render_monte_carlo(
                             x=list(range(time_horizon)),
                             y=median_path,
                             mode="lines",
-                            line=dict(width=2, color="orange"),
+                            line=dict(width=2, color=COLORS["secondary"]),  # Blue
                             name="Median (50th percentile)",
                         )
                     )
@@ -1409,6 +2187,41 @@ def _render_monte_carlo(
                     )
 
                     st.plotly_chart(fig_paths, use_container_width=True)
+                    
+                    # Interpretation: Simulation paths
+                    parts = []
+                    parts.append("**Simulation Paths Analysis:**")
+                    parts.append(f"Shows {len(paths)} individual simulation paths over {time_horizon} days")
+                    
+                    # Analyze path convergence/divergence
+                    if len(paths) > 0 and len(paths[0]) > 0:
+                        final_values_from_paths = [path[-1] for path in paths]
+                        path_std = np.std(final_values_from_paths)
+                        path_mean = np.mean(final_values_from_paths)
+                        path_cv = path_std / path_mean if path_mean > 0 else 0
+                        
+                        if path_cv > 0.3:
+                            parts.append(f"High path divergence (CV: {path_cv:.2f}) - Wide range of possible outcomes, high uncertainty")
+                        elif path_cv > 0.15:
+                            parts.append(f"Moderate path divergence (CV: {path_cv:.2f}) - Some outcome variability")
+                        else:
+                            parts.append(f"Low path divergence (CV: {path_cv:.2f}) - Relatively predictable outcomes")
+                        
+                        # Trend analysis
+                        initial_val = paths[0][0] if paths else initial_value
+                        positive_paths = sum(1 for fv in final_values_from_paths if fv > initial_val)
+                        positive_pct = positive_paths / len(final_values_from_paths) * 100 if final_values_from_paths else 0
+                        
+                        if positive_pct > 60:
+                            parts.append(f"Most paths ({positive_pct:.0f}%) end above initial value - Positive expected outcome")
+                        elif positive_pct < 40:
+                            parts.append(f"Most paths ({100-positive_pct:.0f}%) end below initial value - Negative expected outcome")
+                        else:
+                            parts.append(f"Mixed outcomes ({positive_pct:.0f}% positive) - Balanced risk/reward")
+                    
+                    interpretation = "\n".join(parts)
+                    if interpretation:
+                        st.info(interpretation)
                 elif show_paths:
                     st.warning(
                         "Path data not available. Please ensure simulation "
@@ -1501,6 +2314,11 @@ def _render_stress_tests(
 
                 df = pd.DataFrame(results_data)
                 st.dataframe(df, use_container_width=True)
+                
+                # Interpretation: Stress test results
+                interpretation = _interpret_scenario_results(results)
+                if interpretation:
+                    st.info(interpretation)
 
                 # Visual comparison
                 fig = go.Figure()
@@ -1625,6 +2443,11 @@ def _render_historical_scenarios(
 
                 df = pd.DataFrame(results_data)
                 st.dataframe(df, use_container_width=True)
+                
+                # Interpretation: Historical scenario results
+                interpretation = _interpret_scenario_results(results)
+                if interpretation:
+                    st.info(interpretation)
 
                 # Visual comparison
                 fig = go.Figure()
@@ -1649,20 +2472,8 @@ def _render_historical_scenarios(
                     )
                 )
 
-                # Add annotations for negative values below the bars
-                for i, (name, impact) in enumerate(
-                    zip(scenario_names_list, impacts)
-                ):
-                    if impact < 0:
-                        fig.add_annotation(
-                            x=name,
-                            y=impact,
-                            text=f"{impact:.2f}%",
-                            showarrow=False,
-                            yshift=-25,  # Position below the bar
-                            font=dict(size=12, color=COLORS["error"]),
-                            yanchor="top",
-                        )
+                # Remove duplicate annotations - text is already in bars via text parameter
+                # No need for additional annotations
 
                 fig.update_layout(
                     title="Portfolio Impact by Historical Scenario",
@@ -1674,14 +2485,28 @@ def _render_historical_scenarios(
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # Interpretation: Portfolio impact chart
+                interpretation = _interpret_scenario_results(results)
+                if interpretation:
+                    st.info(interpretation)
 
                 # Portfolio Recovery Chart
                 st.markdown("---")
                 st.markdown("### Portfolio Recovery Timeline")
                 try:
                     fig_recovery = go.Figure()
+                    
+                    # Use colors from palette for recovery lines
+                    scenario_colors = [
+                        COLORS["primary"],    # Purple
+                        COLORS["secondary"],  # Blue
+                        COLORS["success"],    # Green
+                        COLORS["warning"],    # Orange
+                        COLORS["additional"], # Yellow
+                    ]
 
-                    for r in results:
+                    for idx, r in enumerate(results):
                         scenario_name = r.get("scenario_name", "Unknown")
                         impact_pct = r.get("portfolio_impact_pct", 0.0)
                         recovery_days = r.get("recovery_time_days", None)
@@ -1704,13 +2529,16 @@ def _render_historical_scenarios(
                                 max(0, v) for v in recovery_path
                             ]  # No negative
 
+                            color = scenario_colors[idx % len(scenario_colors)]
+                            
                             fig_recovery.add_trace(
                                 go.Scatter(
                                     x=days,
                                     y=[v * 100 for v in recovery_path],
                                     mode="lines+markers",
                                     name=scenario_name,
-                                    line=dict(width=2),
+                                    line=dict(width=2, color=color),
+                                    marker=dict(color=color, size=6),
                                 )
                             )
 
@@ -1736,6 +2564,15 @@ def _render_historical_scenarios(
                         "**Note:** Recovery timeline is estimated based on "
                         "scenario recovery period. Actual recovery may vary."
                     )
+                    
+                    # Interpretation: Recovery timeline
+                    recovery_data = {
+                        "results": results,
+                        "scenarios": {key: scenarios[key] for key in selected_keys}
+                    }
+                    interpretation = _interpret_scenario_recovery(recovery_data)
+                    if interpretation:
+                        st.info(interpretation)
 
                 except Exception as e:
                     logger.warning(f"Error creating recovery chart: {e}")
@@ -1849,6 +2686,11 @@ def _render_historical_scenarios(
                         )
 
                         st.plotly_chart(fig_comp, use_container_width=True)
+                        
+                        # Interpretation: Enhanced scenario comparison
+                        interpretation = _interpret_scenario_results(results)
+                        if interpretation:
+                            st.info(interpretation)
 
                 except Exception as e:
                     logger.warning(
@@ -1952,6 +2794,13 @@ def _render_historical_scenarios(
                                     st.plotly_chart(
                                         fig_breakdown, use_container_width=True
                                     )
+                                    
+                                    # Interpretation: Position impact breakdown
+                                    interpretation = _interpret_position_impact_breakdown(
+                                        position_impacts, scenario_name
+                                    )
+                                    if interpretation:
+                                        st.info(interpretation)
 
                 except Exception as e:
                     logger.warning(
@@ -2001,6 +2850,7 @@ def _render_historical_scenarios(
                                     f"({duration} days)"
                                 ),
                                 textposition="inside",
+                                textfont=dict(color="white", size=11),  # White text
                                 name=data["name"],
                             )
                         )
@@ -2060,6 +2910,24 @@ def _render_historical_scenarios(
                     )
 
                     st.plotly_chart(fig_timeline2, use_container_width=True)
+                    
+                    # Interpretation: Timeline visualization
+                    if timeline_data:
+                        parts = []
+                        parts.append("**Historical Timeline Analysis:**")
+                        parts.append(f"Analyzed {len(timeline_data)} historical scenario(s)")
+                        
+                        # Find most severe
+                        most_severe = min(timeline_data, key=lambda x: x["impact"])
+                        parts.append(f"Most severe: {most_severe['name']} ({most_severe['impact']*100:.1f}% market impact, {(most_severe['end'] - most_severe['start']).days} days duration)")
+                        
+                        # Find longest
+                        longest = max(timeline_data, key=lambda x: (x["end"] - x["start"]).days)
+                        parts.append(f"Longest duration: {longest['name']} ({(longest['end'] - longest['start']).days} days)")
+                        
+                        interpretation = "\n".join(parts)
+                        if interpretation:
+                            st.info(interpretation)
 
                 except Exception as e:
                     logger.warning(
@@ -2195,6 +3063,11 @@ def _render_custom_scenario(
                         result["best_position"]["ticker"],
                         f"{result['best_position']['impact_pct'] * 100:.2f}%",
                     )
+                
+                # Interpretation: Custom scenario results
+                interpretation = _interpret_scenario_results([result])
+                if interpretation:
+                    st.info(interpretation)
 
         except ValidationError as e:
             st.error(f"Validation error: {str(e)}")
@@ -2325,6 +3198,11 @@ def _render_scenario_chain(
 
                 df = pd.DataFrame(results_data)
                 st.dataframe(df, use_container_width=True)
+                
+                # Interpretation: Scenario chain results
+                interpretation = _interpret_scenario_results(scenario_results)
+                if interpretation:
+                    st.info(interpretation)
 
         except Exception as e:
             st.error(f"Error running scenario chain: {str(e)}")

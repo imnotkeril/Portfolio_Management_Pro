@@ -1,7 +1,7 @@
 # WILD MARKET CAPITAL - System Architecture
 
 **Version**: 1.0 (Initial)  
-**Last Updated**: 2025-01-27  
+**Last Updated**: 2025-01-28  
 **Status**: 🟡 Living Document - Will be updated during development
 
 ---
@@ -1603,10 +1603,9 @@ This document will be **updated during development** with:
 2. **Monte Carlo Simulation Tab:**
    - Simulation Statistics
    - Percentile Outcomes
-   - Final Value Distribution (chart interpretation)
+   - Final Value Distribution (unified chart with combined interpretation including confidence intervals analysis)
    - VaR & CVaR from Simulations (table interpretation)
    - Comparison with Historical VaR (table + chart interpretation)
-   - Distribution with Confidence Intervals (chart interpretation)
    - Extreme Scenarios Analysis
    - Simulation Paths (Spaghetti Chart interpretation)
 3. **Historical Scenarios Tab:**
@@ -1627,6 +1626,32 @@ This document will be **updated during development** with:
 - Model uncertainty and method comparison insights
 - Concentration and diversification analysis
 - Recovery time and resilience assessment
+
+#### Update 2025-01-28: Monte Carlo Simulation UI Improvements
+
+**Changes Made:**
+- **UI Page** (`streamlit_app/pages/risk_analysis.py`):
+  - Removed duplicate "Distribution with Confidence Intervals" chart from Monte Carlo Simulation tab
+  - Unified "Final Value Distribution" chart with combined interpretation:
+    - Distribution shape analysis (symmetry, skewness)
+    - Confidence intervals analysis (90%, 95%, 99% CI with ranges and returns)
+    - Tail expansion assessment (fat tails, extreme events)
+    - Outcome variability assessment
+  - Fixed percentile key access: Added fallback for both float (5.0) and int (5) keys in percentiles dictionary
+  - Fixed text formatting: Added non-breaking spaces (`\u00A0`) around "to" separators and in formatted numbers to prevent awkward line breaks in Streamlit info boxes
+  - Improved interpretation readability with proper spacing and formatting
+
+**Technical Details:**
+- Percentile access now uses `percentiles.get(5.0) or percentiles.get(5)` pattern for compatibility
+- Text formatting uses non-breaking spaces to prevent Streamlit from breaking lines in the middle of number ranges
+- Combined interpretation includes both distribution analysis and confidence intervals in a single, comprehensive description
+
+**Files Modified:**
+- `streamlit_app/pages/risk_analysis.py`:
+  - Removed `_interpret_confidence_intervals()` function usage (logic merged into main interpretation)
+  - Updated `_interpret_monte_carlo_percentiles()` to handle both float and int percentile keys
+  - Enhanced Final Value Distribution interpretation with confidence intervals data
+  - Fixed text formatting with non-breaking spaces
 
 #### Update 2025-10-31: Statistical Tests Improvements
 
