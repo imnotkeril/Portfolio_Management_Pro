@@ -445,26 +445,35 @@ User Request → Service Layer → Data Manager
 
 ### 3.8 Reporting Engine Module
 
-**Path**: `core/reporting_engine/`  
-**Status**: 🔲 Not Implemented
+**Path**: `services/report_service.py`  
+**Status**: 🟢 Phase 8 Implemented (Partial)
 
 **Purpose**: Generate professional reports in PDF and Excel formats.
 
 **Components**:
-- `pdf_generator.py` - Generate PDF reports
-- `excel_generator.py` - Generate Excel workbooks
-- `templates/` - Report templates
+- ✅ `services/report_service.py` - ReportService class with multiple PDF generation methods:
+  - `generate_pdf_tearsheet()` - Traditional PDF with ReportLab
+  - `generate_pdf_screenshot_style()` - HTML-based screenshot PDF
+  - `generate_pdf_full_page_screenshot()` - HTML full-page screenshot (deprecated)
+  - `generate_pdf_from_streamlit_tabs()` - Direct Streamlit tab screenshots (Phase 8) ⭐
+- 🔲 `excel_generator.py` - Excel workbook generation (future)
+- 🔲 `templates/` - Report templates (future)
 
 **Dependencies**:
 - Analytics Engine (metrics data)
 - Chart data (visualizations)
-- ReportLab, OpenPyXL, Playwright, img2pdf
+- ReportLab, Playwright, img2pdf, Pillow
+- Streamlit application (for Phase 8 method)
 
 **Key Features**:
-- Comprehensive PDF reports with metrics and charts
-- Multi-sheet Excel exports
-- Customizable templates
-- Branding and styling
+- ✅ Comprehensive PDF reports with metrics and charts
+- ✅ Full-page screenshot PDF generation from Streamlit tabs
+- ✅ Automatic empty space cropping
+- ✅ Dynamic viewport adjustment
+- ✅ Tab navigation and sub-tab support
+- 🔲 Multi-sheet Excel exports (future)
+- 🔲 Customizable templates (future)
+- 🔲 Branding and styling (future)
 
 ---
 
@@ -480,7 +489,7 @@ User Request → Service Layer → Data Manager
 - ✅ `portfolio_service.py` - Portfolio CRUD orchestration (Phase 2)
 - ✅ `schemas.py` - Pydantic validation schemas (Phase 2)
 - ✅ `analytics_service.py` - Analytics calculation orchestration (Phase 3)
-- ✅ `report_service.py` - PDF report generation (Phase 4)
+- ✅ `report_service.py` - PDF report generation (Phase 4, Phase 8)
 - ✅ `optimization_service.py` - Optimization orchestration (Phase 6)
 - ✅ `risk_service.py` - Risk analysis orchestration (Phase 7)
 - ✅ `forecasting_service.py` - Forecasting orchestration (Forecasting)
@@ -520,21 +529,23 @@ User Request → Service Layer → Data Manager
 
 **Components**:
 - ✅ `app.py` - Main application entry point with navigation (Phase 4)
-- ✅ `pages/dashboard.py` - Portfolio overview dashboard (Phase 4)
+- ✅ `pages/dashboard.py` - Market dashboard with indices, charts, and navigation (Dashboard) - Market data focused, not portfolio overview
 - ✅ `pages/create_portfolio.py` - Portfolio creation (5 methods) (Phase 4)
 - ✅ `pages/portfolio_list.py` - Portfolio list view (Phase 4)
 - ✅ `pages/portfolio_detail.py` - Portfolio detail and editing (Phase 4)
-- ✅ `pages/portfolio_analysis.py` - Comprehensive analytics display (Phase 4)
+- ✅ `pages/portfolio_analysis.py` - Comprehensive analytics display (Phase 4) + Export & Reports tab (Phase 8)
 - ✅ `pages/portfolio_optimization.py` - Optimization interface (Phase 6)
 - ✅ `pages/risk_analysis.py` - Risk analysis interface (Phase 7) - VaR, Monte Carlo, Historical Scenarios, Custom Scenarios, Scenario Chains (all in one page)
 - ✅ `pages/forecasting.py` - Forecasting interface (Forecasting) - Price and returns forecasting with multiple methods
-- 🔲 `pages/reports.py` - Report generation (Phase 8)
 
 **Reusable Components**:
 - ✅ `components/portfolio_card.py` - Portfolio summary card (Phase 4)
 - ✅ `components/metrics_display.py` - Metrics grid display (Phase 4)
 - ✅ `components/position_table.py` - Position table component (Phase 4)
 - ✅ Plotly charts (Asset/Sector Allocation) - Integrated in `portfolio_list.py` (Phase 4)
+- ✅ `components/market_index_card.py` - Market index card component (Dashboard) - Displays index name, symbol, current price, and daily change
+- ✅ `components/market_indices_chart.py` - Market indices comparison chart (Dashboard) - Interactive Plotly chart comparing multiple indices with normalized values
+- ✅ `components/market_stats.py` - Market statistics component (Dashboard) - VIX level, market status, top gainers/losers
 - ✅ `components/charts.py` - Chart components (Phase 5) - All 7 chart types implemented:
   - Cumulative Returns (with benchmark, linear/log scale)
   - Drawdown (with max DD annotation)
@@ -552,9 +563,35 @@ User Request → Service Layer → Data Manager
 **Utilities**:
 - ✅ `utils/formatters.py` - Currency, percentage, date formatters (Phase 4)
 - ✅ `utils/validators.py` - Input validation utilities (Phase 4)
+- ✅ `utils/market_data.py` - Market data utilities (Dashboard) - Functions to fetch index data with current prices and daily changes
 
 **Styling**:
 - ✅ `styles.css` - Custom CSS with TradingView-inspired color palette (Phase 4)
+
+**Explanation Types & User Guidance**:
+- ✅ Unified explanation system with 6 types (2025-01-27):
+  0. **Help tooltip (question mark icon)** - Brief metric definitions (what it is, what it shows)
+     - Used in metric cards via `help_text` parameter in `components/metric_card_comparison.py`
+     - Transparent circle with gray border, appears on hover
+  1. **st.caption** (gray small font) - Facts under charts without evaluation
+     - Used for additional information below charts (e.g., "Top contributor: JPM - 2.66%")
+  2. **st.success** (green background) - Positive results/interpretations
+     - Used when metrics indicate good performance (e.g., high Sharpe ratio, good diversification)
+  3. **st.info** (blue background) - Neutral explanations/definitions
+     - Used for automatic chart interpretations (QQ plot, drawdown, VaR, distribution, rolling metrics, bull/bear analysis, asset impact, correlations, asset dynamics)
+     - Used for neutral concept definitions
+     - Interpretation functions: `_interpret_var_distribution()`, `_interpret_var_benchmark_comparison()`, `_interpret_rolling_metric()`, `_interpret_rolling_beta()`, `_interpret_bull_bear_analysis()`, `_interpret_impact_on_return()`, `_interpret_impact_on_risk()`, `_interpret_risk_vs_weight_comparison()`, `_interpret_correlation_matrix()`, `_interpret_correlation_with_benchmark()`, `_interpret_average_correlation_to_portfolio()`, `_interpret_rolling_correlations()`, `_interpret_asset_price_dynamics()`, `_interpret_rolling_correlation_with_benchmark()`, `_interpret_price_volume_chart()`, `_interpret_comparison_of_return()`, `_interpret_asset_correlations()`, `_interpret_optimization_comparison()`, `_interpret_allocation_changes()`, `_interpret_trade_list()`, `_interpret_returns_comparison()`, `_interpret_drawdown_comparison()`, `_interpret_efficient_frontier()`, `_interpret_correlation_diversification()`, `_interpret_sensitivity_analysis()`, `_interpret_var_metrics()`, `_interpret_var_methods_comparison()`, `_interpret_portfolio_var_decomposition()`, `_interpret_rolling_var()`, `_interpret_monte_carlo_statistics()`, `_interpret_monte_carlo_percentiles()`, `_interpret_monte_carlo_var_comparison()`, `_interpret_extreme_scenarios()`, `_interpret_scenario_results()`, `_interpret_scenario_recovery()`, `_interpret_confidence_intervals()`, `_interpret_portfolio_var_covariance()`, `_interpret_position_impact_breakdown()`
+  4. **st.warning** (yellow background) - Warnings/problems/risks
+     - Used when metrics indicate problems (e.g., high correlation, low diversification)
+  5. **st.expander** (collapsible) - Long educational materials "how to interpret"
+     - Used for detailed guides (e.g., "How to Interpret Cluster Analysis")
+  
+  **Rules**:
+  - Metric values should be displayed separately (as metrics or tables), not mixed with interpretations
+  - If values are part of interpretation (e.g., "1.20 means 19.6% reduction"), they can stay in colored blocks
+  - Automatic chart interpretations → st.info (neutral)
+  - Facts under charts → st.caption
+  - Educational materials → st.expander
 
 **Key Features**:
 - Multi-page navigation with sidebar
@@ -1203,12 +1240,16 @@ This document will be **updated during development** with:
   - PDF generation with multiple methods:
     - `generate_pdf_tearsheet()` - ReportLab-based PDF with dark theme
     - `generate_pdf_screenshot_style()` - HTML-based screenshot-style PDF
-    - `generate_pdf_full_page_screenshot()` - Full page screenshot using Playwright (Phase 8)
-      - Uses Playwright to capture entire HTML page as screenshot
-      - Fixed viewport width (default 1920px) for consistent sizing
-      - Converts PNG screenshot to PDF using img2pdf
-      - Preserves dark theme background
-      - Captures full page including scrollable content
+    - `generate_pdf_full_page_screenshot()` - HTML full-page screenshot (deprecated)
+    - `generate_pdf_from_streamlit_tabs()` - Direct Streamlit tab screenshots (Phase 8) ⭐
+      - Uses Playwright in separate subprocess to capture live Streamlit tabs
+      - Programmatically navigates through tabs and sub-tabs
+      - Automatically clicks "Calculate Metrics" if needed
+      - Full-page screenshot of each selected tab/sub-tab
+      - Dynamic viewport height adjustment to prevent cutoff
+      - Automatic empty space cropping using Pillow
+      - Converts PNG screenshots to PDF using img2pdf
+      - Each tab/sub-tab = one PDF page
 
 **New UI Components:**
 - `streamlit_app/components/comparison_table.py` - Portfolio vs Benchmark comparison tables
@@ -1224,7 +1265,12 @@ This document will be **updated during development** with:
   2. **Performance**: Performance metrics table, periodic returns table, distribution analysis
   3. **Risk**: Risk metrics table, drawdown analysis, VaR & CVaR, rolling risk metrics
   4. **Assets & Correlations**: Position table, allocation charts, correlation matrix (placeholder)
-  5. **Export & Reports**: CSV/JSON/PDF export, complete metrics table
+  5. **Export & Reports** (Phase 8): 
+     - CSV/JSON/Excel export
+     - PDF report generation from Streamlit tab screenshots
+     - Tab selection UI (checkboxes for each main tab)
+     - Viewport width/height configuration
+     - Download button for generated PDF
 - Enhanced charts: Rolling Sharpe/Sortino, Rolling Beta/Alpha, Underwater plot, Yearly returns
 
 **Key Features Added:**
@@ -1234,6 +1280,11 @@ This document will be **updated during development** with:
 - Distribution analysis (Q-Q plots, normality tests)
 - Periodic analysis (yearly returns, monthly heatmap)
 - Export capabilities (CSV, JSON, Excel multi-sheet)
+- PDF report generation from Streamlit tab screenshots (Phase 8):
+  - Direct screenshots of live Streamlit application
+  - Automatic tab navigation and sub-tab support
+  - Dynamic viewport adjustment
+  - Empty space cropping
 
 **Performance Metrics:**
 - Average page load: ~2-3s (with caching)
@@ -1373,6 +1424,209 @@ This document will be **updated during development** with:
 - Modified: `portfolio_analysis.py` (200+ lines rewritten in _render_rolling_risk)
 - Architecture maintained: Backend → Service → UI separation
 - All code follows SOLID principles and type hints
+
+#### Update 2025-01-27: Risk Tab Interpretations - VaR & CVaR and Rolling Risk Metrics
+
+**Enhancement** - Added automatic interpretations for Risk tab sub-tabs.
+
+**New Interpretation Functions:**
+- `_interpret_var_benchmark_comparison()` - Compares portfolio VaR/CVaR with benchmark
+- `_interpret_rolling_beta()` - Analyzes rolling beta trends and market sensitivity
+- `_interpret_bull_bear_analysis()` - Interprets portfolio performance in different market conditions
+
+**Enhanced UI:**
+- `streamlit_app/pages/portfolio_analysis.py`:
+  - **VaR & CVaR sub-tab**: Added `st.info` interpretation after Benchmark Comparison table
+  - **Rolling Risk Metrics sub-tab**:
+    - Added `st.info` interpretation for Rolling Beta chart
+    - Added `st.info` interpretation for Rolling Alpha chart (using `_interpret_rolling_metric`)
+    - Added `st.info` interpretation for Rolling Active Return chart (using `_interpret_rolling_metric`)
+    - Added `st.info` interpretation for Bull/Bear Market Analysis section
+
+**Key Features:**
+- Automatic chart interpretations using unified explanation system
+- Beta trend analysis (increasing/decreasing/stable)
+- Bull/bear market performance comparison
+- Consistent use of `st.info` for neutral interpretations
+
+**Integration:**
+- Modified: `portfolio_analysis.py` (added 3 new interpretation functions, updated 4 chart sections)
+- Updated: `docs/ARCHITECTURE.md` (added interpretation functions to explanation types)
+
+#### Update 2025-01-27: Assets & Correlations Tab - Asset Overview & Impact Interpretations
+
+**Enhancement** - Added automatic interpretations for Asset Overview & Impact sub-tab.
+
+**New Interpretation Functions:**
+- `_interpret_impact_on_return()` - Analyzes asset contribution to portfolio return, concentration levels
+- `_interpret_impact_on_risk()` - Analyzes asset contribution to portfolio risk, risk concentration
+- `_interpret_risk_vs_weight_comparison()` - Analyzes imbalances between risk/return impact and portfolio weights
+
+**Enhanced UI:**
+- `streamlit_app/pages/portfolio_analysis.py`:
+  - **Impact on Total Return**: Added `st.info` interpretation after chart analyzing concentration and distribution
+  - **Impact on Risk**: Added `st.info` interpretation after chart analyzing risk concentration
+  - **Risk vs Weight Comparison**: Added `st.info` interpretation after chart analyzing imbalances
+
+**Key Features:**
+- Automatic concentration analysis (high/moderate/well-distributed)
+- Top 3 contributors analysis
+- Risk/return vs weight imbalance detection
+- Consistent use of `st.info` for neutral interpretations
+
+**Integration:**
+- Modified: `portfolio_analysis.py` (added 3 new interpretation functions, updated 3 chart sections)
+- Updated: `docs/ARCHITECTURE.md` (added interpretation functions to explanation types)
+
+#### Update 2025-01-27: Assets & Correlations Tab - Correlations Interpretations
+
+**Enhancement** - Added automatic interpretations for Correlations sub-tab.
+
+**New Interpretation Functions:**
+- `_interpret_correlation_matrix()` - Analyzes correlation matrix, identifies high/low correlation pairs, overall diversification
+- `_interpret_correlation_with_benchmark()` - Analyzes asset correlations with benchmark, sensitivity assessment
+- `_interpret_average_correlation_to_portfolio()` - Analyzes average correlation of each asset to portfolio, diversification scores
+- `_interpret_rolling_correlations()` - Analyzes rolling correlations over time, stability and spikes detection
+
+**Enhanced UI:**
+- `streamlit_app/pages/portfolio_analysis.py`:
+  - **Correlation Matrix**: Added `st.info` interpretation after chart analyzing overall correlation levels and pairs
+  - **Correlation with Benchmark**: Added `st.info` interpretation after table analyzing sensitivity to benchmark
+  - **Average Correlation to Portfolio**: Added `st.info` interpretation after table analyzing diversification potential
+  - **Rolling Correlations**: Added `st.info` interpretation after chart analyzing stability and trends
+
+**Key Features:**
+- Automatic correlation level assessment (low/moderate/high)
+- High/low correlation pair identification
+- Diversification opportunity detection
+- Rolling correlation stability analysis
+- Consistent use of `st.info` for neutral interpretations
+
+**Integration:**
+- Modified: `portfolio_analysis.py` (added 4 new interpretation functions, updated 4 chart/table sections)
+- Updated: `docs/ARCHITECTURE.md` (added interpretation functions to explanation types)
+
+#### Update 2025-01-27: Assets & Correlations Tab - Asset Details & Dynamics Interpretations
+
+**Enhancement** - Added automatic interpretations for Asset Details & Dynamics sub-tab.
+
+**New Interpretation Functions:**
+- `_interpret_asset_price_dynamics()` - Analyzes asset price dynamics, identifies best/worst performers, performance spread
+- `_interpret_rolling_correlation_with_benchmark()` - Analyzes rolling correlations with benchmark, stability assessment
+- `_interpret_price_volume_chart()` - Analyzes price and volume chart, trend assessment, MA signals
+- `_interpret_comparison_of_return()` - Analyzes return comparison between asset, portfolio, and benchmark
+- `_interpret_asset_correlations()` - Analyzes correlations with other assets, diversification opportunities
+
+**Enhanced UI:**
+- `streamlit_app/pages/portfolio_analysis.py`:
+  - **Asset Price Dynamics**: Added `st.info` interpretation after chart analyzing performance spread and trends
+  - **Rolling Correlation with Benchmark**: Added `st.info` interpretation after chart analyzing correlation stability
+  - **Price and Volume Chart**: Added `st.info` interpretation after chart analyzing price trends and MA signals
+  - **Comparison of Return**: Added `st.info` interpretation after chart analyzing relative performance
+  - **Correlations with Other Assets**: Added `st.info` interpretation after chart analyzing diversification potential
+
+**Key Features:**
+- Automatic performance spread analysis
+- Best/worst performer identification
+- Price trend assessment with MA signals
+- Relative performance comparison (asset vs portfolio vs benchmark)
+- Correlation-based diversification recommendations
+- Consistent use of `st.info` for neutral interpretations
+
+**Integration:**
+- Modified: `portfolio_analysis.py` (added 5 new interpretation functions, updated 5 chart sections)
+- Updated: `docs/ARCHITECTURE.md` (added interpretation functions to explanation types)
+
+#### Update 2025-01-27: Portfolio Optimization Interpretations
+
+**Feature:** Added automatic interpretations for Portfolio Optimization page
+
+**New Interpretation Functions:**
+- `_interpret_optimization_comparison()` - Compares optimized vs current portfolio metrics (Sharpe, return, volatility, drawdown), provides overall assessment
+- `_interpret_allocation_changes()` - Analyzes weight changes, identifies largest increases/decreases, concentration levels, rebalancing needs
+- `_interpret_trade_list()` - Analyzes trade list, counts buys/sells, assesses transaction costs, weight change magnitude
+- `_interpret_returns_comparison()` - Compares cumulative returns, identifies outperformance patterns, daily performance consistency
+- `_interpret_drawdown_comparison()` - Compares max drawdowns, analyzes recovery periods, time in drawdown
+- `_interpret_efficient_frontier()` - Analyzes portfolio position on efficient frontier, compares with tangency (max Sharpe) and min variance points
+- `_interpret_correlation_diversification()` - Analyzes correlation matrix, weight concentration, number of assets for diversification assessment
+- `_interpret_sensitivity_analysis()` - Analyzes weight sensitivity to parameter variations, identifies most sensitive assets, overall stability
+
+**Integration:**
+- Modified: `portfolio_optimization.py` (added 8 new interpretation functions, updated 8 sections)
+- Updated: `docs/ARCHITECTURE.md` (added interpretation functions to explanation types)
+
+**Sections with Interpretations:**
+1. Comparison: Optimized vs Current Portfolio (metrics comparison)
+2. Current vs Optimal Allocation (weight changes)
+3. Trade List (trade analysis)
+4. Portfolio Returns Comparison (returns chart)
+5. Drawdown Comparison (drawdown chart)
+6. Efficient Frontier (frontier chart)
+7. Correlation Analysis & Diversification (correlation analysis)
+8. Sensitivity Analysis (sensitivity results)
+
+**Features:**
+- Automatic interpretation after each chart/table
+- Consistent use of `st.info` for neutral interpretations
+- Detailed analysis of improvements, changes, and risks
+- Actionable insights for portfolio optimization decisions
+
+#### Update 2025-01-27: Risk Analysis Interpretations
+
+**Feature:** Added automatic interpretations for Risk Analysis page
+
+**New Interpretation Functions:**
+- `_interpret_var_metrics()` - Analyzes VaR and CVaR metrics at 95% and 99% confidence levels, tail risk assessment
+- `_interpret_var_methods_comparison()` - Compares different VaR calculation methods (Historical, Parametric, Cornish-Fisher, Monte Carlo), model uncertainty assessment
+- `_interpret_portfolio_var_decomposition()` - Analyzes VaR decomposition by asset, identifies risk contributors, concentration and weight/risk mismatches
+- `_interpret_rolling_var()` - Analyzes rolling VaR statistics, risk volatility over time
+- `_interpret_monte_carlo_statistics()` - Analyzes Monte Carlo simulation statistics (mean, median, std, range), skewness assessment
+- `_interpret_monte_carlo_percentiles()` - Analyzes percentile outcomes, downside vs upside potential, interquartile range
+- `_interpret_monte_carlo_var_comparison()` - Compares Historical vs Monte Carlo VaR, forward-looking vs backward-looking risk
+- `_interpret_extreme_scenarios()` - Analyzes extreme scenarios (worst/best cases) from Monte Carlo simulations
+- `_interpret_scenario_results()` - Analyzes stress test and scenario results, worst/best scenarios, average impact, recovery times
+- `_interpret_scenario_recovery()` - Analyzes portfolio recovery timeline after stress events
+- `_interpret_confidence_intervals()` - Analyzes confidence intervals on Monte Carlo distribution, tail expansion, outcome predictability
+- `_interpret_portfolio_var_covariance()` - Analyzes Portfolio VaR calculated with covariance method, portfolio-level risk assessment
+- `_interpret_position_impact_breakdown()` - Analyzes position impact breakdown for scenarios, worst/best impacted assets, concentration analysis
+
+**Integration:**
+- Modified: `risk_analysis.py` (added 13 new interpretation functions, updated 15+ sections across 5 tabs)
+- Updated: `docs/ARCHITECTURE.md` (added interpretation functions to explanation types)
+
+**Sections with Interpretations:**
+1. **VaR Analysis Tab:**
+   - Key Risk Metrics (VaR/CVaR at 95% and 99%)
+   - VaR Methods Comparison (chart interpretation)
+   - Rolling VaR Analysis
+   - Portfolio VaR with Covariance Matrix (Portfolio VaR metric + VaR Decomposition)
+2. **Monte Carlo Simulation Tab:**
+   - Simulation Statistics
+   - Percentile Outcomes
+   - Final Value Distribution (chart interpretation)
+   - VaR & CVaR from Simulations (table interpretation)
+   - Comparison with Historical VaR (table + chart interpretation)
+   - Distribution with Confidence Intervals (chart interpretation)
+   - Extreme Scenarios Analysis
+   - Simulation Paths (Spaghetti Chart interpretation)
+3. **Historical Scenarios Tab:**
+   - Scenario Results (table + chart)
+   - Portfolio Recovery Timeline (chart interpretation)
+   - Enhanced Scenario Comparison (chart interpretation)
+   - Position Impact Breakdown (chart interpretation for each scenario)
+   - Historical Timeline Visualization (chart interpretation)
+4. **Custom Scenario Tab:**
+   - Scenario Results
+5. **Scenario Chain Tab:**
+   - Chain Results
+
+**Features:**
+- Automatic interpretation after each chart/table
+- Consistent use of `st.info` for neutral interpretations
+- Risk level assessment (low/moderate/high)
+- Model uncertainty and method comparison insights
+- Concentration and diversification analysis
+- Recovery time and resilience assessment
 
 #### Update 2025-10-31: Statistical Tests Improvements
 
@@ -1535,7 +1789,7 @@ This document will be **updated during development** with:
 
 **Implemented Components**:
 - ✅ `streamlit_app/app.py` - Main application with navigation and CSS
-- ✅ `streamlit_app/pages/dashboard.py` - Portfolio overview dashboard
+- ✅ `streamlit_app/pages/dashboard.py` - Market dashboard with indices, charts, statistics, and navigation buttons
 - ✅ `streamlit_app/pages/create_portfolio.py` - Portfolio creation with Wizard (5 steps) + 4 additional methods
 - ✅ `streamlit_app/pages/portfolio_list.py` - Portfolio list with full CRUD (view, edit, delete, clone, bulk operations)
 - ✅ `streamlit_app/pages/portfolio_detail.py` - Portfolio detail and editing
@@ -2544,54 +2798,180 @@ Download file or copy to clipboard
 
 ---
 
-#### Update 2025-01-27: Phase 8 - Full Page Screenshot PDF Generation
+#### Update 2025-01-27: Phase 8 - Streamlit Tab Screenshot PDF Generation
 
-**Major Feature Implementation** - Full page screenshot PDF generation using Playwright:
+**Major Feature Implementation** - PDF generation from direct screenshots of Streamlit application tabs:
 
 **New Method in ReportService:**
-- `services/report_service.py` - `generate_pdf_full_page_screenshot()`:
-  - Takes HTML content and generates full page screenshot
-  - Uses Playwright with Chromium browser (headless mode)
-  - Fixed viewport width (default 1920px) for consistent page sizing
-  - Full page screenshot captures entire scrollable content
-  - Converts PNG screenshot to PDF using img2pdf
-  - Preserves dark theme background (#0D1015)
-  - Automatic height adjustment based on content
-  - 2-second wait time for charts and styles to load
+- `services/report_service.py` - `generate_pdf_from_streamlit_tabs()`:
+  - Takes screenshots of live Streamlit application tabs (not HTML)
+  - Uses Playwright with Chromium browser (headless mode) in separate subprocess
+  - Navigates to Streamlit URL and interacts with UI programmatically
+  - Automatically clicks "Calculate Metrics" button if needed
+  - Navigates through main tabs and sub-tabs
+  - Takes full-page screenshot of each selected tab/sub-tab
+  - Each tab/sub-tab = one screenshot = one PDF page
+  - Automatically crops empty space from bottom of screenshots
+  - Converts PNG screenshots to PDF using img2pdf
+  - Dynamic viewport height adjustment to match content (prevents cutoff)
 
 **Key Features:**
-- `full_page=True` parameter captures entire page including scrollable content
-- Fixed width viewport ensures consistent page dimensions
-- Dark theme preservation (background color maintained in screenshot)
-- img2pdf preserves original image dimensions in PDF
-- Temporary file cleanup (PNG deleted after PDF conversion)
+- **Direct Streamlit Screenshots**: Captures actual live state of Streamlit application
+- **Tab Navigation**: Programmatically clicks through main tabs and sub-tabs
+  - Main tabs: Overview, Performance, Risk, Assets & Correlations, Export & Reports
+  - Sub-tabs: Performance (Returns Analysis, Periodic Analysis, Distribution), Risk (Key Metrics, Drawdown Analysis, VaR & CVaR, Rolling Risk Metrics), Assets & Correlations (Asset Overview & Impact, Correlations, Asset Details & Dynamics)
+- **Automatic Metrics Calculation**: Clicks "Calculate Metrics" button if tabs are not visible
+- **Full Page Capture**: `full_page=True` captures entire scrollable content
+- **Dynamic Viewport**: Automatically adjusts viewport height to match page content (prevents cutoff)
+- **Empty Space Cropping**: Uses Pillow to detect and crop empty space from bottom of each screenshot
+- **Subprocess Execution**: Runs Playwright in separate process to avoid Streamlit event loop conflicts
+- **Robust Error Handling**: Handles Unicode encoding issues, timeouts, and missing elements gracefully
 
 **Dependencies Added:**
-- `playwright>=1.40.0` - Browser automation for screenshots
+- `playwright>=1.40.0` - Browser automation for screenshots (requires `playwright install chromium`)
 - `img2pdf>=0.5.0` - PNG to PDF conversion
+- `Pillow>=10.0.0` - Image processing for empty space cropping
 
 **Usage:**
 ```python
 report_service = ReportService()
-html_content = report_service._generate_html_page(...)
-success = report_service.generate_pdf_full_page_screenshot(
-    html_content=html_content,
+success = report_service.generate_pdf_from_streamlit_tabs(
+    streamlit_url="http://localhost:8501",
     output_path="report.pdf",
+    tabs_config={
+        "Overview": True,
+        "Performance": True,  # Will screenshot all 3 sub-tabs
+        "Risk": True,  # Will screenshot all 4 sub-tabs
+        "Assets & Correlations": False,
+    },
     viewport_width=1920,
-    viewport_height=1080
+    viewport_height=1080,  # Initial height, will expand dynamically
+    wait_timeout=5000
 )
 ```
 
 **Integration:**
-- Works with existing `_generate_html_page()` method
-- Can be used as alternative to `generate_pdf_tearsheet()` and `generate_pdf_screenshot_style()`
-- Suitable for generating PDFs that exactly match the visual appearance of the HTML page
+- Integrated in `streamlit_app/pages/portfolio_analysis.py`:
+  - New "Export & Reports" tab added to main tabs
+  - UI for selecting tabs to include in PDF
+  - Viewport width/height configuration
+  - Download button for generated PDF
+- Works independently of HTML generation methods
+- Suitable for generating PDFs that exactly match the visual appearance of the Streamlit application
+
+**Technical Implementation Details:**
+- **Subprocess Execution**: Playwright runs in separate Python process to avoid `NotImplementedError` on Windows with Python 3.13
+- **Tab Structure Mapping**: Hardcoded mapping of tab names to indices and sub-tab structures
+- **Content Loading**: Waits for network idle, images, and charts to fully load before screenshot
+- **UI Element Hiding**: Hides Streamlit header and sidebar for cleaner screenshots
+- **Viewport Management**: 
+  - Initial viewport set to 10000px height to allow full rendering
+  - Dynamically adjusted to match actual page scroll height + padding
+  - Adjusted before each screenshot to ensure full content capture
+- **Empty Space Detection**: Scans bottom-up for last row with non-white pixels, crops with 50px padding
 
 **Architecture Maintained:**
-- ✅ Separation of Concerns (HTML generation → Screenshot → PDF conversion)
-- ✅ Error handling and logging
-- ✅ Resource cleanup (temporary files)
-- ✅ DRY principles (reuses existing HTML generation)
+- ✅ Separation of Concerns (Screenshot capture → Image processing → PDF conversion)
+- ✅ Error handling and logging (with safe Unicode encoding for Windows)
+- ✅ Resource cleanup (temporary files and directories)
+- ✅ DRY principles (reusable screenshot logic)
+
+#### Update 2025-01-27: Dashboard Redesign - Market Data Focus
+
+**Dashboard Redesign** - Changed from portfolio overview to market data dashboard:
+
+**New Components**:
+- ✅ `streamlit_app/components/market_index_card.py` - Card component for displaying market indices (S&P 500, NASDAQ, Dow Jones, Russell 2000) with current price, daily change, and percentage change
+- ✅ `streamlit_app/components/market_indices_chart.py` - Interactive Plotly chart comparing multiple market indices with normalized values (base = 100), supports multiple time periods (1D, 5D, 1M, 3M, 6M, 1Y)
+- ✅ `streamlit_app/components/market_stats.py` - Market statistics component displaying VIX level, market status, top gainers/losers
+
+**New Utilities**:
+- ✅ `streamlit_app/utils/market_data.py` - Utility functions for fetching market index data including current prices and daily changes using yfinance
+
+**Dashboard Page Updates**:
+- ✅ `streamlit_app/pages/dashboard.py` - Complete redesign:
+  - **Navigation Section**: Quick navigation buttons to all major pages (Portfolio List, Create Portfolio, Analysis, Optimization, Risk Analysis, Forecasting)
+  - **Market Indices Section**: 4 index cards (S&P 500, NASDAQ, Dow Jones, Russell 2000) with real-time prices and changes
+  - **Indices Comparison Chart**: Interactive Plotly chart with period selector (1D to 1Y)
+  - **Market Statistics**: VIX level, market status indicator, top gainers/losers tables
+  - Removed portfolio-specific content (moved to Portfolio List page)
+
+**Key Features**:
+- Real-time market data fetching via yfinance
+- Color-coded index cards (green for positive, red for negative changes)
+- Interactive chart with normalized values for easy comparison
+- Market statistics including VIX and top movers
+- Quick navigation to all application pages
+
+**Architecture Principles Maintained**:
+- ✅ Separation of Concerns (data fetching, UI components, page logic)
+- ✅ Reusable components for market data display
+- ✅ Error handling for missing data
+- ✅ Caching via DataService for performance
+- ✅ SOLID principles (single responsibility for each method)
+
+---
+
+#### Update 2025-01-27: Forecasting Page - Model Descriptions and Parameter Help
+
+**Feature:** Added detailed model descriptions and parameter help tooltips to Forecasting page
+
+**New Components:**
+- ✅ `MODEL_DESCRIPTIONS` dictionary - Detailed descriptions for all 11 forecasting models
+- ✅ `PARAMETER_HELP` dictionary - Help texts for all model parameters
+- ✅ `_render_label_with_help()` function - Renders label with help tooltip icon (matching native Streamlit style)
+
+**Model Descriptions Added:**
+1. **ARIMA** - AutoRegressive Integrated Moving Average (classical time series)
+2. **GARCH** - Generalized Autoregressive Conditional Heteroskedasticity (volatility forecasting)
+3. **ARIMA-GARCH** - Combined mean and volatility model
+4. **XGBoost** - Extreme Gradient Boosting (ML)
+5. **Random Forest** - Ensemble of decision trees (ML)
+6. **SVM/SVR** - Support Vector Regression (ML)
+7. **SSA-MAEMD-TCN** - Hybrid decomposition + deep learning
+8. **LSTM** - Long Short-Term Memory network (deep learning)
+9. **TCN** - Temporal Convolutional Network (deep learning)
+10. **Prophet** - Facebook's forecasting tool (simple)
+11. **Ensemble** - Weighted combination of models
+
+**Integration:**
+- Modified: `streamlit_app/pages/forecasting.py`
+  - Added model descriptions via `st.expander` when model is selected
+  - Added parameter help tooltips using custom `_render_label_with_help()` function
+  - Help tooltips use same style as metric cards (transparent circle, gray border, instant hover)
+
+**Features:**
+- **Model Descriptions**: Each model has expandable description with:
+  - How it works
+  - Best for scenarios
+  - Parameters explanation
+  - Limitations
+- **Parameter Help**: All parameters have help tooltips with:
+  - Brief explanation (1-2 lines)
+  - Typical values/ranges
+  - Impact on model performance
+- **Consistent UI**: Help tooltips match native Streamlit style (same as metric cards)
+
+**User Experience:**
+- Users can expand model description to understand the method
+- Parameter tooltips appear instantly on hover
+- Clear guidance for parameter selection
+- Better understanding of model capabilities and limitations
+
+**Interpretation Functions Added:**
+- ✅ `_interpret_forecast_comparison()` - Analyzes agreement, direction, best/worst forecasts, accuracy
+- ✅ `_interpret_individual_forecast()` - Analyzes direction, confidence intervals, accuracy for single method
+- ✅ `_interpret_residuals_analysis()` - Analyzes bias, variance, trends in model errors
+- ✅ `_interpret_forecast_quality()` - Analyzes overall quality metrics across all methods
+- ✅ `_interpret_method_ranking()` - Analyzes method performance differences
+- ✅ `_interpret_model_info()` - Analyzes model parameters, AIC/BIC, training time
+
+**Integration:**
+- All interpretation functions called after relevant charts/tables in results tabs:
+  - **Forecasts Comparison tab**: After comparison chart and table
+  - **Individual Forecasts tab**: After forecast chart and residuals chart
+  - **Forecast Quality tab**: After quality metrics table and method ranking
+  - **Detailed Analysis tab**: After model information display
 
 ---
 
