@@ -3,6 +3,7 @@
 import logging
 from datetime import date, timedelta
 from typing import Dict, List, Optional
+import html
 
 import streamlit as st
 import pandas as pd
@@ -22,6 +23,895 @@ from streamlit_app.components.forecast_charts import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# Model descriptions (detailed)
+MODEL_DESCRIPTIONS = {
+    "arima": {
+        "short": "ARIMA - AutoRegressive Integrated Moving Average",
+        "detailed": """
+**ARIMA Model**
+
+ARIMA (AutoRegressive Integrated Moving Average) is a classical time series forecasting method.
+
+**How it works:**
+- **AR (AutoRegressive)**: Uses past values to predict future values
+- **I (Integrated)**: Uses differencing to make time series stationary
+- **MA (Moving Average)**: Uses past forecast errors to improve predictions
+
+**Best for:**
+- Trend forecasting
+- Short to medium-term predictions
+- Stationary time series (after differencing)
+
+**Parameters:**
+- **p (AR order)**: Number of lag observations in the model
+- **d (Differencing)**: Number of times data is differenced to achieve stationarity
+- **q (MA order)**: Size of moving average window
+
+**Limitations:**
+- Assumes linear relationships
+- Requires stationary data
+- May not capture complex patterns
+"""
+    },
+    "garch": {
+        "short": "GARCH - Generalized Autoregressive Conditional Heteroskedasticity",
+        "detailed": """
+**GARCH Model**
+
+GARCH models volatility (variance) of returns, not the returns themselves.
+
+**How it works:**
+- Models how volatility changes over time
+- Captures volatility clustering (high volatility followed by high volatility)
+- Useful for risk management and option pricing
+
+**Best for:**
+- Volatility forecasting
+- Risk management
+- Understanding market uncertainty
+
+**Parameters:**
+- **p (GARCH lag order)**: Number of lagged variance terms
+- **q (ARCH lag order)**: Number of lagged squared error terms
+
+**Limitations:**
+- Only forecasts volatility, not returns
+- Assumes symmetric volatility response
+"""
+    },
+    "arima_garch": {
+        "short": "ARIMA-GARCH - Combined mean and volatility model",
+        "detailed": """
+**ARIMA-GARCH Model**
+
+Combines ARIMA for mean returns with GARCH for volatility forecasting.
+
+**How it works:**
+- ARIMA component forecasts expected returns
+- GARCH component forecasts volatility (risk)
+- Provides both return and risk predictions
+
+**Best for:**
+- Comprehensive forecasting (returns + risk)
+- Risk-adjusted predictions
+- Portfolio optimization
+
+**Parameters:**
+- **ARIMA parameters**: Same as ARIMA model (p, d, q)
+- **GARCH parameters**: Same as GARCH model (p, q)
+
+**Limitations:**
+- More complex than individual models
+- Requires more data
+- Longer training time
+"""
+    },
+    "xgboost": {
+        "short": "XGBoost - Extreme Gradient Boosting",
+        "detailed": """
+**XGBoost Model**
+
+Advanced machine learning method using gradient boosting with decision trees.
+
+**How it works:**
+- Builds ensemble of decision trees sequentially
+- Each tree corrects errors of previous trees
+- Uses gradient descent optimization
+- Can include technical indicators as features
+
+**Best for:**
+- High accuracy predictions
+- Capturing non-linear patterns
+- Medium to long-term forecasts
+
+**Parameters:**
+- **Number of Trees**: More trees = better accuracy but slower
+- **Max Depth**: Deeper trees = more complex patterns
+- **Learning Rate**: Lower = more conservative learning
+- **Technical Indicators**: Include RSI, MACD, moving averages
+
+**Limitations:**
+- Requires more data than classical methods
+- Can overfit with small datasets
+- Longer training time
+"""
+    },
+    "random_forest": {
+        "short": "Random Forest - Ensemble of decision trees",
+        "detailed": """
+**Random Forest Model**
+
+Ensemble method using multiple decision trees with random sampling.
+
+**How it works:**
+- Builds many decision trees independently
+- Each tree uses random subset of data/features
+- Final prediction is average of all trees
+- Reduces overfitting through diversity
+
+**Best for:**
+- Robust predictions
+- Handling non-linear relationships
+- Medium-term forecasts
+
+**Parameters:**
+- **Number of Trees**: More trees = more stable but slower
+- **Max Depth**: Controls tree complexity
+
+**Limitations:**
+- Less interpretable than single models
+- May not capture temporal dependencies well
+- Requires more data
+"""
+    },
+    "svm": {
+        "short": "SVM/SVR - Support Vector Regression",
+        "detailed": """
+**SVM/SVR Model**
+
+Support Vector Machine for regression, finds optimal hyperplane for prediction.
+
+**How it works:**
+- Maps data to higher-dimensional space
+- Finds hyperplane that best fits data
+- Uses kernel functions for non-linear patterns
+- Focuses on support vectors (critical data points)
+
+**Best for:**
+- Non-linear pattern recognition
+- Small to medium datasets
+- Complex relationships
+
+**Parameters:**
+- **C (Regularization)**: Higher = fit data more closely
+- **Epsilon (Tolerance)**: Margin of error allowed
+- **Kernel**: Type of transformation (RBF, linear, polynomial)
+
+**Limitations:**
+- Can be slow with large datasets
+- Sensitive to parameter tuning
+- Less intuitive than tree-based methods
+"""
+    },
+    "ssa_maemd_tcn": {
+        "short": "SSA-MAEMD-TCN - Hybrid decomposition + deep learning",
+        "detailed": """
+**SSA-MAEMD-TCN Model**
+
+Advanced hybrid model combining signal decomposition with deep learning.
+
+**How it works:**
+- **SSA (Singular Spectrum Analysis)**: Denoises time series
+- **MAEMD (Modified Adaptive Empirical Mode Decomposition)**: Decomposes into components
+- **TCN (Temporal Convolutional Network)**: Forecasts each component
+- Recombines component forecasts
+
+**Best for:**
+- Complex, noisy time series
+- Long-term forecasting
+- High accuracy requirements
+
+**Parameters:**
+- Model-specific parameters (handled internally)
+
+**Limitations:**
+- Requires PyEMD library
+- Very computationally intensive
+- Long training time
+- Requires large datasets
+"""
+    },
+    "lstm": {
+        "short": "LSTM - Long Short-Term Memory network",
+        "detailed": """
+**LSTM Model**
+
+Deep learning recurrent neural network designed for sequential data.
+
+**How it works:**
+- Uses memory cells to remember long-term patterns
+- Processes sequences step by step
+- Can capture complex temporal dependencies
+- Learns from historical patterns
+
+**Best for:**
+- Long-term dependencies
+- Complex temporal patterns
+- Non-linear relationships
+
+**Parameters:**
+- Model-specific parameters (handled internally)
+
+**Limitations:**
+- Requires large datasets
+- Long training time
+- Computationally intensive
+- Can overfit with small data
+"""
+    },
+    "tcn": {
+        "short": "TCN - Temporal Convolutional Network",
+        "detailed": """
+**TCN Model**
+
+Deep learning model using dilated convolutions for time series.
+
+**How it works:**
+- Uses causal convolutions (no future data leakage)
+- Dilated convolutions capture long-range dependencies
+- More efficient than RNNs
+- Parallel processing capability
+
+**Best for:**
+- Efficient time series forecasting
+- Long-term dependencies
+- Fast training
+
+**Parameters:**
+- Model-specific parameters (handled internally)
+
+**Limitations:**
+- Requires large datasets
+- Less interpretable than classical methods
+- May need careful architecture tuning
+"""
+    },
+    "prophet": {
+        "short": "Prophet - Facebook's forecasting tool",
+        "detailed": """
+**Prophet Model**
+
+Fast, simple forecasting tool developed by Facebook (Meta).
+
+**How it works:**
+- Decomposes time series into trend, seasonality, holidays
+- Handles missing data and outliers automatically
+- Additive model with customizable components
+- Designed for business time series
+
+**Best for:**
+- Fast forecasting
+- Seasonal patterns
+- Business time series
+- Quick prototyping
+
+**Parameters:**
+- **Growth Model**: Linear or logistic growth
+- **Seasonality**: Include seasonal patterns
+- **Holidays**: Include holiday effects (US)
+
+**Limitations:**
+- Less flexible than ML methods
+- Assumes additive components
+- May not capture complex patterns
+"""
+    },
+    "ensemble": {
+        "short": "Ensemble - Weighted combination of models",
+        "detailed": """
+**Ensemble Model**
+
+Combines predictions from multiple models using optimized weights.
+
+**How it works:**
+- Runs multiple forecasting methods
+- Calculates weights based on validation performance (MAPE)
+- Combines predictions: weighted average
+- More robust than individual models
+
+**Best for:**
+- Improved accuracy
+- Reduced prediction variance
+- Robust forecasts
+- Combining strengths of different methods
+
+**Parameters:**
+- Select which models to include
+- Weights optimized automatically based on MAPE
+
+**Limitations:**
+- Requires multiple models to run
+- More computation time
+- Less interpretable than single models
+"""
+    },
+}
+
+# Parameter help texts
+PARAMETER_HELP = {
+    "arima": {
+        "p": "AR order: Number of past values used to predict future. Higher p captures more history but may overfit.",
+        "d": "Differencing order: Number of times to difference data to make it stationary. Usually 0, 1, or 2.",
+        "q": "MA order: Number of past forecast errors used. Higher q captures more error patterns.",
+        "auto": "Auto ARIMA: Automatically selects best (p,d,q) parameters using AIC/BIC criteria."
+    },
+    "garch": {
+        "p": "GARCH p: Number of lagged variance terms. Higher p captures more volatility persistence.",
+        "q": "GARCH q: Number of lagged squared error terms. Higher q captures more ARCH effects."
+    },
+    "arima_garch": {
+        "arima_p": "ARIMA AR order: Number of past return values used in ARIMA component.",
+        "arima_d": "ARIMA differencing: Number of times to difference returns for stationarity.",
+        "arima_q": "ARIMA MA order: Number of past forecast errors in ARIMA component.",
+        "garch_p": "GARCH p: Number of lagged variance terms in GARCH component.",
+        "garch_q": "GARCH q: Number of lagged squared error terms in GARCH component.",
+        "auto_arima": "Auto ARIMA: Automatically selects best ARIMA parameters."
+    },
+    "xgboost": {
+        "n_estimators": "Number of trees: More trees improve accuracy but increase training time. 100-500 is typical.",
+        "max_depth": "Max depth: Maximum depth of each tree. Deeper trees capture more patterns but may overfit.",
+        "learning_rate": "Learning rate: Step size for each boosting iteration. Lower = more conservative, higher = faster learning.",
+        "use_technical_features": "Technical indicators: Include RSI, MACD, moving averages as features for better predictions."
+    },
+    "random_forest": {
+        "n_estimators": "Number of trees: More trees = more stable predictions but slower training. 50-300 is typical.",
+        "max_depth": "Max depth: Maximum depth of each tree. Controls complexity and overfitting risk."
+    },
+    "svm": {
+        "C": "Regularization: Higher C fits data more closely but may overfit. Lower C is more conservative.",
+        "epsilon": "Tolerance: Margin of error allowed. Larger epsilon = more tolerance for errors.",
+        "kernel": "Kernel type: RBF (non-linear), linear, polynomial, or sigmoid transformation."
+    },
+    "prophet": {
+        "growth": "Growth model: Linear (constant growth rate) or logistic (saturating growth).",
+        "seasonality": "Seasonality: Include weekly, monthly, yearly seasonal patterns.",
+        "holidays": "Holidays: Include US holiday effects on predictions."
+    },
+}
+
+
+def _render_label_with_help(label: str, help_text: str) -> None:
+    """Render a label with help tooltip icon."""
+    if not help_text:
+        st.markdown(f"**{label}**")
+        return
+    
+    # Escape HTML
+    escaped_help = html.escape(help_text)
+    
+    # Add global CSS for tooltip (only once per session)
+    if '_forecast_help_tooltip_css' not in st.session_state:
+        st.markdown(
+            '''
+            <style>
+            .st-forecast-help-icon {
+                cursor: help;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background-color: transparent;
+                border: 1px solid #808495;
+                color: #808495;
+                font-size: 11px;
+                font-weight: 600;
+                margin-left: 4px;
+                vertical-align: middle;
+                line-height: 1;
+                position: relative;
+                user-select: none;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+            }
+            .st-forecast-help-icon::after {
+                content: attr(data-tooltip);
+                visibility: hidden;
+                opacity: 0;
+                position: absolute;
+                bottom: 125%;
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: #1A1E29;
+                color: #D1D4DC;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 12px;
+                z-index: 1000;
+                white-space: nowrap;
+                text-align: left;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                pointer-events: none;
+                transition: opacity 0.05s ease-in;
+            }
+            .st-forecast-help-icon::before {
+                content: '';
+                position: absolute;
+                bottom: 115%;
+                left: 50%;
+                transform: translateX(-50%);
+                border: 5px solid transparent;
+                border-top-color: #1A1E29;
+                visibility: hidden;
+                opacity: 0;
+                transition: opacity 0.05s ease-in;
+            }
+            .st-forecast-help-icon:hover::after,
+            .st-forecast-help-icon:hover::before {
+                visibility: visible;
+                opacity: 1;
+            }
+            </style>
+            ''',
+            unsafe_allow_html=True
+        )
+        st.session_state._forecast_help_tooltip_css = True
+    
+    # Render label with help icon
+    st.markdown(
+        f'<div style="margin-bottom: 0.25rem;">'
+        f'<strong>{label}</strong> '
+        f'<span class="st-forecast-help-icon" '
+        f'data-tooltip="{escaped_help}" '
+        f'style="cursor: help; display: inline-flex; align-items: center; '
+        f'justify-content: center; width: 16px; height: 16px; '
+        f'border-radius: 50%; background-color: transparent; '
+        f'border: 1px solid #808495; color: #808495; font-size: 11px; '
+        f'font-weight: 600; margin-left: 4px; vertical-align: middle; '
+        f'line-height: 1; position: relative; user-select: none;">?</span></div>',
+        unsafe_allow_html=True
+    )
+
+
+def _interpret_forecast_comparison(
+    forecasts: Dict[str, Dict],
+    comparison_data: List[Dict],
+    historical_values: Optional[np.ndarray] = None,
+) -> str:
+    """Interpret forecast comparison chart and table."""
+    if not forecasts or not comparison_data:
+        return ""
+    
+    parts = []
+    parts.append("Forecast Comparison Analysis:")
+    
+    # Count methods
+    num_methods = len(comparison_data)
+    parts.append(f"Comparing {num_methods} forecasting method(s)")
+    
+    # Extract final values and changes
+    final_values = []
+    changes = []
+    method_names = []
+    
+    for row in comparison_data:
+        try:
+            method_name = row.get("Method", "Unknown")
+            final_val_str = row.get("Forecast Value", "$0.00").replace("$", "").replace(",", "")
+            change_str = row.get("Change %", "0%").replace("%", "")
+            
+            final_val = float(final_val_str) if final_val_str else 0.0
+            change = float(change_str) if change_str else 0.0
+            
+            final_values.append(final_val)
+            changes.append(change)
+            method_names.append(method_name)
+        except (ValueError, TypeError):
+            continue
+    
+    if not final_values:
+        return ""
+    
+    # Agreement analysis
+    if len(final_values) > 1:
+        final_std = np.std(final_values)
+        final_mean = np.mean(final_values)
+        cv = final_std / abs(final_mean) if final_mean != 0 else 0
+        
+        if cv < 0.05:
+            parts.append(f"High agreement: Forecasts are very similar (CV: {cv:.1%}) - Methods agree on direction and magnitude")
+        elif cv < 0.15:
+            parts.append(f"Moderate agreement: Some variation in forecasts (CV: {cv:.1%}) - Methods generally agree")
+        else:
+            parts.append(f"⚠ Low agreement: Significant variation in forecasts (CV: {cv:.1%}) - Methods disagree, consider ensemble")
+    
+    # Direction analysis
+    positive_changes = [c for c in changes if c > 0]
+    negative_changes = [c for c in changes if c < 0]
+    
+    if len(positive_changes) > len(negative_changes):
+        parts.append(f"Most methods ({len(positive_changes)}/{num_methods}) predict price increase")
+    elif len(negative_changes) > len(positive_changes):
+        parts.append(f"Most methods ({len(negative_changes)}/{num_methods}) predict price decrease")
+    else:
+        parts.append(f"Mixed predictions: {len(positive_changes)} positive, {len(negative_changes)} negative")
+    
+    # Best/worst forecast
+    if final_values:
+        best_idx = np.argmax(final_values)
+        worst_idx = np.argmin(final_values)
+        best_method = method_names[best_idx] if best_idx < len(method_names) else "Unknown"
+        worst_method = method_names[worst_idx] if worst_idx < len(method_names) else "Unknown"
+        
+        parts.append(f"Highest forecast: {best_method} (${final_values[best_idx]:,.2f}, {changes[best_idx]:+.2f}%)")
+        parts.append(f"Lowest forecast: {worst_method} (${final_values[worst_idx]:,.2f}, {changes[worst_idx]:+.2f}%)")
+    
+    # Quality metrics if available
+    mape_values = []
+    for row in comparison_data:
+        mape_str = row.get("MAPE", "N/A")
+        if mape_str != "N/A":
+            try:
+                mape_val = float(mape_str.replace("%", ""))
+                if np.isfinite(mape_val):
+                    mape_values.append((row.get("Method", "Unknown"), mape_val))
+            except (ValueError, TypeError):
+                pass
+    
+    if mape_values:
+        best_mape = min(mape_values, key=lambda x: x[1])
+        parts.append(f"Best accuracy (lowest MAPE): {best_mape[0]} ({best_mape[1]:.2f}%)")
+    
+    return "\n".join(parts)
+
+
+def _interpret_individual_forecast(
+    forecast_data: Dict,
+    method_name: str,
+    historical_values: Optional[np.ndarray] = None,
+) -> str:
+    """Interpret individual forecast chart."""
+    if not forecast_data:
+        return ""
+    
+    parts = []
+    parts.append(f"{method_name} Forecast Analysis:")
+    
+    # Final value and change
+    final_value = forecast_data.get("final_value", 0)
+    change_pct = forecast_data.get("change_pct", 0)
+    
+    try:
+        final_value = float(final_value) if final_value is not None else 0.0
+        change_pct = float(change_pct) if change_pct is not None else 0.0
+    except (ValueError, TypeError):
+        final_value = 0.0
+        change_pct = 0.0
+    
+    if historical_values is not None and len(historical_values) > 0:
+        current_value = float(historical_values[-1]) if np.isfinite(historical_values[-1]) else 0.0
+        if current_value > 0:
+            parts.append(f"Current value: ${current_value:,.2f} → Forecast: ${final_value:,.2f} ({change_pct:+.2f}% change)")
+    
+    # Direction assessment
+    if change_pct > 5:
+        parts.append(f"Strong upward forecast: Expected increase of {change_pct:.2f}%")
+    elif change_pct > 0:
+        parts.append(f"Moderate upward forecast: Expected increase of {change_pct:.2f}%")
+    elif change_pct < -5:
+        parts.append(f"⚠ Strong downward forecast: Expected decrease of {abs(change_pct):.2f}%")
+    elif change_pct < 0:
+        parts.append(f"Moderate downward forecast: Expected decrease of {abs(change_pct):.2f}%")
+    else:
+        parts.append(f"Neutral forecast: Minimal expected change ({change_pct:.2f}%)")
+    
+    # Confidence intervals
+    ci = forecast_data.get("confidence_intervals")
+    if ci and isinstance(ci, dict):
+        # Try to find upper/lower bounds
+        upper_key = None
+        lower_key = None
+        for key in ci.keys():
+            if "upper" in key.lower() and "95" in key:
+                upper_key = key
+            if "lower" in key.lower() and "95" in key:
+                lower_key = key
+        
+        if upper_key and lower_key:
+            try:
+                upper = float(ci[upper_key]) if isinstance(ci[upper_key], (int, float)) else 0.0
+                lower = float(ci[lower_key]) if isinstance(ci[lower_key], (int, float)) else 0.0
+                if upper > 0 and lower > 0:
+                    ci_range = ((upper - lower) / final_value) * 100 if final_value > 0 else 0
+                    if ci_range > 20:
+                        parts.append(f"Wide confidence interval ({ci_range:.1f}% range) - High forecast uncertainty")
+                    elif ci_range > 10:
+                        parts.append(f"Moderate confidence interval ({ci_range:.1f}% range) - Some forecast uncertainty")
+                    else:
+                        parts.append(f"Narrow confidence interval ({ci_range:.1f}% range) - Relatively confident forecast")
+            except (ValueError, TypeError):
+                pass
+    
+    # Quality metrics
+    validation_metrics = forecast_data.get("validation_metrics")
+    if validation_metrics and isinstance(validation_metrics, dict):
+        mape = validation_metrics.get("mape", np.nan)
+        try:
+            mape = float(mape) if mape is not None else np.nan
+            if np.isfinite(mape):
+                if mape < 5:
+                    parts.append(f"Excellent accuracy: MAPE {mape:.2f}% - Very reliable forecast")
+                elif mape < 10:
+                    parts.append(f"Good accuracy: MAPE {mape:.2f}% - Reliable forecast")
+                elif mape < 20:
+                    parts.append(f"Moderate accuracy: MAPE {mape:.2f}% - Some forecast uncertainty")
+                else:
+                    parts.append(f"⚠ Low accuracy: MAPE {mape:.2f}% - High forecast uncertainty")
+        except (ValueError, TypeError):
+            pass
+    
+    return "\n".join(parts)
+
+
+def _interpret_residuals_analysis(residuals: np.ndarray, method_name: str) -> str:
+    """Interpret residuals analysis."""
+    if residuals is None or len(residuals) == 0:
+        return ""
+    
+    parts = []
+    parts.append(f"Residuals Analysis ({method_name}):")
+    
+    # Basic statistics
+    mean_residual = np.mean(residuals)
+    std_residual = np.std(residuals)
+    
+    parts.append(f"Mean residual: {mean_residual:.4f} (should be close to 0)")
+    parts.append(f"Std deviation: {std_residual:.4f}")
+    
+    # Bias check
+    if abs(mean_residual) > std_residual * 0.5:
+        if mean_residual > 0:
+            parts.append(f"⚠ Positive bias: Model tends to overestimate (mean: {mean_residual:.4f})")
+        else:
+            parts.append(f"⚠ Negative bias: Model tends to underestimate (mean: {mean_residual:.4f})")
+    else:
+        parts.append("No significant bias: Mean residual close to zero - Model is unbiased")
+    
+    # Variance check (heteroscedasticity)
+    if len(residuals) > 10:
+        first_half_std = np.std(residuals[:len(residuals)//2])
+        second_half_std = np.std(residuals[len(residuals)//2:])
+        if first_half_std > 0:
+            variance_ratio = second_half_std / first_half_std
+            if variance_ratio > 1.5:
+                parts.append(f"⚠ Increasing variance: Residuals become more variable over time - Possible heteroscedasticity")
+            elif variance_ratio < 0.67:
+                parts.append(f"Decreasing variance: Residuals become less variable over time")
+            else:
+                parts.append("Constant variance: Residuals show stable variance - Good model fit")
+    
+    # Pattern check (simplified)
+    if len(residuals) > 5:
+        # Check for trend
+        x = np.arange(len(residuals))
+        trend_coef = np.polyfit(x, residuals, 1)[0]
+        if abs(trend_coef) > std_residual * 0.1:
+            if trend_coef > 0:
+                parts.append(f"⚠ Upward trend in residuals: Model errors increasing over time")
+            else:
+                parts.append(f"⚠ Downward trend in residuals: Model errors decreasing over time")
+        else:
+            parts.append("No trend: Residuals are randomly distributed - Good model fit")
+    
+    return "\n".join(parts)
+
+
+def _interpret_forecast_quality(
+    quality_df: pd.DataFrame,
+    forecasts: Dict[str, Dict],
+) -> str:
+    """Interpret forecast quality metrics."""
+    if quality_df is None or quality_df.empty:
+        return ""
+    
+    parts = []
+    parts.append("Forecast Quality Analysis:")
+    
+    num_methods = len(quality_df)
+    parts.append(f"Evaluating {num_methods} forecasting method(s)")
+    
+    # Extract numeric metrics
+    def safe_parse_metric(series, remove_chars=""):
+        """Safely parse metric series."""
+        result = []
+        for val in series:
+            if val == "N/A" or pd.isna(val):
+                result.append(np.nan)
+            else:
+                try:
+                    cleaned = str(val)
+                    for char in remove_chars:
+                        cleaned = cleaned.replace(char, "")
+                    result.append(float(cleaned))
+                except (ValueError, TypeError):
+                    result.append(np.nan)
+        return pd.Series(result)
+    
+    mape_series = safe_parse_metric(quality_df["MAPE"], "%")
+    rmse_series = safe_parse_metric(quality_df["RMSE"], "$")
+    dir_series = safe_parse_metric(quality_df["Direction Accuracy"], "%")
+    r2_series = safe_parse_metric(quality_df["R²"], "")
+    
+    # Best methods
+    valid_mape = mape_series.dropna()
+    if len(valid_mape) > 0:
+        best_mape_idx = valid_mape.idxmin()
+        best_mape_method = quality_df.iloc[best_mape_idx]["Method"]
+        best_mape_val = valid_mape.min()
+        parts.append(f"Best accuracy (MAPE): {best_mape_method} ({best_mape_val:.2f}%)")
+    
+    valid_dir = dir_series.dropna()
+    if len(valid_dir) > 0:
+        best_dir_idx = valid_dir.idxmax()
+        best_dir_method = quality_df.iloc[best_dir_idx]["Method"]
+        best_dir_val = valid_dir.max()
+        parts.append(f"Best direction accuracy: {best_dir_method} ({best_dir_val:.1f}%)")
+    
+    # Overall assessment
+    if len(valid_mape) > 0:
+        avg_mape = valid_mape.mean()
+        if avg_mape < 5:
+            parts.append(f"Excellent overall accuracy: Average MAPE {avg_mape:.2f}% - All methods perform well")
+        elif avg_mape < 10:
+            parts.append(f"Good overall accuracy: Average MAPE {avg_mape:.2f}% - Methods are reliable")
+        elif avg_mape < 20:
+            parts.append(f"Moderate overall accuracy: Average MAPE {avg_mape:.2f}% - Some forecast uncertainty")
+        else:
+            parts.append(f"⚠ Low overall accuracy: Average MAPE {avg_mape:.2f}% - High forecast uncertainty")
+    
+    # Agreement on direction
+    if len(valid_dir) > 0:
+        avg_dir = valid_dir.mean()
+        if avg_dir > 70:
+            parts.append(f"High direction accuracy: Average {avg_dir:.1f}% - Methods correctly predict price direction")
+        elif avg_dir > 55:
+            parts.append(f"Moderate direction accuracy: Average {avg_dir:.1f}% - Methods somewhat reliable for direction")
+        else:
+            parts.append(f"⚠ Low direction accuracy: Average {avg_dir:.1f}% - Methods struggle with direction prediction")
+    
+    # R² assessment
+    valid_r2 = r2_series.dropna()
+    if len(valid_r2) > 0:
+        avg_r2 = valid_r2.mean()
+        if avg_r2 > 0.8:
+            parts.append(f"Excellent fit: Average R² {avg_r2:.3f} - Models explain most variance")
+        elif avg_r2 > 0.5:
+            parts.append(f"Good fit: Average R² {avg_r2:.3f} - Models explain significant variance")
+        elif avg_r2 > 0:
+            parts.append(f"Moderate fit: Average R² {avg_r2:.3f} - Models explain some variance")
+        else:
+            parts.append(f"⚠ Poor fit: Average R² {avg_r2:.3f} - Models explain little variance")
+    
+    return "\n".join(parts)
+
+
+def _interpret_method_ranking(ranked_df: pd.DataFrame) -> str:
+    """Interpret overall method ranking."""
+    if ranked_df is None or ranked_df.empty:
+        return ""
+    
+    parts = []
+    parts.append("Method Ranking Analysis:")
+    
+    # Top method
+    if len(ranked_df) > 0:
+        top_method = ranked_df.iloc[0].get("Method", "Unknown")
+        top_score = ranked_df.iloc[0].get("score", 0.5)
+        try:
+            top_score = float(top_score) if top_score is not None else 0.5
+            if not np.isfinite(top_score):
+                top_score = 0.5
+            parts.append(f"Best overall method: {top_method} (Score: {top_score*100:.1f}%)")
+        except (ValueError, TypeError):
+            pass
+    
+    # Score distribution
+    scores = []
+    for _, row in ranked_df.iterrows():
+        try:
+            score = row.get("score", 0.5)
+            score = float(score) if score is not None else 0.5
+            if np.isfinite(score):
+                scores.append(score)
+        except (ValueError, TypeError):
+            pass
+    
+    if len(scores) > 1:
+        score_std = np.std(scores)
+        if score_std < 0.1:
+            parts.append("Methods perform similarly: Small score differences - All methods are competitive")
+        elif score_std < 0.2:
+            parts.append("Moderate performance differences: Some methods clearly better than others")
+        else:
+            parts.append("Large performance differences: Clear winner and losers - Consider using best method or ensemble")
+    
+    # Bottom method
+    if len(ranked_df) > 1:
+        bottom_method = ranked_df.iloc[-1].get("Method", "Unknown")
+        bottom_score = ranked_df.iloc[-1].get("score", 0.5)
+        try:
+            bottom_score = float(bottom_score) if bottom_score is not None else 0.5
+            if not np.isfinite(bottom_score):
+                bottom_score = 0.5
+            parts.append(f"Worst performing method: {bottom_method} (Score: {bottom_score*100:.1f}%)")
+        except (ValueError, TypeError):
+            pass
+    
+    return "\n".join(parts)
+
+
+def _interpret_model_info(model_info: Dict, method_name: str) -> str:
+    """Interpret model information and parameters."""
+    if not model_info:
+        return ""
+    
+    parts = []
+    parts.append(f"Model Information Analysis ({method_name}):")
+    
+    # ARIMA order
+    if "order" in model_info and model_info["order"] is not None:
+        try:
+            order = model_info["order"]
+            parts.append(f"ARIMA order: {order} - Model structure selected")
+        except Exception:
+            pass
+    
+    # AIC/BIC
+    aic = model_info.get("aic")
+    bic = model_info.get("bic")
+    
+    if aic is not None:
+        try:
+            aic_val = float(aic)
+            if np.isfinite(aic_val):
+                parts.append(f"AIC: {aic_val:.2f} - Lower is better (model fit vs complexity trade-off)")
+        except (ValueError, TypeError):
+            pass
+    
+    if bic is not None:
+        try:
+            bic_val = float(bic)
+            if np.isfinite(bic_val):
+                parts.append(f"BIC: {bic_val:.2f} - Lower is better (stronger penalty for complexity than AIC)")
+        except (ValueError, TypeError):
+            pass
+    
+    # Training time
+    training_time = model_info.get("training_time")
+    if training_time is not None:
+        try:
+            time_val = float(training_time)
+            if np.isfinite(time_val) and time_val >= 0:
+                if time_val < 1:
+                    parts.append(f"Fast training: {time_val:.2f}s - Efficient model")
+                elif time_val < 10:
+                    parts.append(f"Moderate training time: {time_val:.2f}s")
+                else:
+                    parts.append(f"Long training time: {time_val:.2f}s - Computationally intensive model")
+        except (ValueError, TypeError):
+            pass
+    
+    # Auto parameters
+    if "auto" in model_info:
+        auto_val = model_info.get("auto")
+        if auto_val:
+            parts.append("Auto parameters: Enabled - Model automatically selected optimal parameters")
+    
+    return "\n".join(parts)
 
 
 def render_forecasting_page() -> None:
@@ -250,16 +1140,39 @@ def render_forecasting_page() -> None:
 
         if use_arima:
             selected_methods.append("arima")
+            
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("arima", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'ARIMA')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
             with st.expander("ARIMA Parameters", expanded=False):
                 auto_arima = st.checkbox(
                     "Auto ARIMA (auto-select best parameters)",
                     value=True,
                     key="arima_auto",
+                    help=PARAMETER_HELP.get("arima", {}).get("auto", ""),
                 )
                 if not auto_arima:
-                    arima_p = st.slider("p (AR order)", 0, 5, 1, key="arima_p")
-                    arima_d = st.slider("d (Differencing)", 0, 2, 1, key="arima_d")
-                    arima_q = st.slider("q (MA order)", 0, 5, 1, key="arima_q")
+                    _render_label_with_help(
+                        "p (AR order)",
+                        PARAMETER_HELP.get("arima", {}).get("p", "")
+                    )
+                    arima_p = st.slider("", 0, 5, 1, key="arima_p")
+                    
+                    _render_label_with_help(
+                        "d (Differencing)",
+                        PARAMETER_HELP.get("arima", {}).get("d", "")
+                    )
+                    arima_d = st.slider("", 0, 2, 1, key="arima_d")
+                    
+                    _render_label_with_help(
+                        "q (MA order)",
+                        PARAMETER_HELP.get("arima", {}).get("q", "")
+                    )
+                    arima_q = st.slider("", 0, 5, 1, key="arima_q")
+                    
                     method_params["arima"] = {
                         "auto": False,
                         "p": arima_p,
@@ -278,9 +1191,26 @@ def render_forecasting_page() -> None:
 
         if use_garch:
             selected_methods.append("garch")
+            
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("garch", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'GARCH')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
             with st.expander("GARCH Parameters", expanded=False):
-                garch_p = st.slider("GARCH p (lag order)", 1, 3, 1, key="garch_p")
-                garch_q = st.slider("GARCH q (lag order)", 1, 3, 1, key="garch_q")
+                _render_label_with_help(
+                    "GARCH p (lag order)",
+                    PARAMETER_HELP.get("garch", {}).get("p", "")
+                )
+                garch_p = st.slider("", 1, 3, 1, key="garch_p")
+                
+                _render_label_with_help(
+                    "GARCH q (lag order)",
+                    PARAMETER_HELP.get("garch", {}).get("q", "")
+                )
+                garch_q = st.slider("", 1, 3, 1, key="garch_q")
+                
                 method_params["garch"] = {
                     "p": garch_p,
                     "q": garch_q,
@@ -295,18 +1225,51 @@ def render_forecasting_page() -> None:
 
         if use_arima_garch:
             selected_methods.append("arima_garch")
+            
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("arima_garch", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'ARIMA-GARCH')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
             with st.expander("ARIMA-GARCH Parameters", expanded=False):
                 arima_garch_auto = st.checkbox(
                     "Auto ARIMA (auto-select best parameters)",
                     value=True,
                     key="arima_garch_auto",
+                    help=PARAMETER_HELP.get("arima_garch", {}).get("auto_arima", ""),
                 )
                 if not arima_garch_auto:
-                    arima_garch_p = st.slider("ARIMA p (AR order)", 0, 5, 1, key="arima_garch_p")
-                    arima_garch_d = st.slider("ARIMA d (Differencing)", 0, 2, 1, key="arima_garch_d")
-                    arima_garch_q = st.slider("ARIMA q (MA order)", 0, 5, 1, key="arima_garch_q")
-                    arima_garch_garch_p = st.slider("GARCH p (lag order)", 1, 3, 1, key="arima_garch_garch_p")
-                    arima_garch_garch_q = st.slider("GARCH q (lag order)", 1, 3, 1, key="arima_garch_garch_q")
+                    _render_label_with_help(
+                        "ARIMA p (AR order)",
+                        PARAMETER_HELP.get("arima_garch", {}).get("arima_p", "")
+                    )
+                    arima_garch_p = st.slider("", 0, 5, 1, key="arima_garch_p")
+                    
+                    _render_label_with_help(
+                        "ARIMA d (Differencing)",
+                        PARAMETER_HELP.get("arima_garch", {}).get("arima_d", "")
+                    )
+                    arima_garch_d = st.slider("", 0, 2, 1, key="arima_garch_d")
+                    
+                    _render_label_with_help(
+                        "ARIMA q (MA order)",
+                        PARAMETER_HELP.get("arima_garch", {}).get("arima_q", "")
+                    )
+                    arima_garch_q = st.slider("", 0, 5, 1, key="arima_garch_q")
+                    
+                    _render_label_with_help(
+                        "GARCH p (lag order)",
+                        PARAMETER_HELP.get("arima_garch", {}).get("garch_p", "")
+                    )
+                    arima_garch_garch_p = st.slider("", 1, 3, 1, key="arima_garch_garch_p")
+                    
+                    _render_label_with_help(
+                        "GARCH q (lag order)",
+                        PARAMETER_HELP.get("arima_garch", {}).get("garch_q", "")
+                    )
+                    arima_garch_garch_q = st.slider("", 1, 3, 1, key="arima_garch_garch_q")
+                    
                     method_params["arima_garch"] = {
                         "auto_arima": False,
                         "arima_p": arima_garch_p,
@@ -316,8 +1279,18 @@ def render_forecasting_page() -> None:
                         "garch_q": arima_garch_garch_q,
                     }
                 else:
-                    arima_garch_garch_p = st.slider("GARCH p (lag order)", 1, 3, 1, key="arima_garch_garch_p_auto")
-                    arima_garch_garch_q = st.slider("GARCH q (lag order)", 1, 3, 1, key="arima_garch_garch_q_auto")
+                    _render_label_with_help(
+                        "GARCH p (lag order)",
+                        PARAMETER_HELP.get("arima_garch", {}).get("garch_p", "")
+                    )
+                    arima_garch_garch_p = st.slider("", 1, 3, 1, key="arima_garch_garch_p_auto")
+                    
+                    _render_label_with_help(
+                        "GARCH q (lag order)",
+                        PARAMETER_HELP.get("arima_garch", {}).get("garch_q", "")
+                    )
+                    arima_garch_garch_q = st.slider("", 1, 3, 1, key="arima_garch_garch_q_auto")
+                    
                     method_params["arima_garch"] = {
                         "auto_arima": True,
                         "garch_p": arima_garch_garch_p,
@@ -337,16 +1310,35 @@ def render_forecasting_page() -> None:
 
         if use_xgboost:
             selected_methods.append("xgboost")
+            
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("xgboost", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'XGBoost')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
             with st.expander("XGBoost Parameters", expanded=False):
-                xgb_n_estimators = st.slider(
-                    "Number of Trees", 50, 500, 100, key="xgb_n_estimators"
+                _render_label_with_help(
+                    "Number of Trees",
+                    PARAMETER_HELP.get("xgboost", {}).get("n_estimators", "")
                 )
-                xgb_max_depth = st.slider("Max Depth", 3, 10, 6, key="xgb_max_depth")
-                xgb_learning_rate = st.slider(
-                    "Learning Rate", 0.01, 0.3, 0.1, key="xgb_learning_rate"
+                xgb_n_estimators = st.slider("", 50, 500, 100, key="xgb_n_estimators")
+                
+                _render_label_with_help(
+                    "Max Depth",
+                    PARAMETER_HELP.get("xgboost", {}).get("max_depth", "")
                 )
+                xgb_max_depth = st.slider("", 3, 10, 6, key="xgb_max_depth")
+                
+                _render_label_with_help(
+                    "Learning Rate",
+                    PARAMETER_HELP.get("xgboost", {}).get("learning_rate", "")
+                )
+                xgb_learning_rate = st.slider("", 0.01, 0.3, 0.1, key="xgb_learning_rate")
+                
                 use_technical_features = st.checkbox(
-                    "Include Technical Indicators", True, key="xgb_technical"
+                    "Include Technical Indicators", True, key="xgb_technical",
+                    help=PARAMETER_HELP.get("xgboost", {}).get("use_technical_features", "")
                 )
                 method_params["xgboost"] = {
                     "n_estimators": xgb_n_estimators,
@@ -364,11 +1356,26 @@ def render_forecasting_page() -> None:
 
         if use_random_forest:
             selected_methods.append("random_forest")
+            
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("random_forest", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'Random Forest')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
             with st.expander("Random Forest Parameters", expanded=False):
-                rf_n_estimators = st.slider(
-                    "Number of Trees", 50, 300, 100, key="rf_n_estimators"
+                _render_label_with_help(
+                    "Number of Trees",
+                    PARAMETER_HELP.get("random_forest", {}).get("n_estimators", "")
                 )
-                rf_max_depth = st.slider("Max Depth", 5, 20, 10, key="rf_max_depth")
+                rf_n_estimators = st.slider("", 50, 300, 100, key="rf_n_estimators")
+                
+                _render_label_with_help(
+                    "Max Depth",
+                    PARAMETER_HELP.get("random_forest", {}).get("max_depth", "")
+                )
+                rf_max_depth = st.slider("", 5, 20, 10, key="rf_max_depth")
+                
                 method_params["random_forest"] = {
                     "n_estimators": rf_n_estimators,
                     "max_depth": rf_max_depth,
@@ -383,11 +1390,32 @@ def render_forecasting_page() -> None:
 
         if use_svm:
             selected_methods.append("svm")
+            
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("svm", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'SVM/SVR')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
             with st.expander("SVM Parameters", expanded=False):
-                svm_c = st.slider("C (Regularization)", 0.1, 100.0, 1.0, key="svm_c")
-                svm_epsilon = st.slider("Epsilon (Tolerance)", 0.001, 0.1, 0.01, key="svm_epsilon")
-                svm_kernel = st.selectbox(
+                _render_label_with_help(
+                    "C (Regularization)",
+                    PARAMETER_HELP.get("svm", {}).get("C", "")
+                )
+                svm_c = st.slider("", 0.1, 100.0, 1.0, key="svm_c")
+                
+                _render_label_with_help(
+                    "Epsilon (Tolerance)",
+                    PARAMETER_HELP.get("svm", {}).get("epsilon", "")
+                )
+                svm_epsilon = st.slider("", 0.001, 0.1, 0.01, key="svm_epsilon")
+                
+                _render_label_with_help(
                     "Kernel",
+                    PARAMETER_HELP.get("svm", {}).get("kernel", "")
+                )
+                svm_kernel = st.selectbox(
+                    "",
                     ["rbf", "linear", "poly", "sigmoid"],
                     index=0,
                     key="svm_kernel",
@@ -412,6 +1440,13 @@ def render_forecasting_page() -> None:
 
         if use_ssa_maemd_tcn:
             selected_methods.append("ssa_maemd_tcn")
+            
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("ssa_maemd_tcn", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'SSA-MAEMD-TCN')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
             st.info(
                 "SSA-MAEMD-TCN: Advanced hybrid model combining decomposition "
                 "and deep learning. Requires PyEMD library (pip install PyEMD)."
@@ -427,6 +1462,12 @@ def render_forecasting_page() -> None:
         if use_lstm:
             selected_methods.append("lstm")
             
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("lstm", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'LSTM')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
         use_tcn = st.checkbox(
             "TCN",
             value=False,
@@ -436,6 +1477,12 @@ def render_forecasting_page() -> None:
 
         if use_tcn:
             selected_methods.append("tcn")
+            
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("tcn", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'TCN')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
 
     # Simple tab
     with method_categories[3]:
@@ -450,17 +1497,32 @@ def render_forecasting_page() -> None:
 
         if use_prophet:
             selected_methods.append("prophet")
+            
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("prophet", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'Prophet')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
             with st.expander("Prophet Parameters", expanded=False):
-                prophet_growth = st.selectbox(
+                _render_label_with_help(
                     "Growth Model",
+                    PARAMETER_HELP.get("prophet", {}).get("growth", "")
+                )
+                prophet_growth = st.selectbox(
+                    "",
                     ["linear", "logistic"],
                     key="prophet_growth",
                 )
+                
                 prophet_seasonality = st.checkbox(
-                    "Include Seasonality", True, key="prophet_seasonality"
+                    "Include Seasonality", True, key="prophet_seasonality",
+                    help=PARAMETER_HELP.get("prophet", {}).get("seasonality", "")
                 )
+                
                 prophet_holidays = st.checkbox(
-                    "Include Holidays (US)", False, key="prophet_holidays"
+                    "Include Holidays (US)", False, key="prophet_holidays",
+                    help=PARAMETER_HELP.get("prophet", {}).get("holidays", "")
                 )
                 method_params["prophet"] = {
                     "growth": prophet_growth,
@@ -484,6 +1546,12 @@ def render_forecasting_page() -> None:
         )
 
         if use_ensemble:
+            # Add model description
+            model_desc = MODEL_DESCRIPTIONS.get("ensemble", {})
+            if model_desc:
+                with st.expander(f"ℹ️ {model_desc.get('short', 'Ensemble')}", expanded=False):
+                    st.markdown(model_desc.get("detailed", ""))
+            
             st.markdown("**Select models to include in ensemble:**")
             
             col1, col2 = st.columns(2)
@@ -1012,23 +2080,32 @@ def _display_forecast_results(
             })
 
         st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
+        
+        # Interpretation: Forecast comparison
+        interpretation = _interpret_forecast_comparison(
+            successful_forecasts,
+            comparison_data,
+            historical_values
+        )
+        if interpretation:
+            st.info(interpretation)
 
     # Individual forecasts tab
     with results_tabs[1]:
         st.subheader("Individual Method Forecasts")
         
-        with st.expander("ℹ️ Что такое Individual Forecasts?", expanded=False):
+        with st.expander("What are Individual Forecasts?", expanded=False):
             st.markdown("""
-            **Individual Forecasts** позволяет детально изучить прогноз одного конкретного метода.
+            **Individual Forecasts** allows you to study in detail the forecast of a specific method.
             
-            **Что вы увидите:**
-            - **График прогноза** с историческими данными
-            - **Confidence Intervals (95% CI)** - заштрихованная область, показывающая диапазон возможных значений
-              - Верхняя граница (Upper 95% CI) - максимальное ожидаемое значение
-              - Нижняя граница (Lower 95% CI) - минимальное ожидаемое значение
-              - Чем шире интервал, тем больше неопределенность прогноза
-            - **Метрики качества** (MAPE, RMSE) - показывают точность прогноза
-            - **Residuals Analysis** - анализ ошибок модели
+            **What you will see:**
+            - **Forecast chart** with historical data
+            - **Confidence Intervals (95% CI)** - shaded area showing the range of possible values
+              - Upper bound (Upper 95% CI) - maximum expected value
+              - Lower bound (Lower 95% CI) - minimum expected value
+              - The wider the interval, the greater the forecast uncertainty
+            - **Quality metrics** (MAPE, RMSE) - show forecast accuracy
+            - **Residuals Analysis** - model error analysis
             """)
 
         # Use successful_forecasts from session_state if available, otherwise use passed parameter
@@ -1090,6 +2167,15 @@ def _display_forecast_results(
                 forecast_end=forecast_end_ts,
             )
             st.plotly_chart(fig, use_container_width=True, key=f"forecast_individual_chart_with_history_{chart_suffix}")
+            
+            # Interpretation: Individual forecast
+            interpretation = _interpret_individual_forecast(
+                selected_forecast,
+                method_selector,
+                historical_values
+            )
+            if interpretation:
+                st.info(interpretation)
         else:
             # Fallback without historical
             from streamlit_app.utils.chart_config import get_method_color
@@ -1202,6 +2288,15 @@ def _display_forecast_results(
             )
 
             st.plotly_chart(fig, use_container_width=True, key=f"forecast_individual_chart_{chart_suffix}")
+            
+            # Interpretation: Individual forecast
+            interpretation = _interpret_individual_forecast(
+                selected_forecast,
+                method_selector,
+                historical_values
+            )
+            if interpretation:
+                st.info(interpretation)
 
         # Metrics
         col1, col2, col3, col4 = st.columns(4)
@@ -1254,21 +2349,21 @@ def _display_forecast_results(
         if "residuals" in selected_forecast and selected_forecast["residuals"] is not None:
             st.subheader("Residuals Analysis")
             
-            with st.expander("ℹ️ Что такое Residuals Analysis?", expanded=False):
+            with st.expander("What is Residuals Analysis?", expanded=False):
                 st.markdown("""
-                **Residuals (остатки)** - это разница между фактическими и предсказанными значениями.
+                **Residuals** - the difference between actual and predicted values.
                 
-                **Хорошие residuals:**
-                - Случайно распределены вокруг нуля
-                - Нет явных трендов или паттернов
-                - Постоянная дисперсия (не увеличивается со временем)
+                **Good residuals:**
+                - Randomly distributed around zero
+                - No obvious trends or patterns
+                - Constant variance (does not increase over time)
                 
-                **Плохие residuals:**
-                - Имеют тренд (растут/падают)
-                - Показывают сезонность или циклы
-                - Увеличивающаяся дисперсия (гетероскедастичность)
+                **Bad residuals:**
+                - Have a trend (increasing/decreasing)
+                - Show seasonality or cycles
+                - Increasing variance (heteroscedasticity)
                 
-                Если residuals показывают паттерны, модель не уловила все закономерности в данных.
+                If residuals show patterns, the model did not capture all patterns in the data.
                 """)
             
             residuals_raw = selected_forecast.get("residuals")
@@ -1276,7 +2371,7 @@ def _display_forecast_results(
             
             if residuals_raw is not None:
                 try:
-                    # residuals_raw может быть списком из to_dict()
+                    # residuals_raw may be a list from to_dict()
                     if isinstance(residuals_raw, list):
                         if len(residuals_raw) > 0:
                             residuals = np.array(residuals_raw, dtype=float)
@@ -1293,6 +2388,11 @@ def _display_forecast_results(
                         method_name = method_selector
                         fig_residuals = plot_residuals(residuals, method_name)
                         st.plotly_chart(fig_residuals, use_container_width=True, key=f"residuals_chart_{method_selector}")
+                    
+                    # Interpretation: Residuals analysis
+                    interpretation = _interpret_residuals_analysis(residuals, method_selector)
+                    if interpretation:
+                        st.info(interpretation)
                     else:
                         st.info("No valid residuals data available for this forecast method.")
                 except Exception as e:
@@ -1364,6 +2464,11 @@ def _display_forecast_results(
                 # Display all metrics in a table format
                 st.markdown("### Metrics by Method")
                 st.dataframe(quality_df, use_container_width=True, hide_index=True)
+                
+                # Interpretation: Forecast quality
+                interpretation = _interpret_forecast_quality(quality_df, forecasts_to_use)
+                if interpretation:
+                    st.info(interpretation)
 
                 # Visualize all metrics - show all graphs one under another
                 st.markdown("### Visualizations")
@@ -1519,6 +2624,11 @@ def _display_forecast_results(
                     except Exception as e:
                         logger.warning(f"Error displaying ranking for row {idx}: {e}")
                         continue
+                
+                # Interpretation: Method ranking
+                interpretation = _interpret_method_ranking(ranked_df)
+                if interpretation:
+                    st.info(interpretation)
             else:
                 st.info(
                     "No validation metrics available. "
@@ -1615,6 +2725,11 @@ def _display_forecast_results(
                             st.metric("Training Time", f"{training_time:.2f}s")
                     except (ValueError, TypeError):
                         pass
+            
+            # Interpretation: Model info
+            interpretation = _interpret_model_info(model_info, detail_method)
+            if interpretation:
+                st.info(interpretation)
         
         # Forecast summary
         st.markdown("### Forecast Summary")
