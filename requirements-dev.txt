@@ -1,0 +1,25 @@
+# Development dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+pytest-asyncio>=0.21.0
+
+# Type checking
+mypy>=1.5.0
+types-requests>=2.31.0
+types-python-dateutil>=2.8.19
+
+# Linting and formatting
+ruff>=0.1.0
+black>=23.0.0  # Optional: for code formatting
+
+# Code quality
+pylint>=3.0.0  # Optional: for additional linting
+
+# Performance profiling
+py-spy>=0.3.14  # Optional: for performance profiling
+memory-profiler>=0.61.0  # Optional: for memory profiling
+

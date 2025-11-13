@@ -1,17 +1,19 @@
 """Chart configuration for Plotly charts."""
 
-# Color palette (from requirements)
+# Color palette (unified color scheme)
 COLORS = {
-    "primary": "#BF9FFB",  # Purple
-    "secondary": "#90BFF9",  # Blue
+    "primary": "#BF9FFB",  # Purple - preferred portfolio color
+    "secondary": "#90BFF9",  # Blue - benchmark color in charts
     "background": "#0D1015",  # Dark background
-    "success": "#00CC96",  # Green
-    "danger": "#EF553B",  # Red
-    "error": "#EF553B",  # Red (alias for danger)
-    "warning": "#FFA15A",  # Orange
-    "info": "#19D3F3",  # Cyan
+    "success": "#74F174",  # Green - positive values
+    "danger": "#EF5350",  # Red - negative values
+    "error": "#EF5350",  # Red (alias for danger)
+    "warning": "#FFCC80",  # Orange - benchmark in dropdowns, additional
+    "info": "#90BFF9",  # Cyan (same as secondary/blue)
+    "additional": "#FFF59D",  # Yellow - additional color
     "cash": "#C8C8C8",  # Gray for cash
     "text": "#FFFFFF",  # White text
+    "benchmark_dropdown": "#FFCC80",  # Orange for benchmark dropdowns
 }
 
 # Method-specific colors (pastel colors for forecasts)

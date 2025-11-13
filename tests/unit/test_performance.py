@@ -7,6 +7,8 @@ from core.analytics_engine.performance import (
     calculate_total_return,
     calculate_cagr,
     calculate_annualized_return,
+    calculate_period_returns,
+    calculate_best_worst_periods,
     calculate_win_rate,
     calculate_payoff_ratio,
     calculate_profit_factor,
@@ -82,8 +84,8 @@ def test_calculate_annualized_return_empty() -> None:
 def test_calculate_win_rate() -> None:
     """Test win rate calculation."""
     returns = pd.Series([0.01, -0.02, 0.015, -0.01, 0.03, -0.005])
-    # 4 positive, 2 negative
-    expected = 4 / 6  # 0.6667
+    # 3 positive (0.01, 0.015, 0.03), 3 negative (-0.02, -0.01, -0.005)
+    expected = 3 / 6  # 0.5
 
     result = calculate_win_rate(returns)
     assert result == pytest.approx(expected, rel=1e-6)
@@ -126,4 +128,72 @@ def test_calculate_expectancy() -> None:
     result = calculate_expectancy(returns)
     assert result > 0
     assert result < 0.01
+
+
+def test_calculate_period_returns() -> None:
+    """Test period returns calculation."""
+    from datetime import date
+    import numpy as np
+    
+    # Create portfolio values over 2 years
+    dates = pd.date_range("2023-01-01", periods=504, freq="D")  # 2 years
+    np.random.seed(42)
+    base_value = 100000.0
+    returns = np.random.normal(0.001, 0.02, 504)
+    values = base_value * (1 + pd.Series(returns)).cumprod()
+    values.index = dates
+
+    period_returns = calculate_period_returns(values)
+
+    assert "ytd" in period_returns
+    assert "mtd" in period_returns
+    assert "qtd" in period_returns
+    assert "1m" in period_returns
+    assert "3m" in period_returns
+    assert "6m" in period_returns
+    assert "1y" in period_returns
+    assert "3y" in period_returns
+    assert "5y" in period_returns
+
+
+def test_calculate_period_returns_empty() -> None:
+    """Test period returns with empty values."""
+    empty_values = pd.Series([], dtype=float)
+
+    period_returns = calculate_period_returns(empty_values)
+
+    # Should return dict with all None values
+    assert all(v is None for v in period_returns.values())
+
+
+def test_calculate_best_worst_periods() -> None:
+    """Test best/worst periods calculation."""
+    import numpy as np
+    from datetime import date
+    
+    # Create returns with known best/worst months
+    dates = pd.date_range("2024-01-01", periods=252, freq="D")
+    returns = pd.Series(np.random.normal(0.001, 0.02, 252), index=dates)
+    # Add a very good month
+    returns.iloc[30:60] = 0.05
+    # Add a very bad month
+    returns.iloc[120:150] = -0.08
+
+    best_worst = calculate_best_worst_periods(returns)
+
+    assert "best_month" in best_worst
+    assert "worst_month" in best_worst
+    assert best_worst["best_month"] is not None
+    assert best_worst["worst_month"] is not None
+    assert best_worst["best_month"] > best_worst["worst_month"]
+
+
+def test_calculate_best_worst_periods_empty() -> None:
+    """Test best/worst periods with empty returns."""
+    empty_returns = pd.Series([], dtype=float)
+
+    result = calculate_best_worst_periods(empty_returns)
+
+    assert result["best_month"] is None
+    assert result["worst_month"] is None
 

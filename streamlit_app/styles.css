@@ -1,13 +1,17 @@
 /* Custom CSS styles for Portfolio Management System */
 
-/* Color Palette */
+/* Color Palette - Unified Color Scheme */
 :root {
     --bg-primary: #0D1015;
     --bg-secondary: #1A1E29;
     --bg-tertiary: #2A2E39;
-    --primary: #BF9FFB;
-    --secondary: #74F174;
-    --error: #FAA1A4;
+    --primary: #BF9FFB;  /* Purple - portfolio color */
+    --secondary: #90BFF9;  /* Blue - benchmark in charts */
+    --success: #74F174;  /* Green - positive values */
+    --danger: #EF5350;  /* Red - negative values */
+    --error: #EF5350;  /* Red (alias for danger) */
+    --warning: #FFCC80;  /* Orange - benchmark in dropdowns */
+    --additional: #FFF59D;  /* Yellow - additional color */
     --text-primary: #FFFFFF;
     --text-secondary: #D1D4DC;
     --border: #3A3E49;
@@ -70,7 +74,7 @@ button[data-baseweb="button"][kind="secondary"] {
 }
 
 [data-testid="stMetricDelta"] {
-    color: var(--secondary);
+    color: var(--success);
 }
 
 /* DataFrames */
@@ -98,6 +102,21 @@ button[data-baseweb="button"][kind="secondary"] {
     border: 1px solid var(--border);
 }
 
+/* Benchmark dropdown styling (orange) */
+.stSelectbox[data-benchmark="true"] > div > div > select,
+.stSelectbox:has(option[value*="Benchmark"]),
+.stSelectbox:has(option[value*="SPY"]),
+.stSelectbox:has(option[value*="QQQ"]),
+.stSelectbox:has(option[value*="VTI"]) {
+    border-color: var(--warning) !important;
+}
+
+.stSelectbox[data-benchmark="true"] > div > div > select:focus,
+.stSelectbox:has(option[value*="Benchmark"]) > div > div > select:focus {
+    border-color: var(--warning) !important;
+    box-shadow: 0 0 0 2px rgba(255, 204, 128, 0.2) !important;
+}
+
 .stTextArea > div > div > textarea {
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
@@ -120,8 +139,8 @@ button[data-baseweb="button"][kind="secondary"] {
 
 .stSuccess {
     background-color: var(--bg-secondary);
-    color: var(--secondary);
-    border-left: 4px solid var(--secondary);
+    color: var(--success);
+    border-left: 4px solid var(--success);
 }
 
 .stError {

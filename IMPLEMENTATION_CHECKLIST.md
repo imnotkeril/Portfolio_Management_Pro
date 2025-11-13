@@ -1,41 +1,41 @@
-# ✅ Чеклист Реализации Portfolio System
+# ✅ Portfolio System Implementation Checklist
 
-## Дата проверки: 2025-01-29
+## Review Date: 2025-01-29
 
-## 🎯 СОЗДАНИЕ ПОРТФЕЛЯ (5 способов)
+## 🎯 Portfolio Creation (Five Methods)
 
-### ✅ Method 1: Wizard (Step-by-step)
-- [x] Шаг 1: Portfolio Information (name, description, currency, initial_value)
-- [x] Шаг 2: Input Method Selection (Text, File, Manual, Template)
-- [x] Шаг 3: Asset Input (в зависимости от метода)
-- [x] Шаг 4: Portfolio Settings & Review (включая Cash Management)
-- [x] Шаг 5: Portfolio Creation & Results
-- [x] Прогресс-бар и навигация
-- [x] Валидация на каждом шаге
+### ✅ Method 1: Wizard (step-by-step)
+- [x] Step 1: Portfolio information (name, description, currency, initial value)
+- [x] Step 2: Input method selection (Text, File, Manual, Template)
+- [x] Step 3: Asset input (varies by method)
+- [x] Step 4: Portfolio settings & review (includes Cash Management)
+- [x] Step 5: Portfolio creation & results
+- [x] Progress bar and navigation controls
+- [x] Validation at every step
 
-### ✅ Method 2: Text Input (Natural Language)
-- [x] Парсинг множества форматов (`AAPL:40%`, `AAPL 0.4`, `AAPL 40`, `AAPL, MSFT`)
-- [x] Preview parsed assets
-- [x] Валидация тикеров
-- [x] Auto-normalization весов
-- [x] Файл: `streamlit_app/utils/text_parser.py`
+### ✅ Method 2: Text Input (natural language)
+- [x] Parsing of multiple formats (`AAPL:40%`, `AAPL 0.4`, `AAPL 40`, `AAPL, MSFT`)
+- [x] Preview of parsed assets
+- [x] Ticker validation
+- [x] Automatic weight normalization
+- [x] Code: `streamlit_app/utils/text_parser.py`
 
 ### ✅ Method 3: CSV Import
-- [x] Upload CSV/Excel файлов
+- [x] CSV/Excel upload
 - [x] Column mapping (ticker, weight)
-- [x] Preview обработанных данных
-- [x] Валидация тикеров
-- [x] Auto-normalization весов
+- [x] Preview of processed data
+- [x] Ticker validation
+- [x] Automatic weight normalization
 
 ### ✅ Method 4: Manual Entry
-- [x] Динамическая форма добавления позиций
-- [x] Валидация тикеров в реальном времени
-- [x] Показ текущих активов в таблице
-- [x] Удаление выбранных позиций
-- [x] Real-time расчет total weight
+- [x] Dynamic form for adding positions
+- [x] Real-time ticker validation
+- [x] Current positions table
+- [x] Remove selected positions
+- [x] Real-time total weight calculation
 
 ### ✅ Method 5: Templates
-- [x] Pre-built стратегии:
+- [x] Pre-built strategies:
   - [x] Value Factor
   - [x] Quality Factor
   - [x] Growth Factor
@@ -46,84 +46,84 @@
   - [x] 60/40 Portfolio
   - [x] All Weather Portfolio
   - [x] Tech Focus
-- [x] Customization template опция
-- [x] Preview template assets
+- [x] Template customization option
+- [x] Preview of template assets
 
-## 💵 CASH MANAGEMENT
-- [x] Секция Cash Management в шаге 4 wizard
-- [x] Слайдер для выбора cash allocation (0-50%)
-- [x] Метрика отображения cash amount
-- [x] Масштабирование весов активов при cash_allocation > 0
-- [x] Автоматическое добавление Position с ticker="CASH"
-- [x] Расчет cash как planned + remainder от округления
-- [x] Специальное отображение cash в таблице позиций ($XXX.XX)
+## 💵 Cash Management
+- [x] Cash Management section in Wizard Step 4
+- [x] Allocation slider (0%–50%)
+- [x] Cash amount metric
+- [x] Weight rescaling when `cash_allocation > 0`
+- [x] Automatic `CASH` position
+- [x] Cash amount = planned + rounding remainder
+- [x] Specialized cash display in the positions table ($XXX.XX)
 
-## 🔍 CRUD ОПЕРАЦИИ
+## 🔍 CRUD Operations
 
-### ✅ CREATE
-- [x] Через wizard
-- [x] Через text input
-- [x] Через CSV import
-- [x] Через manual entry
-- [x] Через templates
-- [x] Валидация имени (не пустое, уникальное)
-- [x] Валидация тикеров
-- [x] Автоматический расчет shares
+### ✅ Create
+- [x] Via wizard
+- [x] Via text input
+- [x] Via CSV import
+- [x] Via manual entry
+- [x] Via templates
+- [x] Portfolio name validation (non-empty, unique)
+- [x] Ticker validation
+- [x] Automatic share calculation
 
-### ✅ READ (List View)
-- [x] Таблица всех портфелей
-- [x] Search (по имени)
-- [x] Filters (по дате создания, performance)
-- [x] Sort (по имени, стоимости, дате)
-- [x] Метрики для каждого портфеля (assets count, value)
+### ✅ Read (List View)
+- [x] Portfolio list/table
+- [x] Search (by name)
+- [x] Filters (creation date, performance)
+- [x] Sorting (name, value, date)
+- [x] Summary metrics per portfolio (asset count, total value)
 
-### ✅ READ (Detail View)
+### ✅ Read (Detail View)
 - [x] Portfolio header (name, value, currency)
 - [x] Positions table (ticker, shares, price, value, weight, P&L)
-- [x] Быстрые действия (Edit, Clone, Delete)
-- [x] Страница: `portfolio_detail.py`
+- [x] Quick actions (Edit, Clone, Delete)
+- [x] Page: `portfolio_detail.py`
 
-### ✅ UPDATE
-- [x] Edit portfolio info (name, description) - inline
-- [x] Edit positions (update shares, weights)
+### ✅ Update
+- [x] Inline edit of portfolio name/description
+- [x] Update positions (shares, target weights)
 - [x] Add position
 - [x] Remove position
-- [x] Bulk edit (в процессе)
+- [x] Bulk edit (in progress)
 
-### ✅ DELETE
-- [x] Delete portfolio с подтверждением
-- [x] Undo функциональность (в session state)
-- [x] Bulk delete (выбор нескольких портфелей)
+### ✅ Delete
+- [x] Delete with confirmation
+- [x] Undo (session state)
+- [x] Bulk delete (multi-select)
 - [x] Restore deleted portfolios
 
-### ✅ CLONE
-- [x] Duplicate portfolio с новым именем
-- [x] Independent copy (новый ID)
-- [x] Сохранение всех позиций и настроек
+### ✅ Clone
+- [x] Duplicate portfolio with a new name
+- [x] Independent copy (new ID)
+- [x] Preserve all positions and settings
 
-## 🔐 ВАЛИДАЦИЯ (3 уровня)
+## 🔐 Validation (Three Layers)
 
 ### ✅ Level 1: UI Validation
-- [x] Format validation (ticker format, number ranges)
-- [x] Валидация имени портфеля (длина, уникальность)
-- [x] Валидация весов (сумма = 100%, диапазоны)
-- [x] Файл: `streamlit_app/utils/validators.py`
+- [x] Format validation (ticker patterns, numeric ranges)
+- [x] Portfolio name validation (length, uniqueness)
+- [x] Weight validation (sum = 100%, bounds)
+- [x] File: `streamlit_app/utils/validators.py`
 
 ### ✅ Level 2: Service Validation
 - [x] Business rules (duplicate names, ticker existence)
-- [x] Weight sums validation
+- [x] Weight sum validation
 - [x] Pydantic schemas (`CreatePortfolioRequest`, `PositionSchema`)
-- [x] Файл: `services/schemas.py`
+- [x] File: `services/schemas.py`
 
 ### ✅ Level 3: Model Validation
-- [x] Domain model invariants (shares > 0, weight 0-1)
+- [x] Domain invariants (shares > 0, weight between 0 and 1)
 - [x] Data integrity checks
-- [x] Файл: `core/data_manager/portfolio.py`
+- [x] File: `core/data_manager/portfolio.py`
 
-## 📊 ДОПОЛНИТЕЛЬНЫЙ ФУНКЦИОНАЛ
+## 📊 Additional Functionality
 
 ### ✅ Bulk Operations
-- [x] Выбор нескольких портфелей
+- [x] Select multiple portfolios
 - [x] Bulk update prices
 - [x] Bulk delete portfolios
 
@@ -133,119 +133,119 @@
 - [ ] Export to Excel
 - [ ] Import from JSON
 - [ ] Import from CSV
-- Статус: Кнопки есть, функционал помечен как "coming soon"
+- Status: UI buttons exist; implementation marked “coming soon”
 
 ### ✅ Preview & Review
-- [x] Preview перед созданием портфеля
-- [x] Portfolio summary в шаге 4
-- [x] Asset breakdown после создания
-- [x] Метрики портфеля (total assets, total value)
+- [x] Pre-creation preview
+- [x] Portfolio summary in Step 4
+- [x] Asset breakdown after creation
+- [x] Portfolio metrics (total assets, total value)
 
-## 🏗️ АРХИТЕКТУРА
+## 🏗️ Architecture
 
 ### ✅ Layered Architecture
 - [x] UI Layer → Service Layer → Core Layer → Data Layer
-- [x] UI использует PortfolioService (не прямой доступ к Core)
-- [x] Service layer использует PortfolioRepository и DataService
-- [x] Core modules framework-agnostic
+- [x] UI communicates via `PortfolioService` (no direct Core access)
+- [x] Services use `PortfolioRepository` and `DataService`
+- [x] Core modules remain framework-agnostic
 
 ### ✅ Service Layer
-- [x] `PortfolioService` с CRUD методами
-- [x] `DataService` для работы с ценами и валидацией тикеров
-- [x] `AnalyticsService` для аналитики
+- [x] `PortfolioService` with CRUD operations
+- [x] `DataService` for pricing and ticker validation
+- [x] `AnalyticsService` for metrics
 
 ### ✅ Core Layer
 - [x] `Portfolio` domain model
 - [x] `Position` domain model
-- [x] Валидация бизнес-правил
-- [x] Нормализация весов
+- [x] Business rule validation
+- [x] Weight normalization
 
 ### ✅ Data Layer
 - [x] `PortfolioRepository` (SQLAlchemy ORM)
 - [x] Database models (`Portfolio`, `Position`, `PriceHistory`)
 - [x] SQLite database
 
-## 📝 ФАЙЛЫ
+## 📝 Files
 
-### Создание портфеля
-- [x] `streamlit_app/pages/create_portfolio.py` - главный файл с wizard и 5 методами
-- [x] `streamlit_app/utils/text_parser.py` - парсинг текстового ввода
+### Portfolio Creation
+- [x] `streamlit_app/pages/create_portfolio.py` – primary wizard with five methods
+- [x] `streamlit_app/utils/text_parser.py` – text input parsing
 
-### Менеджмент портфелей
-- [x] `streamlit_app/pages/portfolio_list.py` - список и CRUD операции
-- [x] `streamlit_app/pages/portfolio_detail.py` - детальный просмотр
-- [x] `streamlit_app/pages/portfolio_analysis.py` - аналитика
-- [x] `streamlit_app/pages/dashboard.py` - главная страница
+### Portfolio Management
+- [x] `streamlit_app/pages/portfolio_list.py` – list view & CRUD actions
+- [x] `streamlit_app/pages/portfolio_detail.py` – detail view
+- [x] `streamlit_app/pages/portfolio_analysis.py` – analytics view
+- [x] `streamlit_app/pages/dashboard.py` – dashboard
 
-### Компоненты
-- [x] `streamlit_app/components/position_table.py` - таблица позиций (с поддержкой cash)
-- [x] `streamlit_app/components/portfolio_card.py` - карточка портфеля
-- [x] `streamlit_app/components/metrics_display.py` - отображение метрик
+### Components
+- [x] `streamlit_app/components/position_table.py` – position table (cash-aware)
+- [x] `streamlit_app/components/portfolio_card.py` – portfolio card
+- [x] `streamlit_app/components/metrics_display.py` – metrics layout
 
-### Утилиты
-- [x] `streamlit_app/utils/formatters.py` - форматирование
-- [x] `streamlit_app/utils/validators.py` - валидация на уровне UI
+### Utilities
+- [x] `streamlit_app/utils/formatters.py` – formatting helpers
+- [x] `streamlit_app/utils/validators.py` – UI-level validation
 
-### Сервисы
-- [x] `services/portfolio_service.py` - сервис портфелей
-- [x] `services/data_service.py` - сервис данных
-- [x] `services/analytics_service.py` - сервис аналитики
-- [x] `services/schemas.py` - Pydantic схемы
+### Services
+- [x] `services/portfolio_service.py` – portfolio service
+- [x] `services/data_service.py` – data service
+- [x] `services/analytics_service.py` – analytics service
+- [x] `services/schemas.py` – Pydantic schemas
 
 ### Core
-- [x] `core/data_manager/portfolio.py` - доменная модель Portfolio
-- [x] `core/data_manager/portfolio_repository.py` - репозиторий
+- [x] `core/data_manager/portfolio.py` – portfolio domain model
+- [x] `core/data_manager/portfolio_repository.py` – repository
 
 ## 🎨 UI/UX
 
 ### ✅ Navigation
-- [x] Sidebar navigation между страницами
+- [x] Sidebar navigation across pages
 - [x] Session state management
-- [x] Переход между страницами
+- [x] Page-to-page transitions
 
 ### ✅ Styling
 - [x] Custom CSS (`streamlit_app/styles.css`)
-- [x] TradingView-inspired цветовая палитра
+- [x] TradingView-inspired color palette
 - [x] Dark theme
 - [x] Responsive design
 
 ### ✅ User Feedback
-- [x] Success/error сообщения
+- [x] Success/error notifications
 - [x] Progress bars
 - [x] Validation messages
 - [x] Help sections
 
-## ⚠️ ОТЛИЧИЯ ОТ РЕФЕРЕНСА
+## ⚠️ Differences from Reference Implementation
 
-### ✅ Реализовано, но по-другому:
-1. **Storage**: Референс использует JSON файлы, текущий проект - SQLAlchemy + SQLite
-2. **Wizard steps**: Референс имеет 4 шага, текущий - 5 шагов (добавлен шаг создания и результатов)
-3. **Архитектура**: Текущий проект более строгий (Service → Core → Repository), референс проще (Manager → Storage)
+### ✅ Implemented Differently
+1. **Storage**: Reference uses JSON files; current project relies on SQLAlchemy + SQLite
+2. **Wizard steps**: Reference has 4 steps; current wizard has 5 (creation/results step added)
+3. **Architecture**: Current project enforces a stricter Service → Core → Repository structure
 
-### 🟡 Частично реализовано:
-1. **Export/Import**: Кнопки есть, но функционал помечен как "coming soon"
+### 🟡 Partially Implemented
+1. **Export/Import**: Buttons exist, backend implementation pending
 
-### ✅ Дополнительно реализовано (не было в референсе):
-1. **Analytics Service**: Полная система аналитики с 70+ метриками
-2. **Price History**: Сохранение истории цен в БД
-3. **Caching**: Кэширование цен и валидации тикеров
+### ✅ Additional Features (beyond reference)
+1. **Analytics Service**: Full analytics suite with 70+ metrics
+2. **Price History**: Historical pricing stored in the database
+3. **Caching**: Cached prices and ticker validation results
 
-## ✅ ИТОГОВАЯ ОЦЕНКА
+## ✅ Final Assessment
 
-**Реализовано**: ~95% функционала из референса
+**Implemented**: ~95% of the reference functionality
 
-**Основные функции**:
-- ✅ Все 5 способов создания портфеля
-- ✅ Полный CRUD для портфелей
+**Delivered capabilities**:
+- ✅ All five portfolio creation methods
+- ✅ Complete portfolio CRUD
 - ✅ Cash management
-- ✅ Валидация на 3 уровнях
-- ✅ Wizard flow (5 шагов)
-- ✅ Search, filter, sort
-- ✅ Clone и bulk operations
-- ✅ Undo для удаления
+- ✅ Three-layer validation
+- ✅ Five-step wizard flow
+- ✅ Search, filter, and sort
+- ✅ Clone and bulk operations
+- ✅ Undo for deletions
 
-**Отсутствует**:
-- 🟡 Export/Import функционал (кнопки есть, реализация не завершена)
+**Outstanding**:
+- 🟡 Export/Import backend implementation (UI only today)
 
-**Проект готов к использованию!** 🚀
+**Project is ready for use!** 🚀
 

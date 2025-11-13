@@ -21,6 +21,7 @@ class _FakeDataService:
 
 
 def test_mixed_timezone_dates_are_normalized_and_filtered():
+    """Ensure price fetch normalizes mixed timezone inputs to tz-naive range."""
     # Build two small frames: one tz-naive, one tz-aware (UTC)
     dates_naive = pd.to_datetime(["2025-01-02", "2025-01-03"])  # naive
     df_naive = pd.DataFrame({

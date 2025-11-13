@@ -282,20 +282,20 @@ class ForecastingService:
                 validation_forecast_values = forecast_result.forecast_values
                 # validation_metrics remain None when out_of_sample=False
 
-                # Оставляем только Validation Period - Forecast Period не создаем
-                # Обновляем forecast_result чтобы содержал только Validation Period
+                # Keep only Validation Period - do not create Forecast Period
+                # Update forecast_result to contain only Validation Period
                 if len(validation_forecast_values) > 0:
-                    # Сохраняем residuals перед обновлением (они могут быть потеряны)
+                    # Save residuals before update (they may be lost)
                     original_residuals = forecast_result.residuals
                     
                     forecast_result.forecast_values = validation_forecast_values
                     forecast_result.forecast_dates = validation_forecast_dates
                     
-                    # Восстанавливаем residuals если они были
+                    # Restore residuals if they existed
                     if original_residuals is not None:
                         forecast_result.residuals = original_residuals
                     
-                    # Обновляем final_value и change_pct по последнему значению Validation Period
+                    # Update final_value and change_pct based on last Validation Period value
                     last_historical_price = float(prices.iloc[-1])
                     if last_historical_price > 0 and len(validation_forecast_values) > 0:
                         forecast_result.final_value = float(validation_forecast_values[-1])
@@ -563,20 +563,20 @@ class ForecastingService:
                 validation_forecast_values = forecast_result.forecast_values
                 # validation_metrics remain None when out_of_sample=False
 
-                # Оставляем только Validation Period - Forecast Period не создаем
-                # Обновляем forecast_result чтобы содержал только Validation Period
+                # Keep only Validation Period - do not create Forecast Period
+                # Update forecast_result to contain only Validation Period
                 if len(validation_forecast_values) > 0:
-                    # Сохраняем residuals перед обновлением (они могут быть потеряны)
+                    # Save residuals before update (they may be lost)
                     original_residuals = forecast_result.residuals
                     
                     forecast_result.forecast_values = validation_forecast_values
                     forecast_result.forecast_dates = validation_forecast_dates
                     
-                    # Восстанавливаем residuals если они были
+                    # Restore residuals if they existed
                     if original_residuals is not None:
                         forecast_result.residuals = original_residuals
                     
-                    # Обновляем final_value и change_pct по последнему значению Validation Period
+                    # Update final_value and change_pct based on last Validation Period value
                     last_historical_price = float(portfolio_prices.iloc[-1])
                     if last_historical_price > 0 and len(validation_forecast_values) > 0:
                         forecast_result.final_value = float(validation_forecast_values[-1])
@@ -897,15 +897,15 @@ class ForecastingService:
         if len(validation_forecast_values) <= 1 or horizon <= 0:
             return np.array([]), pd.DatetimeIndex([])
         
-        # Вычисляем средний дневной return из validation period прогноза
-        # Безопасное деление: избегаем деления на ноль
+        # Calculate average daily return from validation period forecast
+        # Safe division: avoid division by zero
         validation_forecast_safe = validation_forecast_values[:-1]
-        # Фильтруем нулевые и отрицательные значения
+        # Filter zero and negative values
         valid_mask = validation_forecast_safe > 1e-10
         if np.any(valid_mask):
             validation_returns = np.diff(validation_forecast_values)[valid_mask] / validation_forecast_safe[valid_mask]
             avg_daily_return = np.mean(validation_returns)
-            # Вычисляем волатильность (стандартное отклонение returns) из validation period
+            # Calculate volatility (standard deviation of returns) from validation period
             volatility = np.std(validation_returns)
             if not np.isfinite(volatility) or volatility <= 0:
                 volatility = 0.01  # Default 1% volatility
@@ -914,48 +914,48 @@ class ForecastingService:
             avg_daily_return = 0.0
             volatility = 0.01  # Default 1% volatility
         
-        # Получаем последнюю цену Validation Period прогноза
+        # Get last price from Validation Period forecast
         last_validation_forecast_price = float(validation_forecast_values[-1])
         
-        # Вычисляем разницу между последней исторической ценой и последней ценой Validation Period прогноза
-        # Это нужно для "сдвига" прогноза, чтобы он начинался с последней исторической цены
+        # Calculate difference between last historical price and last Validation Period forecast price
+        # This is needed to "shift" the forecast so it starts from the last historical price
         price_offset = last_historical_price - last_validation_forecast_price
         
-        # Создаем новый прогноз для forecast period
-        # Начинаем с последней цены Validation Period прогноза + offset (чтобы начать с истории)
-        # но сохраняем логику (тренд) Validation Period прогноза
-        # НЕ добавляем начальную цену - она будет добавлена в forecast_charts.py для правильного подключения
+        # Create new forecast for forecast period
+        # Start from last Validation Period forecast price + offset (to start from history)
+        # but preserve the logic (trend) of Validation Period forecast
+        # Do NOT add initial price - it will be added in forecast_charts.py for proper connection
         new_forecast_period_values = []
-        current_price = last_validation_forecast_price + price_offset  # Начинаем с истории
+        current_price = last_validation_forecast_price + price_offset  # Start from history
         
-        # Генерируем случайные шоки с учетом волатильности
-        # Используем локальный генератор для избежания конфликтов в параллельных вычислениях
-        rng = np.random.default_rng(42)  # Для воспроизводимости
+        # Generate random shocks with volatility
+        # Use local generator to avoid conflicts in parallel computations
+        rng = np.random.default_rng(42)  # For reproducibility
         random_shocks = rng.normal(0, volatility, horizon)
         
         for i in range(horizon):
-            # Применяем средний return + случайный шок с учетом волатильности
-            # Это сохраняет логику (тренд) Validation Period прогноза
+            # Apply average return + random shock with volatility
+            # This preserves the logic (trend) of Validation Period forecast
             daily_return = avg_daily_return + random_shocks[i]
             current_price = current_price * (1 + daily_return)
             new_forecast_period_values.append(current_price)
         
-        # Обновляем dates - forecast period должен начинаться с end_date + 1
-        # (без начальной даты, так как она будет добавлена в forecast_charts.py)
+        # Update dates - forecast period should start from end_date + 1
+        # (without initial date, as it will be added in forecast_charts.py)
         if len(validation_forecast_dates) > 0:
             last_validation_date = pd.Timestamp(validation_forecast_dates[-1])
             if last_validation_date >= last_historical_date:
-                # Validation dates уже включают last_historical_date, начинаем с следующего дня
+                # Validation dates already include last_historical_date, start from next day
                 start_date = last_historical_date + pd.Timedelta(days=1)
             else:
-                # Validation dates заканчиваются раньше, начинаем с следующего дня после last_historical_date
+                # Validation dates end earlier, start from next day after last_historical_date
                 start_date = last_historical_date + pd.Timedelta(days=1)
         else:
             start_date = last_historical_date + pd.Timedelta(days=1)
         
         new_forecast_period_dates = pd.bdate_range(
             start=start_date,
-            periods=horizon  # Без +1, так как начальная дата будет добавлена в forecast_charts.py
+            periods=horizon  # Without +1, as initial date will be added in forecast_charts.py
         )
         
         return np.array(new_forecast_period_values), new_forecast_period_dates

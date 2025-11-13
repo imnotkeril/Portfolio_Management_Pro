@@ -29,6 +29,17 @@ class TickerInfo:
         market_cap: Optional[float] = None,
         currency: str = "USD",
     ) -> None:
+        """
+        Create ticker metadata container.
+
+        Args:
+            ticker: Canonical ticker symbol.
+            name: Display name for the security.
+            sector: Optional sector classification.
+            industry: Optional industry classification.
+            market_cap: Latest reported market capitalization.
+            currency: Trading currency code for the security.
+        """
         self.ticker = ticker
         self.name = name
         self.sector = sector

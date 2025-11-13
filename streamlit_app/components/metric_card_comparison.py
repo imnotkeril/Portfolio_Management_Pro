@@ -18,6 +18,7 @@ def render_metric_cards_row(
                  - benchmark_value: float (optional)
                  - format: 'percent', 'ratio', 'number', 'days'
                  - higher_is_better: bool (default True)
+                 - help_text: str (optional) - help text for tooltip
         columns_per_row: Number of cards per row
     """
     cols = st.columns(columns_per_row)
@@ -31,6 +32,7 @@ def render_metric_cards_row(
                 benchmark_value=metric_data.get("benchmark_value"),
                 format_type=metric_data.get("format", "percent"),
                 higher_is_better=metric_data.get("higher_is_better", True),
+                help_text=metric_data.get("help_text"),
             )
 
 
@@ -40,6 +42,7 @@ def render_metric_card(
     benchmark_value: Optional[float] = None,
     format_type: str = "percent",
     higher_is_better: Union[bool, None] = True,
+    help_text: Optional[str] = None,
 ) -> None:
     """
     Render single metric card with comparison.
@@ -51,12 +54,103 @@ def render_metric_card(
         format_type: 'percent', 'ratio', 'number', or 'days'
         higher_is_better: Whether higher value is better (True/False),
                          or None for special handling (e.g., Beta)
+        help_text: Optional help text to display as tooltip
     """
     # Format portfolio value
     portfolio_formatted = _format_value(portfolio_value, format_type)
 
-    # Custom card layout: label, portfolio value, benchmark comparison
-    st.markdown(f"**{label}**")
+    # Custom card layout: label with help, portfolio value, comparison
+    # Replicate Streamlit's native help icon and tooltip exactly
+    if help_text:
+        # Escape HTML special characters
+        import html
+        escaped_help = html.escape(help_text)
+        # Add global CSS for tooltip (only once per session)
+        if '_help_tooltip_css' not in st.session_state:
+            st.markdown(
+                '''
+                <style>
+                .st-metric-help-icon {
+                    cursor: help;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 50%;
+                    background-color: transparent;
+                    border: 1px solid #808495;
+                    color: #808495;
+                    font-size: 11px;
+                    font-weight: 600;
+                    margin-left: 4px;
+                    vertical-align: middle;
+                    line-height: 1;
+                    position: relative;
+                    user-select: none;
+                    -webkit-user-select: none;
+                    -moz-user-select: none;
+                    -ms-user-select: none;
+                }
+                .st-metric-help-icon::after {
+                    content: attr(data-tooltip);
+                    visibility: hidden;
+                    opacity: 0;
+                    position: absolute;
+                    bottom: 125%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background-color: #1A1E29;
+                    color: #D1D4DC;
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    z-index: 1000;
+                    white-space: nowrap;
+                    text-align: left;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    pointer-events: none;
+                    transition: opacity 0.05s ease-in;
+                }
+                .st-metric-help-icon::before {
+                    content: '';
+                    position: absolute;
+                    bottom: 115%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    border: 5px solid transparent;
+                    border-top-color: #1A1E29;
+                    visibility: hidden;
+                    opacity: 0;
+                    transition: opacity 0.05s ease-in;
+                }
+                .st-metric-help-icon:hover::after,
+                .st-metric-help-icon:hover::before {
+                    visibility: visible;
+                    opacity: 1;
+                }
+                </style>
+                ''',
+                unsafe_allow_html=True
+            )
+            st.session_state._help_tooltip_css = True
+
+        # Create help icon with tooltip
+        st.markdown(
+            f'<div style="margin-bottom: 0.5rem;">'
+            f'<strong>{label}</strong> '
+            f'<span class="st-metric-help-icon" '
+            f'data-tooltip="{escaped_help}" '
+            f'style="cursor: help; display: inline-flex; align-items: center; '
+            f'justify-content: center; width: 16px; height: 16px; '
+            f'border-radius: 50%; background-color: transparent; '
+            f'border: 1px solid #808495; color: #808495; font-size: 11px; '
+            f'font-weight: 600; margin-left: 4px; vertical-align: middle; '
+            f'line-height: 1; position: relative; user-select: none;">?</span></div>',
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(f"**{label}**")
     st.markdown(f"### {portfolio_formatted}")
 
     # Show benchmark value with colored indicator
@@ -71,7 +165,7 @@ def render_metric_card(
             benchmark_formatted = _format_value(benchmark_value, format_type)
             st.markdown(f"⚪ {benchmark_formatted}")
             return
-        
+
         benchmark_formatted = _format_value(benchmark_value, format_type)
 
         # Determine if portfolio is better than benchmark

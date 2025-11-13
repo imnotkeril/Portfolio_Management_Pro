@@ -7,6 +7,13 @@ class WMCBaseException(Exception):
     """Base exception for all WMC exceptions."""
 
     def __init__(self, message: str, details: Optional[Dict] = None) -> None:
+        """
+        Initialize base exception.
+
+        Args:
+            message: Human-readable description of the error.
+            details: Optional structured metadata providing additional context.
+        """
         self.message = message
         self.details = details or {}
         super().__init__(self.message)
