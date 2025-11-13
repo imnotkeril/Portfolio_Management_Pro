@@ -4,6 +4,7 @@ from typing import Optional
 
 import streamlit as st
 
+from streamlit_app.utils.chart_config import COLORS
 from streamlit_app.utils.formatters import format_currency, format_percentage
 
 
@@ -38,7 +39,7 @@ def render_portfolio_card(
     # Format daily change HTML
     daily_change_html = ""
     if daily_change is not None:
-        daily_color = "#74F174" if daily_change >= 0 else "#FAA1A4"
+        daily_color = COLORS["success"] if daily_change >= 0 else COLORS["danger"]
         daily_value = format_percentage(daily_change)
         daily_change_html = (
             f'<p style="color: #D1D4DC; margin: 4px 0;">'
@@ -47,7 +48,7 @@ def render_portfolio_card(
         )
 
     # Card container
-    return_color = "#74F174" if total_return >= 0 else "#FAA1A4"
+    return_color = COLORS["success"] if total_return >= 0 else COLORS["danger"]
     with st.container():
         st.markdown(
             f"""
@@ -58,7 +59,7 @@ def render_portfolio_card(
                 background-color: #1A1E29;
                 margin-bottom: 16px;
             ">
-                <h3 style="color: #BF9FFB; margin-top: 0;">
+                <h3 style="color: {COLORS['primary']}; margin-top: 0;">
                     {name}
                 </h3>
                 <div style="display: flex; justify-content: space-between;">

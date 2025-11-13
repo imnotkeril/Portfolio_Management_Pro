@@ -199,9 +199,9 @@ def plot_return_distribution(
 
         # Bar color based on parameter
         if bar_color == "green":
-            bar_color_hex = "#00CC96"  # Green
+            bar_color_hex = COLORS["success"]  # Green
         else:
-            bar_color_hex = "#BF9FFB"  # Blue
+            bar_color_hex = COLORS["primary"]  # Purple (portfolio color)
 
         fig.add_trace(
             go.Bar(
@@ -218,7 +218,7 @@ def plot_return_distribution(
         fig.add_vline(
             x=mean_pct,
             line_dash="dash",
-            line_color="#90BFF9",  # Blue
+            line_color=COLORS["secondary"],  # Blue
             annotation_text=f"Mean: {mean_pct:.2f}%",
             annotation_position="top",
         )
@@ -359,7 +359,7 @@ def plot_return_distribution(
                 line_width=1,
             )
 
-        # Normal distribution overlay (red dashed)
+        # Normal distribution overlay (orange dashed) - #FFCC80
         if std > 0:
             x_norm = np.linspace(edges[0], edges[-1], 100) * 100
             pdf_values = stats.norm.pdf(x_norm / 100, loc=mean, scale=std)
@@ -370,7 +370,7 @@ def plot_return_distribution(
                     y=y_norm,
                     mode="lines",
                     name="Normal Distribution",
-                    line=dict(color="#EF553B", width=2, dash="dash"),  # Red
+                    line=dict(color=COLORS["warning"], width=2, dash="dash"),  # Orange #FFCC80
                 )
             )
 
@@ -413,7 +413,7 @@ def plot_qq_plot(
                 y=sample_pct,
                 mode="markers",
                 name="Data Points",
-                marker=dict(color="#BF9FFB", size=4),  # Blue dots
+                marker=dict(color=COLORS["primary"], size=4),  # Purple dots
             )
         )
 
@@ -426,7 +426,7 @@ def plot_qq_plot(
                 y=[min_val, max_val],
                 mode="lines",
                 name="45° Line (Normal)",
-                line=dict(color="#EF553B", width=2, dash="dash"),  # Red
+                line=dict(color=COLORS["danger"], width=2, dash="dash"),  # Red
             )
         )
 
@@ -539,11 +539,12 @@ def plot_rolling_sharpe(
             )
         )
 
-    # Reference line (Sharpe = 1.0)
+    # Reference line (Sharpe = 1.0) - white dashed
     fig.add_hline(
         y=1.0,
-        line_dash="dot",
-        line_color=COLORS["warning"],
+        line_dash="dash",
+        line_color="white",
+        line_width=1,
         annotation_text="Sharpe = 1.0",
     )
 
@@ -645,19 +646,20 @@ def plot_underwater(
     underwater_series = data.get("underwater", pd.Series())
 
     if not underwater_series.empty:
+        # Portfolio drawdown - red color
         fig.add_trace(
             go.Scatter(
                 x=underwater_series.index,
                 y=underwater_series.values,
                 mode="lines",
                 fill="tozeroy",
-                fillcolor="rgba(250, 161, 164, 0.3)",
-                line=dict(color=COLORS["danger"], width=2),
+                fillcolor="rgba(239, 83, 80, 0.3)",  # Red with transparency
+                line=dict(color=COLORS["danger"], width=2),  # Red - portfolio
                 name="Portfolio",
             )
         )
 
-    # Benchmark underwater (if available)
+    # Benchmark underwater (if available) - orange color
     benchmark_underwater = data.get("benchmark", pd.Series())
     if not benchmark_underwater.empty:
         fig.add_trace(
@@ -665,7 +667,7 @@ def plot_underwater(
                 x=benchmark_underwater.index,
                 y=benchmark_underwater.values,
                 mode="lines",
-                line=dict(color=COLORS["secondary"], width=2),
+                line=dict(color=COLORS["warning"], width=2),  # Orange #FFCC80 - benchmark
                 name="Benchmark",
             )
         )
@@ -689,10 +691,10 @@ def plot_underwater(
             showarrow=True,
             arrowhead=2,
             arrowcolor=COLORS["danger"],
-            bgcolor="rgba(255,255,255,0.9)",
+            bgcolor="rgba(0,0,0,0)",  # Transparent background
             bordercolor=COLORS["danger"],
             borderwidth=2,
-            font=dict(color="black", size=11)
+            font=dict(color="white", size=11)  # White text
         )
 
     # Highlight current drawdown (if exists)
@@ -705,10 +707,10 @@ def plot_underwater(
             showarrow=True,
             arrowhead=2,
             arrowcolor=COLORS["warning"],
-            bgcolor="rgba(255,255,255,0.9)",
+            bgcolor="rgba(0,0,0,0)",  # Transparent background
             bordercolor=COLORS["warning"],
             borderwidth=2,
-            font=dict(color="black", size=11)
+            font=dict(color="white", size=11)  # White text
         )
 
     layout = get_chart_layout(
@@ -1140,29 +1142,37 @@ def plot_active_returns_area(
     negative = active_returns.copy()
     negative[negative > 0] = 0
     
-    # Positive area (green)
+    # Convert hex colors to rgba for transparency
+    # #74F174 -> rgba(116, 241, 116, 0.3)
+    # #EF5350 -> rgba(239, 83, 80, 0.3)
+    success_rgba = "rgba(116, 241, 116, 0.3)"
+    danger_rgba = "rgba(239, 83, 80, 0.3)"
+    success_line_rgba = "rgba(116, 241, 116, 0.5)"
+    danger_line_rgba = "rgba(239, 83, 80, 0.5)"
+    
+    # Positive area (green) - #74F174
     fig.add_trace(
         go.Scatter(
             x=positive.index,
             y=positive.values * 100,
             mode="lines",
             fill="tozeroy",
-            fillcolor="rgba(76, 175, 80, 0.3)",
-            line=dict(color="rgba(76, 175, 80, 0.5)", width=1),
+            fillcolor=success_rgba,
+            line=dict(color=success_line_rgba, width=1),
             name="Positive Alpha",
             showlegend=False,
         )
     )
     
-    # Negative area (red)
+    # Negative area (red) - #EF5350
     fig.add_trace(
         go.Scatter(
             x=negative.index,
             y=negative.values * 100,
             mode="lines",
             fill="tozeroy",
-            fillcolor="rgba(244, 67, 54, 0.3)",
-            line=dict(color="rgba(244, 67, 54, 0.5)", width=1),
+            fillcolor=danger_rgba,
+            line=dict(color=danger_line_rgba, width=1),
             name="Negative Alpha",
             showlegend=False,
         )
@@ -1270,7 +1280,7 @@ def plot_return_quantiles_box(
         go.Box(
             y=portfolio_returns.values * 100,
             name="Portfolio",
-            marker_color="#BF9FFB",  # Blue
+            marker_color=COLORS["primary"],  # Purple
             boxmean="sd",
         )
     )
@@ -1281,7 +1291,7 @@ def plot_return_quantiles_box(
             go.Box(
                 y=benchmark_returns.values * 100,
                 name="Benchmark",
-                marker_color="#FFA15A",  # Orange
+                marker_color=COLORS["secondary"],  # Blue (benchmark)
                 boxmean="sd",
             )
         )
@@ -1727,6 +1737,7 @@ def plot_var_distribution(
 ) -> go.Figure:
     """
     Plot return distribution histogram with VaR and CVaR lines.
+    Uses same structure as plot_return_distribution but without extra VaR percentile lines.
 
     Args:
         returns: Series of returns
@@ -1737,99 +1748,98 @@ def plot_var_distribution(
     Returns:
         Plotly Figure
     """
-    fig = go.Figure()
-
-    # Calculate histogram
-    returns_pct = returns * 100  # Convert to percentage
+    # Use the same data preparation as plot_return_distribution
+    from core.analytics_engine.chart_data import get_return_distribution_data
     
-    # Add histogram
-    fig.add_trace(
-        go.Histogram(
-            x=returns_pct,
-            nbinsx=50,
-            name="Return Distribution",
-            marker=dict(color=COLORS["primary"], opacity=0.7),
-            showlegend=True,
+    dist_data = get_return_distribution_data(returns, bins=50)
+    
+    # Create clean figure without extra VaR lines
+    fig = go.Figure()
+    
+    counts = dist_data.get("counts", np.array([]))
+    edges = dist_data.get("edges", np.array([]))
+    mean = dist_data.get("mean", 0.0)
+    std = dist_data.get("std", 0.0)
+    
+    if len(counts) > 0 and len(edges) > 1:
+        bin_centers = (edges[:-1] + edges[1:]) / 2 * 100
+        
+        # Add histogram bars (purple)
+        fig.add_trace(
+            go.Bar(
+                x=bin_centers,
+                y=counts,
+                name="Return Distribution",
+                marker_color=COLORS["primary"],  # Purple
+                opacity=0.7,
+            )
         )
-    )
-
-    # Add mean line (green dashed)
-    mean_return = returns_pct.mean()
-    fig.add_vline(
-        x=mean_return,
-        line=dict(color="green", width=2, dash="dash"),
-    )
-    fig.add_annotation(
-        x=mean_return,
-        y=1,
-        yref="paper",
-        text=f"{mean_return:.2f}%",
-        showarrow=False,
-        yshift=10,
-        font=dict(color="green", size=11),
-    )
-    fig.add_annotation(
-        x=mean_return,
-        y=0,
-        yref="paper",
-        text="Mean",
-        showarrow=False,
-        yshift=-10,
-        font=dict(color="green", size=10),
-    )
-
-    # Add VaR line (red solid)
+        
+        # Mean line (blue dashed)
+        mean_pct = mean * 100
+        fig.add_vline(
+            x=mean_pct,
+            line_dash="dash",
+            line_color=COLORS["secondary"],  # Blue
+            annotation_text=f"Mean: {mean_pct:.2f}%",
+            annotation_position="top",
+        )
+        
+        # Normal distribution overlay (orange dashed)
+        if std > 0:
+            x_norm = np.linspace(edges[0], edges[-1], 100) * 100
+            pdf_values = stats.norm.pdf(x_norm / 100, loc=mean, scale=std)
+            y_norm = pdf_values * len(counts) * (edges[1] - edges[0])
+            fig.add_trace(
+                go.Scatter(
+                    x=x_norm,
+                    y=y_norm,
+                    mode="lines",
+                    name="Normal Distribution",
+                    line=dict(color=COLORS["warning"], width=2, dash="dash"),  # Orange
+                )
+            )
+    
+    # Add VaR line (red dotted, thicker)
     var_pct = var_value * 100
     fig.add_vline(
         x=var_pct,
-        line=dict(color=COLORS["danger"], width=3),
+        line=dict(color=COLORS["danger"], width=3, dash="dot"),
+        annotation_text=f"VaR {int(confidence_level*100)}%",
+        annotation_position="bottom",
     )
     fig.add_annotation(
         x=var_pct,
-        y=1,
+        y=1.0,
+        xref="x",
         yref="paper",
         text=f"{var_pct:.2f}%",
         showarrow=False,
-        yshift=10,
-        font=dict(color=COLORS["danger"], size=11),
-    )
-    fig.add_annotation(
-        x=var_pct,
-        y=0,
-        yref="paper",
-        text=f"VaR {int(confidence_level*100)}%",
-        showarrow=False,
-        yshift=-10,
-        font=dict(color=COLORS["danger"], size=10),
+        font=dict(size=10, color=COLORS["danger"]),
+        bgcolor="rgba(0,0,0,0.7)",
     )
 
-    # Add CVaR line (orange solid)
+    # Add CVaR line (orange dotted, thicker)
     cvar_pct = cvar_value * 100
     fig.add_vline(
         x=cvar_pct,
-        line=dict(color=COLORS["warning"], width=3),
+        line=dict(color=COLORS["warning"], width=3, dash="dot"),
+        annotation_text=f"CVaR {int(confidence_level*100)}%",
+        annotation_position="bottom",
     )
     fig.add_annotation(
         x=cvar_pct,
-        y=1,
+        y=1.0,
+        xref="x",
         yref="paper",
         text=f"{cvar_pct:.2f}%",
         showarrow=False,
-        yshift=10,
-        font=dict(color=COLORS["warning"], size=11),
-    )
-    fig.add_annotation(
-        x=cvar_pct,
-        y=0,
-        yref="paper",
-        text=f"CVaR {int(confidence_level*100)}%",
-        showarrow=False,
-        yshift=-10,
-        font=dict(color=COLORS["warning"], size=10),
+        font=dict(size=10, color=COLORS["warning"]),
+        bgcolor="rgba(0,0,0,0.7)",
     )
 
     # Add shaded area for returns beyond VaR
-    # This represents the tail risk (5% of days)
+    returns_pct = returns * 100
     tail_returns = returns_pct[returns_pct < var_pct]
     if not tail_returns.empty:
         fig.add_vrect(
@@ -1844,10 +1854,9 @@ def plot_var_distribution(
 
     layout = get_chart_layout(
         title=f"VaR {int(confidence_level*100)}% on Return Distribution",
-        xaxis=dict(title="Daily Return (%)", tickformat=",.1f"),
         yaxis=dict(title="Frequency"),
-        showlegend=True,
-        height=500,
+        xaxis=dict(title="Daily Return (%)", tickformat=",.1f"),
+        hovermode="x unified",
     )
 
     fig.update_layout(**layout)
@@ -1887,7 +1896,7 @@ def plot_rolling_volatility(
             )
         )
     
-    # Benchmark line (orange, dashed)
+    # Benchmark line (blue solid)
     if not benchmark_vol.empty:
         fig.add_trace(
             go.Scatter(
@@ -1895,9 +1904,18 @@ def plot_rolling_volatility(
                 y=benchmark_vol.values * 100,
                 mode="lines",
                 name="Benchmark",
-                line=dict(color=COLORS["secondary"], width=2, dash="dash"),
+                line=dict(color=COLORS["secondary"], width=2),  # Blue - solid line
             )
         )
+    
+    # Reference line at 20% volatility (white dashed)
+    fig.add_hline(
+        y=20.0,
+        line_dash="dash",
+        line_color="white",
+        line_width=1,
+        annotation_text="20%",
+    )
     
     layout = get_chart_layout(
         title=f"Rolling Volatility ({window} days)",
@@ -2000,7 +2018,7 @@ def plot_rolling_sortino(
             )
         )
     
-    # Benchmark line (orange dashed)
+    # Benchmark line (blue solid)
     if "benchmark" in data and not data["benchmark"].empty:
         fig.add_trace(
             go.Scatter(
@@ -2008,15 +2026,15 @@ def plot_rolling_sortino(
                 y=data["benchmark"].values,
                 mode="lines",
                 name="Benchmark",
-                line=dict(color=COLORS["secondary"], width=2, dash="dash"),
+                line=dict(color=COLORS["secondary"], width=2),  # Blue - solid line
             )
         )
     
-    # Zero Sortino reference line (red dashed)
+    # Zero Sortino reference line (white dashed)
     fig.add_hline(
         y=0,
         line_dash="dash",
-        line_color=COLORS["danger"],
+        line_color="white",
         line_width=1,
         annotation_text="Sortino = 0",
     )
@@ -2096,17 +2114,17 @@ def plot_rolling_beta(
             y=beta_series.values,
             mode="lines",
             name="Beta",
-            line=dict(color="#BF9FFB", width=2),  # Purple
+            line=dict(color=COLORS["primary"], width=2),  # Purple
         )
     )
     
     # Reference lines
-    # Beta = 1.0 (green dashed)
+    # Beta = 1.0 (white dashed)
     fig.add_hline(
         y=1.0,
         line_dash="dash",
-        line_color=COLORS["success"],
-        line_width=2,
+        line_color="white",
+        line_width=1,
         annotation_text="Beta = 1.0",
     )
     
@@ -2230,37 +2248,14 @@ def plot_rolling_active_return(
     if active_return.empty:
         return fig
     
-    # Separate positive and negative for coloring
-    positive = active_return.copy()
-    positive[positive < 0] = 0
-    negative = active_return.copy()
-    negative[negative > 0] = 0
-    
-    # Positive area (green)
+    # Active return as single purple line (no positive/negative split)
     fig.add_trace(
         go.Scatter(
-            x=positive.index,
-            y=positive.values * 100,  # Convert to percentage
+            x=active_return.index,
+            y=active_return.values * 100,  # Convert to percentage
             mode="lines",
-            fill="tozeroy",
-            fillcolor="rgba(76, 175, 80, 0.4)",
-            line=dict(color=COLORS["success"], width=1),
-            name="Positive",
-            showlegend=False,
-        )
-    )
-    
-    # Negative area (red)
-    fig.add_trace(
-        go.Scatter(
-            x=negative.index,
-            y=negative.values * 100,
-            mode="lines",
-            fill="tozeroy",
-            fillcolor="rgba(244, 67, 54, 0.4)",
-            line=dict(color=COLORS["danger"], width=1),
-            name="Negative",
-            showlegend=False,
+            name="Active Return",
+            line=dict(color=COLORS["primary"], width=2),  # Purple - portfolio
         )
     )
     
@@ -2396,12 +2391,12 @@ def plot_bull_bear_rolling_beta(
             )
         )
     
-    # Beta = 1.0 reference line
+    # Beta = 1.0 reference line (white dashed)
     fig.add_hline(
         y=1.0,
         line_dash="dash",
-        line_color=COLORS["warning"],
-        line_width=2,
+        line_color="white",
+        line_width=1,
         annotation_text="Beta = 1.0",
     )
     
@@ -2593,13 +2588,13 @@ def plot_risk_vs_weight_comparison(
             )
         )
     
-    # Weight bars (orange)
+    # Weight bars (purple)
     fig.add_trace(
         go.Bar(
             name="Weight in Portfolio",
             x=tickers,
             y=weights,
-            marker=dict(color=COLORS["warning"]),
+            marker=dict(color=COLORS["primary"]),  # Purple
             hovertemplate=(
                 "<b>%{x}</b><br>"
                 "Weight: %{y:.2f}%<extra></extra>"
@@ -2644,13 +2639,11 @@ def plot_correlation_matrix(
         )
         return fig
     
-    # Create heatmap with custom color scale
+    # Create heatmap with custom color scale (green to red through white)
     colorscale = [
-        [0.0, "#1E3A8A"],      # Dark Blue (-1.0)
-        [0.25, "#3B82F6"],     # Light Blue (-0.5)
-        [0.5, "#FFFFFF"],       # White (0.0)
-        [0.75, "#F87171"],     # Light Red (+0.5)
-        [1.0, "#DC2626"],      # Dark Red (+1.0)
+        [0.0, COLORS["success"]],  # Green (-1.0)
+        [0.5, "#FFFFFF"],           # White (0.0)
+        [1.0, COLORS["danger"]],    # Red (+1.0)
     ]
     
     fig.add_trace(
@@ -2733,7 +2726,7 @@ def plot_correlation_with_benchmark(
     fig.add_hline(
         y=0.7,
         line_dash="dash",
-        line_color=COLORS["warning"],
+        line_color="white",  # White
         line_width=2,
         annotation_text="High Correlation (0.7)",
         annotation_position="right",
@@ -2957,16 +2950,14 @@ def plot_asset_price_dynamics(
     if not price_series:
         return fig
     
-    # Color palette for assets
+    # Color palette for assets (portfolio first, then others)
     asset_colors = [
-        COLORS["primary"],
-        COLORS["success"],
-        COLORS["warning"],
-        COLORS["danger"],
-        "#BF9FFB",  # Purple
-        "#00CC96",  # Green
-        "#FFA15A",  # Orange
-        "#EF553B",  # Red
+        COLORS["primary"],  # Purple - portfolio
+        COLORS["secondary"],  # Blue
+        COLORS["success"],  # Green
+        COLORS["warning"],  # Orange
+        COLORS["additional"],  # Yellow
+        COLORS["danger"],  # Red
     ]
     
     # Plot each asset
@@ -3045,13 +3036,12 @@ def plot_rolling_correlation_with_benchmark(
     
     # Color palette
     asset_colors = [
-        COLORS["primary"],
-        COLORS["success"],
-        COLORS["warning"],
-        COLORS["danger"],
-        "#BF9FFB",
-        "#00CC96",
-        "#FFA15A",
+        COLORS["primary"],  # Purple
+        COLORS["secondary"],  # Blue
+        COLORS["success"],  # Green
+        COLORS["warning"],  # Orange
+        COLORS["additional"],  # Yellow
+        COLORS["danger"],  # Red
     ]
     
     # Plot each asset's rolling correlation
@@ -3075,7 +3065,7 @@ def plot_rolling_correlation_with_benchmark(
                 y=portfolio_avg_corr.values,
                 mode="lines",
                 name="Portfolio Avg Correlation",
-                line=dict(color="#BF9FFB", width=3),
+                line=dict(color=COLORS["primary"], width=3),  # Purple - portfolio
             )
         )
     
@@ -3083,7 +3073,7 @@ def plot_rolling_correlation_with_benchmark(
     fig.add_hline(
         y=0.7,
         line_dash="dash",
-        line_color=COLORS["warning"],
+        line_color=COLORS["danger"],  # Red
         line_width=1,
         annotation_text="High (0.7)",
     )
@@ -3091,7 +3081,7 @@ def plot_rolling_correlation_with_benchmark(
     fig.add_hline(
         y=0.3,
         line_dash="dash",
-        line_color=COLORS["success"],
+        line_color=COLORS["success"],  # Green (keep as is)
         line_width=1,
         annotation_text="Low (0.3)",
     )
@@ -3138,14 +3128,14 @@ def plot_detailed_asset_price_volume(
         subplot_titles=(f"{ticker} - Price and Moving Averages", "Volume"),
     )
     
-    # Price line (yellow)
+    # Price line (purple)
     fig.add_trace(
         go.Scatter(
             x=prices.index,
             y=prices.values,
             mode="lines",
             name="Price",
-            line=dict(color="#FFD700", width=2),  # Yellow
+            line=dict(color=COLORS["primary"], width=2),  # Purple
         ),
         row=1,
         col=1,
@@ -3159,7 +3149,7 @@ def plot_detailed_asset_price_volume(
                 y=ma50.values,
                 mode="lines",
                 name="MA50",
-                line=dict(color=COLORS["warning"], width=1.5, dash="dash"),
+                line=dict(color=COLORS["secondary"], width=1.5, dash="dash"),  # Blue
             ),
             row=1,
             col=1,
@@ -3172,7 +3162,7 @@ def plot_detailed_asset_price_volume(
                 y=ma200.values,
                 mode="lines",
                 name="MA200",
-                line=dict(color=COLORS["danger"], width=1.5, dash="dash"),
+                line=dict(color=COLORS["warning"], width=1.5, dash="dash"),  # Orange
             ),
             row=1,
             col=1,
@@ -3186,8 +3176,8 @@ def plot_detailed_asset_price_volume(
         # Create volume bars (use returns magnitude as proxy for volume)
         volume = abs(aligned_returns) * 1000  # Scale for visualization
         
-        # Green for up days, red for down days
-        colors = ["#4CAF50" if r >= 0 else "#F44336" for r in aligned_returns]
+        # Green for up days, red for down days (from palette)
+        colors = [COLORS["success"] if r >= 0 else COLORS["danger"] for r in aligned_returns]
         
         fig.add_trace(
             go.Bar(

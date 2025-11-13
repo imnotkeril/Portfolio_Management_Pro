@@ -1,10 +1,16 @@
 # WILD MARKET CAPITAL - System Architecture
 
 **Version**: 1.0 (Initial)  
-**Last Updated**: 2025-01-28  
+**Last Updated**: 2025-11-13  
 **Status**: 🟡 Living Document - Will be updated during development
 
 ---
+
+### Recent Updates (2025-11-13)
+
+- Added explicit docstrings for `WMCBaseException.__init__` and the `TickerInfo` initializer to clarify expected arguments and metadata handling.
+- Documented the timezone normalization unit test to describe its role in validating mixed timezone price data ingestion.
+- Marked completion of the risk/scenario analysis stack (`core/risk_engine/*`, `core/scenario_engine/*`, `streamlit_app/pages/risk_analysis.py`) and reporting/export pipeline (`core/reporting_engine/*`, `streamlit_app/pages/reports.py`), reflecting the close-out of Phases 7 and 8.
 
 ## 1. SYSTEM OVERVIEW
 
@@ -1129,7 +1135,39 @@ CREATE TABLE users (
 
 ---
 
-### 6.8 Repository Pattern for Data Access
+### 6.8 Parallel Data Fetching (Phase 9)
+
+**Decision**: Use ThreadPoolExecutor for parallel I/O operations
+
+**Rationale**:
+- **Performance**: 6.83x speedup for uncached bulk data fetching (1452ms → 212ms for 8 tickers)
+- **I/O Bound**: Data fetching is I/O-bound, threading is perfect for concurrent requests
+- **Scalability**: Can handle multiple tickers simultaneously without blocking
+- **Smart Fallback**: Sequential if all data cached (faster), parallel if uncached
+
+**Implementation**:
+- `ThreadPoolExecutor` with max 5 workers for parallel fetching
+- `yf.download()` with `threads=True` for bulk downloads (yfinance built-in threading)
+- Smart cache checking - sequential if all cached, parallel if uncached
+- Applied to `fetch_bulk_prices()` and `get_latest_prices()` in DataService
+
+**Performance Results** (Phase 9 profiling):
+- Cached data: ~1.8ms (sequential is fine, minimal overhead)
+- Uncached data: **6.83x speedup** (parallel vs sequential)
+- Analytics Engine: ~14ms (35x faster than target of 500ms)
+
+**Code Locations**:
+- `core/data_manager/price_manager.py::fetch_bulk_prices()` - Parallel fetching with ThreadPoolExecutor
+- `services/data_service.py::get_latest_prices()` - Parallel current price fetching
+
+**Trade-offs**:
+- Slightly more complex code (thread management)
+- Thread overhead (minimal, ~5 threads max)
+- ✅ Worth it for significant performance gains (6.83x speedup)
+
+---
+
+### 6.9 Repository Pattern for Data Access
 
 **Decision**: Use Repository pattern between services and ORM
 
@@ -1795,7 +1833,7 @@ This document will be **updated during development** with:
 - ✅ `database/session.py` - SQLAlchemy session management
 - ✅ `core/data_manager/cache.py` - Multi-level caching system
 - ✅ `core/data_manager/ticker_validator.py` - Ticker validation with Yahoo Finance
-- ✅ `core/data_manager/price_manager.py` - Price data fetching with retry logic
+- ✅ `core/data_manager/price_manager.py` - Price data fetching with retry logic and parallel fetching (ThreadPoolExecutor)
 - ✅ `models/price_history.py` - Price history ORM model
 - ✅ `services/data_service.py` - Data service orchestration layer
 - ✅ `database/migrations/versions/001_create_price_history.py` - Alembic migration
@@ -1805,7 +1843,8 @@ This document will be **updated during development** with:
 - Ticker validation with 24h cache TTL
 - Historical price fetching from Yahoo Finance
 - Current price fetching with 5min cache TTL
-- Bulk price fetching for multiple tickers
+- Bulk price fetching for multiple tickers with parallel fetching (6.83x speedup)
+- Parallel data fetching via ThreadPoolExecutor (up to 5 workers)
 - Database storage for price history with indexes
 - Retry logic with exponential backoff
 - Comprehensive error handling

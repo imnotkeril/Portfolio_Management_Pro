@@ -2,6 +2,7 @@
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -12,6 +13,9 @@ from core.exceptions import DataFetchError, TickerNotFoundError
 from core.data_manager.cache import Cache
 
 logger = logging.getLogger(__name__)
+
+# Parallel fetching configuration
+MAX_WORKERS = 5  # Number of parallel threads for data fetching
 
 # Retry configuration
 MAX_RETRIES = 3
@@ -157,7 +161,7 @@ class PriceManager:
         use_cache: bool = True,
     ) -> pd.DataFrame:
         """
-        Fetch historical prices for multiple tickers.
+        Fetch historical prices for multiple tickers with parallel fetching.
 
         Args:
             tickers: List of ticker symbols
@@ -166,7 +170,7 @@ class PriceManager:
             use_cache: Whether to use cached data (default: True)
 
         Returns:
-            DataFrame with MultiIndex (ticker, date) and columns: Open, High, Low, Close, Adjusted_Close, Volume
+            DataFrame with columns: Date, Ticker, Adjusted_Close, etc.
 
         Raises:
             DataFetchError: If bulk fetch fails
@@ -176,39 +180,119 @@ class PriceManager:
         if not tickers:
             return pd.DataFrame()
 
-        logger.info(f"Fetching bulk prices for {len(tickers)} tickers")
+        logger.info(f"Fetching bulk prices for {len(tickers)} tickers (parallel: {len(tickers) > 1})")
 
-        # Fetch all at once using yfinance
-        try:
-            # yfinance can download multiple tickers at once
-            data = yf.download(
-                " ".join(tickers),
-                start=start_date,
-                end=end_date + timedelta(days=1),  # yfinance end is exclusive
-                progress=False,
-                group_by="ticker",
-            )
+        # For single ticker, use regular fetch
+        if len(tickers) == 1:
+            df = self.fetch_historical_prices(tickers[0], start_date, end_date, use_cache=use_cache)
+            if not df.empty:
+                df["Ticker"] = tickers[0]
+            return df
 
-            if data.empty:
-                raise DataFetchError("No data returned from bulk fetch")
+        # Check cache first - if all are cached, fetch sequentially (fast)
+        all_cached = True
+        for ticker in tickers:
+            cache_key = f"prices:{ticker}:{start_date}:{end_date}"
+            cached_data = self._cache.get(cache_key)
+            if cached_data is None:
+                all_cached = False
+                break
 
-            # Standardize the format
+        # If all cached, fetch sequentially (very fast)
+        if all_cached and use_cache:
             dfs = []
             for ticker in tickers:
-                if ticker in data.columns.levels[0] if isinstance(data.columns, pd.MultiIndex) else ticker in data.columns:
-                    ticker_data = data[ticker] if isinstance(data.columns, pd.MultiIndex) else data
-                    ticker_data = self._standardize_dataframe(ticker_data)
-                    ticker_data["Ticker"] = ticker
-                    dfs.append(ticker_data)
-                else:
-                    logger.warning(f"No data returned for ticker: {ticker}")
+                try:
+                    df = self.fetch_historical_prices(ticker, start_date, end_date, use_cache=True)
+                    if not df.empty:
+                        df["Ticker"] = ticker
+                        dfs.append(df)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch cached data for {ticker}: {e}")
+            
+            if dfs:
+                result = pd.concat(dfs, ignore_index=True)
+                logger.info(f"Successfully fetched {len(dfs)} tickers from cache")
+                return result
+
+        # For uncached data, use parallel fetching
+        try:
+            # Try yfinance bulk download first (fastest for multiple tickers)
+            try:
+                data = yf.download(
+                    " ".join(tickers),
+                    start=start_date,
+                    end=end_date + timedelta(days=1),  # yfinance end is exclusive
+                    progress=False,
+                    group_by="ticker",
+                    threads=True,  # Enable threading in yfinance
+                )
+
+                if not data.empty:
+                    # Standardize the format
+                    dfs = []
+                    for ticker in tickers:
+                        try:
+                            if isinstance(data.columns, pd.MultiIndex):
+                                if ticker in data.columns.levels[0]:
+                                    ticker_data = data[ticker].copy()
+                                else:
+                                    continue
+                            else:
+                                # Single ticker case
+                                ticker_data = data.copy()
+                            
+                            ticker_data = self._standardize_dataframe(ticker_data)
+                            ticker_data["Ticker"] = ticker
+                            dfs.append(ticker_data)
+                        except Exception as e:
+                            logger.warning(f"Error processing {ticker} from bulk download: {e}")
+
+                    if dfs:
+                        result = pd.concat(dfs, ignore_index=True)
+                        logger.info(f"Successfully fetched bulk prices for {len(dfs)} tickers using yfinance bulk")
+                        return result
+            except Exception as e:
+                logger.warning(f"yfinance bulk download failed, falling back to parallel fetching: {e}")
+
+            # Fallback: Parallel fetching using ThreadPoolExecutor
+            dfs = []
+            failed_tickers = []
+
+            def fetch_single(ticker: str) -> tuple[str, Optional[pd.DataFrame]]:
+                """Fetch single ticker, return (ticker, df)."""
+                try:
+                    df = self.fetch_historical_prices(ticker, start_date, end_date, use_cache=use_cache)
+                    if not df.empty:
+                        df["Ticker"] = ticker
+                    return (ticker, df)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch {ticker}: {e}")
+                    return (ticker, None)
+
+            # Use ThreadPoolExecutor for parallel fetching
+            with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(tickers))) as executor:
+                future_to_ticker = {
+                    executor.submit(fetch_single, ticker): ticker 
+                    for ticker in tickers
+                }
+                
+                for future in as_completed(future_to_ticker):
+                    ticker, df = future.result()
+                    if df is not None and not df.empty:
+                        dfs.append(df)
+                    else:
+                        failed_tickers.append(ticker)
 
             if not dfs:
-                raise DataFetchError("No data returned for any ticker")
+                raise DataFetchError(f"No data returned for any ticker. Failed: {failed_tickers}")
 
-            result = pd.concat(dfs, ignore_index=False)
+            result = pd.concat(dfs, ignore_index=True)
+            
+            if failed_tickers:
+                logger.warning(f"Failed to fetch {len(failed_tickers)} tickers: {failed_tickers}")
 
-            logger.info(f"Successfully fetched bulk prices for {len(dfs)} tickers")
+            logger.info(f"Successfully fetched bulk prices for {len(dfs)}/{len(tickers)} tickers (parallel)")
 
             return result
 

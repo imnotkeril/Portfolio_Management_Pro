@@ -114,7 +114,7 @@ def validate_weight_constraints(
         if min_weight * num_assets > 1.0:
             max_allowed = 1.0 / num_assets
             warnings.append(
-                f"⚠️ **Warning:** Minimum weight ({min_weight:.1%}) is too high "
+                f"**Warning:** Minimum weight ({min_weight:.1%}) is too high "
                 f"for {num_assets} assets. Sum of minimum weights will be "
                 f"{min_weight * num_assets:.1%} (>100%). "
                 f"Recommended: min_weight ≤ {max_allowed:.2%}"
@@ -123,7 +123,7 @@ def validate_weight_constraints(
     if max_weight is not None and min_weight is not None:
         if max_weight < min_weight:
             warnings.append(
-                f"⚠️ **Error:** Maximum weight ({max_weight:.1%}) is less than "
+                f"**Error:** Maximum weight ({max_weight:.1%}) is less than "
                 f"minimum weight ({min_weight:.1%})"
             )
     
@@ -171,6 +171,444 @@ def get_default_objective(method: str) -> str:
     # If no default specified, use first available
     available = get_available_objectives(method)
     return available[0] if available else None
+
+
+def _interpret_optimization_comparison(optimized_metrics: dict, current_metrics: dict) -> str:
+    """Interpret comparison between optimized and current portfolio metrics."""
+    if not optimized_metrics or not current_metrics:
+        return ""
+    
+    parts = []
+    parts.append("**Optimization Results Analysis:**")
+    
+    # Calculate improvements
+    sharpe_diff = optimized_metrics.get("sharpe_ratio", 0) - current_metrics.get("sharpe_ratio", 0)
+    return_diff = optimized_metrics.get("annualized_return", 0) - current_metrics.get("annualized_return", 0)
+    vol_diff = optimized_metrics.get("volatility", 0) - current_metrics.get("volatility", 0)
+    dd_diff = optimized_metrics.get("max_drawdown", 0) - current_metrics.get("max_drawdown", 0)
+    
+    # Sharpe ratio analysis
+    if abs(sharpe_diff) < 0.1:
+        parts.append(f"Sharpe ratio: Similar ({optimized_metrics.get('sharpe_ratio', 0):.2f} vs {current_metrics.get('sharpe_ratio', 0):.2f})")
+    elif sharpe_diff > 0:
+        parts.append(f"✓ Sharpe ratio improved by {sharpe_diff:.2f} ({optimized_metrics.get('sharpe_ratio', 0):.2f} vs {current_metrics.get('sharpe_ratio', 0):.2f})")
+    else:
+        parts.append(f"⚠ Sharpe ratio decreased by {abs(sharpe_diff):.2f} ({optimized_metrics.get('sharpe_ratio', 0):.2f} vs {current_metrics.get('sharpe_ratio', 0):.2f})")
+    
+    # Return analysis
+    if abs(return_diff) < 0.01:
+        parts.append(f"Annual return: Similar ({optimized_metrics.get('annualized_return', 0)*100:.2f}% vs {current_metrics.get('annualized_return', 0)*100:.2f}%)")
+    elif return_diff > 0:
+        parts.append(f"✓ Annual return increased by {return_diff*100:.2f}% ({optimized_metrics.get('annualized_return', 0)*100:.2f}% vs {current_metrics.get('annualized_return', 0)*100:.2f}%)")
+    else:
+        parts.append(f"Annual return decreased by {abs(return_diff)*100:.2f}% ({optimized_metrics.get('annualized_return', 0)*100:.2f}% vs {current_metrics.get('annualized_return', 0)*100:.2f}%)")
+    
+    # Volatility analysis
+    if abs(vol_diff) < 0.01:
+        parts.append(f"Volatility: Similar ({optimized_metrics.get('volatility', 0)*100:.2f}% vs {current_metrics.get('volatility', 0)*100:.2f}%)")
+    elif vol_diff < 0:
+        parts.append(f"✓ Volatility reduced by {abs(vol_diff)*100:.2f}% ({optimized_metrics.get('volatility', 0)*100:.2f}% vs {current_metrics.get('volatility', 0)*100:.2f}%)")
+    else:
+        parts.append(f"⚠ Volatility increased by {vol_diff*100:.2f}% ({optimized_metrics.get('volatility', 0)*100:.2f}% vs {current_metrics.get('volatility', 0)*100:.2f}%)")
+    
+    # Drawdown analysis
+    if abs(dd_diff) < 0.01:
+        parts.append(f"Max drawdown: Similar ({optimized_metrics.get('max_drawdown', 0)*100:.2f}% vs {current_metrics.get('max_drawdown', 0)*100:.2f}%)")
+    elif dd_diff < 0:
+        parts.append(f"✓ Max drawdown reduced by {abs(dd_diff)*100:.2f}% ({optimized_metrics.get('max_drawdown', 0)*100:.2f}% vs {current_metrics.get('max_drawdown', 0)*100:.2f}%)")
+    else:
+        parts.append(f"⚠ Max drawdown increased by {abs(dd_diff)*100:.2f}% ({optimized_metrics.get('max_drawdown', 0)*100:.2f}% vs {current_metrics.get('max_drawdown', 0)*100:.2f}%)")
+    
+    # Overall assessment
+    improvements = sum([
+        1 if sharpe_diff > 0.1 else 0,
+        1 if return_diff > 0.01 else 0,
+        1 if vol_diff < -0.01 else 0,
+        1 if dd_diff < -0.01 else 0,
+    ])
+    
+    if improvements >= 3:
+        parts.append(f"\n✓ Optimization shows significant improvements across multiple metrics")
+    elif improvements >= 2:
+        parts.append(f"\nOptimization shows moderate improvements")
+    elif improvements >= 1:
+        parts.append(f"\nOptimization shows limited improvements")
+    else:
+        parts.append(f"\n⚠ Optimization did not improve metrics - consider adjusting constraints or method")
+    
+    return "\n".join(parts)
+
+
+def _interpret_allocation_changes(current_weights: dict, optimal_weights: dict) -> str:
+    """Interpret changes in portfolio allocation."""
+    if not current_weights or not optimal_weights:
+        return ""
+    
+    parts = []
+    parts.append("**Allocation Changes Analysis:**")
+    
+    # Calculate differences
+    changes = []
+    for ticker in optimal_weights.keys():
+        current_w = current_weights.get(ticker, 0.0)
+        optimal_w = optimal_weights.get(ticker, 0.0)
+        diff = optimal_w - current_w
+        if abs(diff) > 0.01:  # Only significant changes (>1%)
+            changes.append((ticker, current_w, optimal_w, diff))
+    
+    if not changes:
+        parts.append("No significant weight changes required - portfolio is already close to optimal")
+        return "\n".join(parts)
+    
+    # Sort by absolute difference
+    changes.sort(key=lambda x: abs(x[3]), reverse=True)
+    
+    # Largest increases
+    increases = [c for c in changes if c[3] > 0.01]
+    if increases:
+        top_increase = increases[0]
+        parts.append(f"Largest increase: {top_increase[0]} ({top_increase[1]:.1%} → {top_increase[2]:.1%}, +{top_increase[3]:.1%})")
+        if len(increases) > 1:
+            parts.append(f"{len(increases)} asset(s) need weight increases")
+    
+    # Largest decreases
+    decreases = [c for c in changes if c[3] < -0.01]
+    if decreases:
+        top_decrease = decreases[0]
+        parts.append(f"Largest decrease: {top_decrease[0]} ({top_decrease[1]:.1%} → {top_decrease[2]:.1%}, {top_decrease[3]:.1%})")
+        if len(decreases) > 1:
+            parts.append(f"{len(decreases)} asset(s) need weight decreases")
+    
+    # Concentration analysis
+    max_optimal_weight = max(optimal_weights.values()) if optimal_weights else 0
+    if max_optimal_weight > 0.5:
+        parts.append(f"⚠ High concentration: Max weight is {max_optimal_weight:.1%} - Consider diversification")
+    elif max_optimal_weight > 0.3:
+        parts.append(f"Moderate concentration: Max weight is {max_optimal_weight:.1%}")
+    else:
+        parts.append(f"✓ Well-diversified: Max weight is {max_optimal_weight:.1%}")
+    
+    # Total rebalancing needed
+    total_change = sum(abs(c[3]) for c in changes)
+    if total_change > 0.5:
+        parts.append(f"⚠ Large rebalancing required: Total weight changes = {total_change:.1%}")
+    elif total_change > 0.2:
+        parts.append(f"Moderate rebalancing needed: Total weight changes = {total_change:.1%}")
+    else:
+        parts.append(f"✓ Small rebalancing: Total weight changes = {total_change:.1%}")
+    
+    return "\n".join(parts)
+
+
+def _interpret_trade_list(trades: list) -> str:
+    """Interpret trade list."""
+    if not trades:
+        return ""
+    
+    parts = []
+    parts.append("**Trade List Analysis:**")
+    
+    # Count trades by type
+    buys = [t for t in trades if t.get("action") == "BUY"]
+    sells = [t for t in trades if t.get("action") == "SELL"]
+    total_value = sum(t.get("value", 0) for t in trades)
+    
+    parts.append(f"Total trades: {len(trades)} ({len(buys)} buys, {len(sells)} sells)")
+    parts.append(f"Total trade value: ${total_value:,.2f}")
+    
+    # Largest trades
+    if trades:
+        sorted_trades = sorted(trades, key=lambda x: abs(x.get("value", 0)), reverse=True)
+        top_trade = sorted_trades[0]
+        parts.append(f"Largest trade: {top_trade.get('ticker')} - {top_trade.get('action')} ${abs(top_trade.get('value', 0)):,.2f}")
+    
+    # Assessment
+    if total_value < 1000:
+        parts.append(f"✓ Small rebalancing - Low transaction costs expected")
+    elif total_value < 10000:
+        parts.append(f"Moderate rebalancing - Consider transaction costs")
+    else:
+        parts.append(f"⚠ Large rebalancing - Significant transaction costs may apply")
+    
+    # Weight changes
+    if trades:
+        avg_weight_change = np.mean([abs(t.get("optimal_weight", 0) - t.get("current_weight", 0)) for t in trades])
+        if avg_weight_change < 0.05:
+            parts.append(f"Average weight change: {avg_weight_change:.1%} - Minor adjustments")
+        elif avg_weight_change < 0.15:
+            parts.append(f"Average weight change: {avg_weight_change:.1%} - Moderate adjustments")
+        else:
+            parts.append(f"Average weight change: {avg_weight_change:.1%} - Major rebalancing")
+    
+    return "\n".join(parts)
+
+
+def _interpret_returns_comparison(current_returns: pd.Series, optimized_returns: pd.Series) -> str:
+    """Interpret returns comparison chart."""
+    if current_returns is None or current_returns.empty or optimized_returns is None or optimized_returns.empty:
+        return ""
+    
+    parts = []
+    parts.append("**Returns Comparison Analysis:**")
+    
+    # Calculate cumulative returns
+    current_cum = (1 + current_returns).cumprod() - 1
+    optimized_cum = (1 + optimized_returns).cumprod() - 1
+    
+    if current_cum.empty or optimized_cum.empty:
+        return ""
+    
+    current_final = current_cum.iloc[-1] if len(current_cum) > 0 else 0
+    optimized_final = optimized_cum.iloc[-1] if len(optimized_cum) > 0 else 0
+    
+    diff = optimized_final - current_final
+    
+    parts.append(f"Current portfolio: {current_final*100:+.2f}% total return")
+    parts.append(f"Optimized portfolio: {optimized_final*100:+.2f}% total return")
+    
+    if abs(diff) < 0.01:
+        parts.append(f"Performance is similar ({diff*100:+.2f}% difference)")
+    elif diff > 0:
+        parts.append(f"✓ Optimized portfolio outperforms by {diff*100:.2f}%")
+    else:
+        parts.append(f"⚠ Optimized portfolio underperforms by {abs(diff)*100:.2f}%")
+    
+    # Period analysis (if we have enough data)
+    if len(current_returns) > 20 and len(optimized_returns) > 20:
+        # Check if optimized consistently outperforms
+        aligned_idx = current_returns.index.intersection(optimized_returns.index)
+        if len(aligned_idx) > 20:
+            current_aligned = current_returns.loc[aligned_idx]
+            optimized_aligned = optimized_returns.loc[aligned_idx]
+            
+            outperformance_days = (optimized_aligned > current_aligned).sum()
+            total_days = len(aligned_idx)
+            outperformance_pct = outperformance_days / total_days * 100
+            
+            if outperformance_pct > 60:
+                parts.append(f"Optimized portfolio outperforms on {outperformance_pct:.1f}% of days")
+            elif outperformance_pct < 40:
+                parts.append(f"Optimized portfolio underperforms on {100-outperformance_pct:.1f}% of days")
+            else:
+                parts.append(f"Mixed performance: Optimized outperforms on {outperformance_pct:.1f}% of days")
+    
+    return "\n".join(parts)
+
+
+def _interpret_drawdown_comparison(current_values: pd.Series, optimized_values: pd.Series) -> str:
+    """Interpret drawdown comparison chart."""
+    if current_values is None or current_values.empty or optimized_values is None or optimized_values.empty:
+        return ""
+    
+    parts = []
+    parts.append("**Drawdown Comparison Analysis:**")
+    
+    # Calculate drawdowns
+    current_peak = current_values.expanding().max()
+    current_dd = (current_values - current_peak) / current_peak * 100
+    
+    optimized_peak = optimized_values.expanding().max()
+    optimized_dd = (optimized_values - optimized_peak) / optimized_peak * 100
+    
+    if current_dd.empty or optimized_dd.empty:
+        return ""
+    
+    current_max_dd = current_dd.min()
+    optimized_max_dd = optimized_dd.min()
+    
+    parts.append(f"Current portfolio max drawdown: {current_max_dd:.2f}%")
+    parts.append(f"Optimized portfolio max drawdown: {optimized_max_dd:.2f}%")
+    
+    dd_diff = optimized_max_dd - current_max_dd
+    
+    if abs(dd_diff) < 1:
+        parts.append(f"Drawdown levels are similar ({dd_diff:+.2f}% difference)")
+    elif dd_diff < 0:
+        parts.append(f"✓ Optimized portfolio has lower max drawdown by {abs(dd_diff):.2f}% - Better risk control")
+    else:
+        parts.append(f"⚠ Optimized portfolio has higher max drawdown by {dd_diff:.2f}% - Higher risk")
+    
+    # Recovery analysis
+    if len(current_dd) > 0 and len(optimized_dd) > 0:
+        # Count days in drawdown
+        current_dd_days = (current_dd < -1).sum()  # More than 1% drawdown
+        optimized_dd_days = (optimized_dd < -1).sum()
+        
+        if current_dd_days > 0 or optimized_dd_days > 0:
+            if optimized_dd_days < current_dd_days:
+                parts.append(f"Optimized portfolio spent fewer days in drawdown ({optimized_dd_days} vs {current_dd_days} days)")
+            elif optimized_dd_days > current_dd_days:
+                parts.append(f"Optimized portfolio spent more days in drawdown ({optimized_dd_days} vs {current_dd_days} days)")
+            else:
+                parts.append(f"Similar time in drawdown ({optimized_dd_days} days)")
+    
+    return "\n".join(parts)
+
+
+def _interpret_efficient_frontier(frontier_data: dict, result, current_metrics: dict) -> str:
+    """Interpret efficient frontier chart."""
+    if not frontier_data or not result:
+        return ""
+    
+    parts = []
+    parts.append("**Efficient Frontier Analysis:**")
+    
+    # Get portfolio positions
+    opt_vol = result.volatility
+    opt_ret = result.expected_return
+    opt_sharpe = result.sharpe_ratio
+    
+    tangency = frontier_data.get("tangency_portfolio")
+    min_var = frontier_data.get("min_variance_portfolio")
+    
+    if opt_vol is None or opt_ret is None:
+        return ""
+    
+    # Compare with tangency (max Sharpe)
+    if tangency:
+        tang_vol = tangency.get("volatility")
+        tang_ret = tangency.get("expected_return")
+        
+        if tang_vol and tang_ret:
+            # Distance from tangency
+            vol_dist = abs(opt_vol - tang_vol) / tang_vol if tang_vol > 0 else 0
+            ret_dist = abs(opt_ret - tang_ret) / abs(tang_ret) if tang_ret != 0 else 0
+            
+            if vol_dist < 0.05 and ret_dist < 0.05:
+                parts.append(f"✓ Optimized portfolio is very close to Max Sharpe point (optimal)")
+            elif vol_dist < 0.1 and ret_dist < 0.1:
+                parts.append(f"Optimized portfolio is close to Max Sharpe point")
+            else:
+                parts.append(f"Optimized portfolio differs from Max Sharpe point - Consider adjusting constraints")
+    
+    # Compare with current portfolio
+    if current_metrics:
+        curr_vol = current_metrics.get("volatility", 0)
+        curr_ret = current_metrics.get("annualized_return", 0)
+        
+        if curr_vol > 0:
+            # Check if current is on frontier
+            parts.append(f"Current portfolio: {curr_ret*100:.2f}% return, {curr_vol*100:.2f}% volatility")
+            
+            # Check if optimized is better positioned
+            if opt_sharpe and opt_sharpe > 0:
+                curr_sharpe = current_metrics.get("sharpe_ratio", 0)
+                if opt_sharpe > curr_sharpe + 0.1:
+                    parts.append(f"✓ Optimized portfolio has significantly better risk-adjusted return (Sharpe: {opt_sharpe:.2f} vs {curr_sharpe:.2f})")
+                elif opt_sharpe > curr_sharpe:
+                    parts.append(f"Optimized portfolio has better risk-adjusted return (Sharpe: {opt_sharpe:.2f} vs {curr_sharpe:.2f})")
+    
+    # Min variance comparison
+    if min_var:
+        min_var_vol = min_var.get("volatility")
+        if min_var_vol and opt_vol:
+            if opt_vol < min_var_vol * 1.1:
+                parts.append(f"Optimized portfolio is close to minimum volatility ({opt_vol*100:.2f}% vs {min_var_vol*100:.2f}%)")
+    
+    return "\n".join(parts)
+
+
+def _interpret_correlation_diversification(corr_matrix: pd.DataFrame, optimal_weights: dict, num_assets: int) -> str:
+    """Interpret correlation and diversification analysis."""
+    if corr_matrix is None or corr_matrix.empty or not optimal_weights:
+        return ""
+    
+    parts = []
+    parts.append("**Diversification Assessment:**")
+    
+    # Calculate average correlation
+    mask = ~np.eye(len(corr_matrix), dtype=bool)
+    values = corr_matrix.values[mask]
+    values = values[~np.isnan(values)]
+    
+    if len(values) > 0:
+        avg_corr = np.mean(values)
+        
+        if avg_corr < 0.3:
+            parts.append(f"✓ Low average correlation ({avg_corr:.2f}) - Excellent diversification")
+        elif avg_corr < 0.5:
+            parts.append(f"Moderate average correlation ({avg_corr:.2f}) - Good diversification")
+        else:
+            parts.append(f"⚠ High average correlation ({avg_corr:.2f}) - Limited diversification")
+    
+    # Weight concentration
+    max_weight = max(optimal_weights.values()) if optimal_weights else 0
+    if max_weight > 0.5:
+        parts.append(f"⚠ High concentration: Max weight is {max_weight:.1%} - Portfolio is concentrated")
+    elif max_weight > 0.3:
+        parts.append(f"Moderate concentration: Max weight is {max_weight:.1%}")
+    else:
+        parts.append(f"✓ Well-diversified weights: Max weight is {max_weight:.1%}")
+    
+    # Number of assets
+    if num_assets >= 10:
+        parts.append(f"✓ Sufficient number of assets ({num_assets}) for diversification")
+    elif num_assets >= 5:
+        parts.append(f"Moderate number of assets ({num_assets}) - Consider adding more for better diversification")
+    else:
+        parts.append(f"⚠ Low number of assets ({num_assets}) - Limited diversification potential")
+    
+    return "\n".join(parts)
+
+
+def _interpret_sensitivity_analysis(sensitivity_results: dict) -> str:
+    """Interpret sensitivity analysis results."""
+    if not sensitivity_results or not sensitivity_results.get("results"):
+        return ""
+    
+    parts = []
+    results = sensitivity_results.get("results", [])
+    
+    if not results:
+        return ""
+    
+    # Convert to DataFrame for analysis
+    sens_df = pd.DataFrame(results)
+    variation_col = "variation"
+    ticker_cols = [col for col in sens_df.columns if col != variation_col]
+    
+    if sens_df.empty or not ticker_cols:
+        return ""
+    
+    parts.append("**Sensitivity Analysis:**")
+    
+    # Calculate sensitivity for each asset
+    sensitivities = []
+    for ticker in ticker_cols:
+        weights = sens_df[ticker].values
+        weight_range = weights.max() - weights.min()
+        weight_std = weights.std()
+        sensitivities.append({
+            "ticker": ticker,
+            "range": weight_range,
+            "std": weight_std,
+        })
+    
+    # Sort by sensitivity
+    sensitivities.sort(key=lambda x: x["range"], reverse=True)
+    
+    # Most sensitive
+    if sensitivities:
+        most_sensitive = sensitivities[0]
+        parts.append(f"Most sensitive asset: {most_sensitive['ticker']} (weight range: {most_sensitive['range']:.1%})")
+        
+        if most_sensitive["range"] > 0.2:
+            parts.append(f"⚠ High sensitivity - Weight changes significantly with parameter variations")
+        elif most_sensitive["range"] > 0.1:
+            parts.append(f"Moderate sensitivity - Weight changes moderately")
+        else:
+            parts.append(f"✓ Low sensitivity - Weight is relatively stable")
+    
+    # Overall stability
+    avg_range = np.mean([s["range"] for s in sensitivities])
+    if avg_range < 0.05:
+        parts.append(f"✓ Portfolio weights are stable (avg range: {avg_range:.1%}) - Optimization is robust")
+    elif avg_range < 0.15:
+        parts.append(f"Moderate stability (avg range: {avg_range:.1%}) - Some sensitivity to parameters")
+    else:
+        parts.append(f"⚠ High sensitivity (avg range: {avg_range:.1%}) - Weights change significantly with parameters")
+    
+    return "\n".join(parts)
 
 
 def render_optimization_page() -> None:
@@ -297,7 +735,7 @@ def render_optimization_page() -> None:
         return
     
     # Out-of-Sample Testing section (before benchmark)
-    st.subheader("📊 Out-of-Sample Testing")
+    st.subheader("Out-of-Sample Testing")
     
     use_out_of_sample = st.checkbox(
         "Use Out-of-Sample Testing",
@@ -362,7 +800,7 @@ def render_optimization_page() -> None:
             f"({training_days} days)"
         )
         st.write(
-            f"✅ **Validation**: "
+            f"**Validation**: "
             f"{start_date.strftime('%Y-%m-%d')} → "
             f"{end_date.strftime('%Y-%m-%d')} "
             f"({analysis_days} days)"
@@ -424,43 +862,324 @@ def render_optimization_page() -> None:
     # Method description - only show if method selected
     if selected_method:
         method_descriptions = {
-            "mean_variance": "Markowitz mean-variance optimization",
-            "black_litterman": (
-                "Black-Litterman model - combines market equilibrium "
-                "with investor views using Bayesian updating"
-            ),
-            "risk_parity": "Equal risk contribution from each asset",
-            "hrp": (
-                "Hierarchical Risk Parity using clustering - "
-                "more stable, less sensitive to estimation error"
-            ),
-            "cvar_optimization": (
-                "Minimize Conditional Value at Risk (tail risk) - "
-                "focuses on extreme losses"
-            ),
-            "mean_cvar": (
-                "Maximize Return / CVaR ratio - "
-                "optimal trade-off between return and tail risk"
-            ),
-            "robust": (
-                "Robust optimization with uncertainty sets - "
-                "accounts for parameter uncertainty"
-            ),
-            "max_diversification": (
-                "Maximize diversification ratio - "
-                "maximum benefit from diversification"
-            ),
-            "min_correlation": (
-                "Minimize average pairwise correlation - "
-                "assets that move independently"
-            ),
-            "inverse_correlation": (
-                "Inverse correlation weighting - "
-                "analytical method based on correlation structure"
-            ),
+            "mean_variance": {
+                "short": "Markowitz mean-variance optimization",
+                "detailed": """
+**Mean-Variance Optimization (Markowitz Model)**
+
+This is the foundational portfolio optimization method developed by Harry Markowitz in 1952, for which he won the Nobel Prize in Economics.
+
+**How it works:**
+- Maximizes expected return for a given level of risk (volatility)
+- Uses historical returns to estimate expected returns and covariance matrix
+- Finds the optimal portfolio on the efficient frontier
+- Assumes returns are normally distributed
+
+**Key Features:**
+- Classic approach to portfolio theory
+- Balances risk and return trade-off
+- Works well when historical data is representative of future returns
+- Sensitive to input parameters (expected returns, covariance)
+
+**Best for:**
+- Long-term strategic asset allocation
+- When you have reliable return estimates
+- Traditional portfolio construction
+
+**Limitations:**
+- Assumes normal distribution (may underestimate tail risk)
+- Sensitive to estimation errors in expected returns
+- May produce extreme weights if not constrained
+"""
+            },
+            "black_litterman": {
+                "short": "Black-Litterman model - combines market equilibrium with investor views",
+                "detailed": """
+**Black-Litterman Model**
+
+An advanced optimization method that combines market equilibrium returns with your own views about asset performance.
+
+**How it works:**
+- Starts with market equilibrium (CAPM implied returns)
+- Incorporates your views about specific assets or factors
+- Uses Bayesian updating to blend market data with your opinions
+- Produces more stable and intuitive portfolio weights
+
+**Key Features:**
+- Reduces extreme weights compared to pure Markowitz
+- Incorporates investor expertise and market views
+- More stable results (less sensitive to input errors)
+- Handles uncertainty in views through confidence levels
+
+**Best for:**
+- When you have strong views about certain assets
+- Combining quantitative analysis with qualitative insights
+- Reducing estimation error sensitivity
+
+**Limitations:**
+- Requires defining views and confidence levels
+- More complex to implement and understand
+- Still assumes normal distribution
+"""
+            },
+            "risk_parity": {
+                "short": "Equal risk contribution from each asset",
+                "detailed": """
+**Risk Parity Optimization**
+
+Allocates portfolio weights so that each asset contributes equally to portfolio risk, rather than equal dollar amounts.
+
+**How it works:**
+- Calculates risk contribution of each asset to total portfolio risk
+- Adjusts weights until all assets have equal risk contribution
+- Accounts for correlations between assets
+- Typically results in more balanced allocations
+
+**Key Features:**
+- Equalizes risk, not capital allocation
+- More stable than mean-variance (less sensitive to return estimates)
+- Naturally diversifies across assets
+- Often produces better risk-adjusted returns
+
+**Best for:**
+- Risk-focused portfolio construction
+- When return estimates are uncertain
+- Achieving balanced risk exposure
+- Multi-asset portfolios
+
+**Limitations:**
+- May underweight high-return assets
+- Doesn't explicitly maximize returns
+- Can be conservative for return-seeking investors
+"""
+            },
+            "hrp": {
+                "short": "Hierarchical Risk Parity using clustering - more stable, less sensitive to estimation error",
+                "detailed": """
+**Hierarchical Risk Parity (HRP)**
+
+A modern optimization method that uses machine learning clustering to build portfolios, making it more robust to estimation errors.
+
+**How it works:**
+- Uses hierarchical clustering to group similar assets
+- Allocates weights based on correlation structure
+- Reduces sensitivity to covariance matrix estimation errors
+- More stable than traditional methods
+
+**Key Features:**
+- Very robust to input errors
+- Uses clustering to understand asset relationships
+- Produces well-diversified portfolios
+- Less prone to extreme weights
+
+**Best for:**
+- When historical data may not be reliable
+- Large portfolios with many assets
+- Reducing estimation error impact
+- Modern portfolio construction
+
+**Limitations:**
+- More computationally intensive
+- Less intuitive than traditional methods
+- May not maximize returns explicitly
+"""
+            },
+            "cvar_optimization": {
+                "short": "Minimize Conditional Value at Risk (tail risk) - focuses on extreme losses",
+                "detailed": """
+**CVaR Optimization (Conditional Value at Risk)**
+
+Focuses on minimizing tail risk rather than overall volatility, protecting against extreme losses.
+
+**How it works:**
+- Minimizes Conditional Value at Risk (expected loss beyond VaR threshold)
+- Focuses on worst-case scenarios (tail of distribution)
+- Accounts for non-normal return distributions
+- Protects against extreme market events
+
+**Key Features:**
+- Better handles fat tails and extreme events
+- More relevant for risk management than variance
+- Protects against worst-case losses
+- Suitable for non-normal return distributions
+
+**Best for:**
+- Risk-averse investors
+- Managing tail risk exposure
+- Portfolios with non-normal returns
+- Stress testing and risk management
+
+**Limitations:**
+- May sacrifice return for tail risk protection
+- Requires defining confidence level (e.g., 95%, 99%)
+- Can be more conservative than variance-based methods
+"""
+            },
+            "mean_cvar": {
+                "short": "Maximize Return / CVaR ratio - optimal trade-off between return and tail risk",
+                "detailed": """
+**Mean-CVaR Optimization**
+
+Maximizes the ratio of expected return to Conditional Value at Risk, optimizing the risk-adjusted return considering tail risk.
+
+**How it works:**
+- Maximizes Return / CVaR ratio (similar to Sharpe ratio but using CVaR)
+- Balances expected return with tail risk
+- Accounts for extreme loss scenarios
+- Finds optimal trade-off between return and downside risk
+
+**Key Features:**
+- Considers both return and tail risk
+- Better than Sharpe ratio for non-normal distributions
+- Protects against extreme losses while seeking returns
+- More relevant risk measure than volatility
+
+**Best for:**
+- Balancing return and tail risk
+- Non-normal return distributions
+- Risk-adjusted return optimization
+- Modern portfolio theory applications
+
+**Limitations:**
+- More complex than traditional Sharpe optimization
+- Requires confidence level parameter
+- May still be sensitive to return estimates
+"""
+            },
+            "robust": {
+                "short": "Robust optimization with uncertainty sets - accounts for parameter uncertainty",
+                "detailed": """
+**Robust Optimization**
+
+Handles uncertainty in input parameters by optimizing over a range of possible scenarios rather than point estimates.
+
+**How it works:**
+- Defines uncertainty sets for expected returns and covariance
+- Finds portfolio that performs well across all scenarios in the set
+- Protects against parameter estimation errors
+- More conservative but more reliable
+
+**Key Features:**
+- Handles parameter uncertainty explicitly
+- More robust to estimation errors
+- Performs well across multiple scenarios
+- Reduces sensitivity to input assumptions
+
+**Best for:**
+- When parameter estimates are uncertain
+- Robust portfolio construction
+- Reducing estimation error impact
+- Conservative optimization approach
+
+**Limitations:**
+- May be overly conservative
+- Requires defining uncertainty sets
+- More computationally complex
+- May sacrifice return for robustness
+"""
+            },
+            "max_diversification": {
+                "short": "Maximize diversification ratio - maximum benefit from diversification",
+                "detailed": """
+**Maximum Diversification Optimization**
+
+Maximizes the diversification ratio, which measures how much diversification reduces portfolio risk compared to weighted average asset risk.
+
+**How it works:**
+- Calculates diversification ratio = Portfolio Risk / Weighted Average Asset Risk
+- Maximizes this ratio to get maximum diversification benefit
+- Allocates more to less correlated assets
+- Reduces portfolio risk through diversification
+
+**Key Features:**
+- Explicitly maximizes diversification benefits
+- Reduces portfolio risk through asset selection
+- Works well with many assets
+- Less sensitive to return estimates
+
+**Best for:**
+- Maximizing diversification benefits
+- Multi-asset portfolios
+- When correlations are important
+- Risk reduction focus
+
+**Limitations:**
+- Doesn't explicitly consider returns
+- May underweight high-return assets
+- Focuses on risk reduction, not return maximization
+"""
+            },
+            "min_correlation": {
+                "short": "Minimize average pairwise correlation - assets that move independently",
+                "detailed": """
+**Minimum Correlation Optimization**
+
+Selects and weights assets to minimize the average pairwise correlation in the portfolio.
+
+**How it works:**
+- Calculates average correlation between all asset pairs
+- Adjusts weights to minimize this average correlation
+- Selects assets that move independently
+- Reduces portfolio risk through low correlation
+
+**Key Features:**
+- Simple and intuitive approach
+- Focuses on correlation structure
+- Reduces portfolio volatility
+- Works well with diverse asset classes
+
+**Best for:**
+- Multi-asset class portfolios
+- When correlations are key concern
+- Simple diversification strategy
+- Reducing portfolio volatility
+
+**Limitations:**
+- Doesn't consider returns explicitly
+- May ignore return potential
+- Simple approach may miss optimization opportunities
+"""
+            },
+            "inverse_correlation": {
+                "short": "Inverse correlation weighting - analytical method based on correlation structure",
+                "detailed": """
+**Inverse Correlation Weighting**
+
+An analytical method that weights assets inversely proportional to their correlations with the portfolio.
+
+**How it works:**
+- Uses inverse of correlation matrix to determine weights
+- Assets with lower correlation to portfolio get higher weights
+- Analytical solution (no optimization needed)
+- Fast and computationally efficient
+
+**Key Features:**
+- Fast analytical solution
+- Based on correlation structure
+- Computationally efficient
+- Easy to implement
+
+**Best for:**
+- Quick portfolio construction
+- When speed is important
+- Correlation-based allocation
+- Simple analytical approach
+
+**Limitations:**
+- Doesn't consider returns
+- May not be optimal for return maximization
+- Simple approach may miss opportunities
+"""
+            },
         }
         
-        st.info(method_descriptions.get(selected_method, ""))
+        method_info = method_descriptions.get(selected_method, {})
+        if method_info:
+            short_desc = method_info.get("short", "")
+            detailed_desc = method_info.get("detailed", "")
+            
+            with st.expander(f"ℹ️ {short_desc}", expanded=False):
+                st.markdown(detailed_desc)
     
     # Initialize variables (needed outside conditional block)
     constraints = {}
@@ -476,7 +1195,7 @@ def render_optimization_page() -> None:
         num_assets = len([p for p in positions if p.ticker != "CASH"])
         
         # Constraints section
-        st.subheader("⚙️ Constraints")
+        st.subheader("Constraints")
         
         constraints = {}
         
@@ -617,7 +1336,7 @@ def render_optimization_page() -> None:
         st.divider()
         
         # Objective Function section
-        st.subheader("🎯 Objective Function")
+        st.subheader("Objective Function")
         
         available_objectives = get_available_objectives(selected_method)
         default_objective = get_default_objective(selected_method)
@@ -653,7 +1372,7 @@ def render_optimization_page() -> None:
             # Show default objective info if using default
             if selected_objective == default_objective:
                 st.caption(
-                    f"ℹ️ Using default objective for method "
+                    f"Using default objective for method "
                     f"{METHOD_NAMES.get(selected_method, selected_method)}"
                 )
         
@@ -834,7 +1553,7 @@ def _display_optimization_results(
     if min_return is not None and result.expected_return is not None:
         if result.expected_return < min_return:
             st.warning(
-                f"⚠️ **Warning**: Expected return ({result.expected_return:.2%}) is below "
+                f"**Warning**: Expected return ({result.expected_return:.2%}) is below "
                 f"minimum required return ({min_return:.2%}). "
                 f"The optimizer could not find a solution that satisfies all constraints. "
                 f"Try relaxing constraints (e.g., reduce min_return or increase max_cash_weight)."
@@ -842,7 +1561,7 @@ def _display_optimization_results(
         else:
             # Show info about expected vs actual return
             st.info(
-                f"ℹ️ **Note**: The 'Minimum Expected Return' constraint ({min_return:.2%}) applies to "
+                f"**Note**: The 'Minimum Expected Return' constraint ({min_return:.2%}) applies to "
                 f"**expected return** (based on historical average returns), not actual return. "
                 f"Expected return: {result.expected_return:.2%}. "
                 f"Actual return may differ due to market volatility."
@@ -862,7 +1581,7 @@ def _display_optimization_results(
     if saved_opt_start and saved_opt_end:
         if saved_opt_start != start_date or saved_opt_end != end_date:
             st.info(
-                f"ℹ️ **Note:** Metrics are calculated for the selected period "
+                f"**Note:** Metrics are calculated for the selected period "
                 f"({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}), "
                 f"which may differ from the optimization period "
                 f"({saved_opt_start.strftime('%Y-%m-%d')} to {saved_opt_end.strftime('%Y-%m-%d')})."
@@ -1106,6 +1825,11 @@ def _display_optimization_results(
     ]
     render_metric_cards_row(metrics_row1, columns_per_row=4)
     
+    # Interpretation: Optimization comparison
+    interpretation = _interpret_optimization_comparison(optimized_metrics, current_metrics)
+    if interpretation:
+        st.info(interpretation)
+    
     # Current vs Optimal weights comparison
     st.subheader("Current vs Optimal Allocation")
     
@@ -1180,7 +1904,7 @@ def _display_optimization_results(
             name="Current",
             x=tickers,
             y=[w * 100 for w in current_weights_array],
-            marker_color="#BF9FFB",
+            marker_color=COLORS["primary"],  # Purple - current portfolio
         )
     )
     
@@ -1189,7 +1913,7 @@ def _display_optimization_results(
             name="Optimal",
             x=tickers,
             y=[w * 100 for w in optimal_weights_array],
-            marker_color="#90BFF9",
+            marker_color=COLORS["secondary"],  # Blue - optimal portfolio
         )
     )
     
@@ -1203,6 +1927,12 @@ def _display_optimization_results(
     )
     
     st.plotly_chart(fig, use_container_width=True)
+    
+    # Interpretation: Allocation changes
+    optimal_weights_dict = result.get_weights_dict()
+    interpretation = _interpret_allocation_changes(current_weights, optimal_weights_dict)
+    if interpretation:
+        st.info(interpretation)
     
     # Trade list
     st.subheader("Trade List")
@@ -1241,6 +1971,11 @@ def _display_optimization_results(
             
             total_trade_value = trades_df["value"].sum()
             st.info(f"Total Trade Value: ${total_trade_value:,.2f}")
+            
+            # Interpretation: Trade list
+            interpretation = _interpret_trade_list(trades)
+            if interpretation:
+                st.info(interpretation)
         else:
             st.info("No trades required - portfolio is already optimal.")
     
@@ -1368,7 +2103,7 @@ def _display_optimization_results(
                         name="Current Portfolio",
                         line=dict(
                             color=COLORS["primary"], width=2
-                        ),  # Фиолетовый
+                        ),  # Purple
                     )
                 )
             
@@ -1382,7 +2117,7 @@ def _display_optimization_results(
                         name="Optimized Portfolio",
                         line=dict(
                             color=COLORS["success"], width=2
-                        ),  # Зеленый
+                        ),  # Green
                     )
                 )
             
@@ -1400,7 +2135,7 @@ def _display_optimization_results(
                         name=f"Benchmark ({benchmark_for_viz})",
                         line=dict(
                             color=COLORS["secondary"], width=2
-                        ),  # Синий
+                        ),  # Blue
                     )
                 )
             
@@ -1414,11 +2149,17 @@ def _display_optimization_results(
             )
             st.plotly_chart(fig_returns, use_container_width=True)
             
+            # Interpretation: Returns comparison
+            if current_aligned is not None and not current_aligned.empty and optimized_aligned is not None and not optimized_aligned.empty:
+                interpretation = _interpret_returns_comparison(current_aligned, optimized_aligned)
+                if interpretation:
+                    st.info(interpretation)
+            
             # 2. Drawdown Chart
             st.markdown("**Drawdown Comparison**")
             fig_drawdown = go.Figure()
             
-            # Drawdown: оптимизированный - красное заполнение
+            # Drawdown: optimized - red fill
             if optimized_values is not None and not optimized_values.empty:
                 optimized_peak = optimized_values.expanding().max()
                 optimized_dd = (
@@ -1432,13 +2173,13 @@ def _display_optimization_results(
                         name="Optimized Portfolio",
                         line=dict(
                             color=COLORS["danger"], width=2
-                        ),  # Красный
+                        ),  # Red
                         fill="tozeroy",
-                        fillcolor="rgba(239, 85, 59, 0.3)",  # Красное заполнение
+                        fillcolor="rgba(239, 85, 59, 0.3)",  # Red fill
                     )
                 )
             
-            # Drawdown: текущий - оранжевая линия
+            # Drawdown: current - orange line (#FFCC80)
             if current_values is not None and not current_values.empty:
                 current_peak = current_values.expanding().max()
                 current_dd = (current_values - current_peak) / current_peak * 100
@@ -1449,12 +2190,12 @@ def _display_optimization_results(
                         mode="lines",
                         name="Current Portfolio",
                         line=dict(
-                            color=COLORS["warning"], width=2
-                        ),  # Оранжевый
+                            color="#FFCC80", width=2  # Orange #FFCC80
+                        ),
                     )
                 )
             
-            # Drawdown: бенчмарк - синяя линия
+            # Drawdown: benchmark - yellow line (#FFF59D)
             if (
                 benchmark_returns is not None
                 and not benchmark_returns.empty
@@ -1479,8 +2220,8 @@ def _display_optimization_results(
                             mode="lines",
                             name=f"Benchmark ({benchmark_for_viz})",
                             line=dict(
-                                color=COLORS["secondary"], width=2
-                            ),  # Синий
+                                color="#FFF59D", width=2  # Yellow #FFF59D
+                            ),
                         )
                     )
             
@@ -1493,6 +2234,12 @@ def _display_optimization_results(
                 hovermode="x unified",
             )
             st.plotly_chart(fig_drawdown, use_container_width=True)
+            
+            # Interpretation: Drawdown comparison
+            if current_values is not None and not current_values.empty and optimized_values is not None and not optimized_values.empty:
+                interpretation = _interpret_drawdown_comparison(current_values, optimized_values)
+                if interpretation:
+                    st.info(interpretation)
             
     except Exception as e:
         logger.exception("Error generating performance charts")
@@ -1517,7 +2264,7 @@ def _display_optimization_results(
             del st.session_state["frontier_data_cache"]
         st.session_state["last_frontier_constraints_hash"] = constraints_hash
         # Show info message that frontier will be recalculated
-        st.info("ℹ️ Constraints changed. Efficient Frontier will be recalculated with new constraints.")
+        st.info("Constraints changed. Efficient Frontier will be recalculated with new constraints.")
     
     # Update hash in session state
     if last_constraints_hash is None:
@@ -1550,7 +2297,7 @@ def _display_optimization_results(
                 
                 if using_training_period:
                     st.info(
-                        f"📊 **Efficient Frontier Period**: Training period "
+                        f"**Efficient Frontier Period**: Training period "
                         f"({frontier_start.strftime('%Y-%m-%d')} → {frontier_end.strftime('%Y-%m-%d')})\n\n"
                         f"**Important**: Efficient Frontier shows **expected returns** (based on historical averages) "
                         f"for the training period. The statistics section below shows **actual returns** "
@@ -1579,7 +2326,7 @@ def _display_optimization_results(
                     # If training period has no data, try validation period as fallback
                     if using_training_period:
                         st.warning(
-                            f"⚠️ **No data available for training period** "
+                            f"**No data available for training period** "
                             f"({frontier_start.strftime('%Y-%m-%d')} → {frontier_end.strftime('%Y-%m-%d')}).\n\n"
                             f"**Trying validation period instead** "
                             f"({start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')})..."
@@ -1593,13 +2340,13 @@ def _display_optimization_results(
                                 constraints=constraints if constraints else None,
                             )
                             st.info(
-                                f"✅ Using **validation period** for Efficient Frontier. "
+                                f"Using **validation period** for Efficient Frontier. "
                                 f"Note: Max Sharpe point may not align with optimized portfolio "
                                 f"(which was optimized on training period)."
                             )
                         except InsufficientDataError as e2:
                             st.warning(
-                                f"⚠️ **Insufficient data for Efficient Frontier**: {str(e2)}\n\n"
+                                f"**Insufficient data for Efficient Frontier**: {str(e2)}\n\n"
                                 f"**Training period**: {frontier_start.strftime('%Y-%m-%d')} → {frontier_end.strftime('%Y-%m-%d')}\n"
                                 f"**Validation period**: {start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')}\n\n"
                                 f"**Possible reasons**:\n"
@@ -1614,7 +2361,7 @@ def _display_optimization_results(
                             return
                     else:
                         st.warning(
-                            f"⚠️ **Insufficient data for Efficient Frontier**: {str(e)}\n\n"
+                            f"**Insufficient data for Efficient Frontier**: {str(e)}\n\n"
                             f"**Period requested**: {frontier_start.strftime('%Y-%m-%d')} → {frontier_end.strftime('%Y-%m-%d')}\n\n"
                             f"**Possible reasons**:\n"
                             f"- No price data available for this period\n"
@@ -1639,7 +2386,7 @@ def _display_optimization_results(
                 
                 if not volatilities_list or not returns_list:
                     st.warning(
-                        f"⚠️ **No frontier data available** for period "
+                        f"**No frontier data available** for period "
                         f"{frontier_start.strftime('%Y-%m-%d')} → {frontier_end.strftime('%Y-%m-%d')}.\n\n"
                         f"This may happen if:\n"
                         f"- There's insufficient data for this period\n"
@@ -1902,6 +2649,11 @@ def _display_optimization_results(
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # Interpretation: Efficient frontier
+                interpretation = _interpret_efficient_frontier(frontier_data, result, current_metrics)
+                if interpretation:
+                    st.info(interpretation)
             
             except Exception as e:
                 logger.exception("Error generating efficient frontier")
@@ -2134,7 +2886,7 @@ def _display_optimization_results(
                                 warnings.append({
                                     "type": "warning",
                                     "message": (
-                                        f"⚠ Found {len(high_corr_pairs)} "
+                                        f"Found {len(high_corr_pairs)} "
                                         f"pair(s) with correlation > 0.8. "
                                         f"High correlation reduces "
                                         f"diversification."
@@ -2177,7 +2929,7 @@ def _display_optimization_results(
                                 warnings.append({
                                     "type": "warning",
                                     "message": (
-                                        f"⚠ Average correlation "
+                                        f"Average correlation "
                                         f"({avg_corr:.2f}) is high. "
                                         f"Consider adding assets with "
                                         f"lower correlation."
@@ -2372,6 +3124,15 @@ def _display_optimization_results(
                                     "considering both individual volatility "
                                     "and correlations with other assets."
                                 )
+                            
+                            # Interpretation: Correlation and diversification
+                            optimal_weights_dict = result.get_weights_dict()
+                            num_assets = len(result.tickers)
+                            interpretation = _interpret_correlation_diversification(
+                                corr_matrix, optimal_weights_dict, num_assets
+                            )
+                            if interpretation:
+                                st.info(interpretation)
             except Exception as pivot_error:
                 logger.warning(
                     f"Error processing price data: {pivot_error}"
@@ -2511,14 +3272,23 @@ def _display_optimization_results(
                 # Create heatmap of weight changes
                 fig = go.Figure()
                 
-                # Create heatmap
+                # Create heatmap with custom colorscale from palette
+                # Custom colorscale: red (low) -> white -> green (high)
+                custom_colorscale = [
+                    [0.0, COLORS["danger"]],   # Red (low weight)
+                    [0.5, "#FFFFFF"],          # White (middle)
+                    [1.0, COLORS["success"]], # Green (high weight)
+                ]
+                
                 z_data = sens_df[ticker_cols].T.values
                 fig.add_trace(
                     go.Heatmap(
                         z=z_data,
                         x=sens_df[variation_col].values * 100,  # Convert to %
                         y=ticker_cols,
-                        colorscale="RdYlGn",
+                        colorscale=custom_colorscale,
+                        zmin=0.0,  # Minimum weight
+                        zmax=1.0,  # Maximum weight
                         colorbar=dict(title="Weight"),
                         hovertemplate=(
                             "Variation: %{x:.1f}%<br>"
@@ -2573,10 +3343,14 @@ def _display_optimization_results(
                 if selected_tickers:
                     fig_lines = go.Figure()
                     
-                    # Use distinct colors for each asset
+                    # Use colors from unified palette
                     colors = [
-                        "#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A",
-                        "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E2",
+                        COLORS["primary"],    # Purple
+                        COLORS["secondary"],  # Blue
+                        COLORS["success"],    # Green
+                        COLORS["warning"],    # Orange
+                        COLORS["additional"], # Yellow
+                        COLORS["danger"],     # Red
                     ]
                     
                     for idx, ticker in enumerate(selected_tickers):
@@ -2686,6 +3460,11 @@ def _display_optimization_results(
                     "**Low sensitivity** (<1%) = weight practically does not change. "
                     "Assets are sorted by sensitivity (most sensitive at top)."
                 )
+                
+                # Interpretation: Sensitivity analysis
+                interpretation = _interpret_sensitivity_analysis(sens_results)
+                if interpretation:
+                    st.info(interpretation)
     
     # Apply optimization
     st.subheader("Apply Optimization")

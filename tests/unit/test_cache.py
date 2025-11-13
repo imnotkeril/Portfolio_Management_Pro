@@ -97,3 +97,62 @@ def test_cache_sanitize_key() -> None:
     assert "*" not in sanitized
     assert "?" not in sanitized
 
+
+def test_cache_disk_persistence(temp_cache_dir: Path) -> None:
+    """Test that cache persists to disk."""
+    cache1 = Cache(cache_dir=temp_cache_dir)
+    cache1.set("persistent_key", "persistent_value", ttl=3600)
+
+    # Create new cache instance - should load from disk
+    cache2 = Cache(cache_dir=temp_cache_dir)
+    value = cache2.get("persistent_key")
+
+    assert value == "persistent_value"
+
+
+def test_cache_miss(temp_cache_dir: Path) -> None:
+    """Test cache miss behavior."""
+    cache = Cache(cache_dir=temp_cache_dir)
+
+    value = cache.get("non_existent_key")
+    assert value is None
+
+    stats = cache.get_stats()
+    assert stats["misses"] == 1
+    assert stats["hits"] == 0
+
+
+def test_cache_hit_rate_calculation(temp_cache_dir: Path) -> None:
+    """Test cache hit rate calculation."""
+    cache = Cache(cache_dir=temp_cache_dir)
+
+    # Set and get multiple times
+    cache.set("key1", "value1")
+    cache.get("key1")  # Hit
+    cache.get("key1")  # Hit
+    cache.get("key2")  # Miss
+
+    stats = cache.get_stats()
+    assert stats["hits"] == 2
+    assert stats["misses"] == 1
+    assert stats["hit_rate"] == pytest.approx(2.0 / 3.0, rel=0.01)
+
+
+def test_cache_expired_disk_entry(temp_cache_dir: Path) -> None:
+    """Test that expired disk cache entries are removed."""
+    import time
+    cache = Cache(cache_dir=temp_cache_dir)
+
+    # Set with very short TTL
+    cache.set("expires_soon", "value", ttl=1)
+    
+    # Wait for expiration
+    time.sleep(2)
+
+    # Should be None and file should be removed
+    value = cache.get("expires_soon")
+    assert value is None
+
+    # Check that file was removed
+    disk_path = temp_cache_dir / "expires_soon.pkl"
+    assert not disk_path.exists()

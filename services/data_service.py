@@ -229,7 +229,7 @@ class DataService:
 
     def get_latest_prices(self, tickers: List[str]) -> Dict[str, float]:
         """
-        Get latest prices for multiple tickers.
+        Get latest prices for multiple tickers with parallel fetching.
 
         Args:
             tickers: List of ticker symbols
@@ -240,15 +240,47 @@ class DataService:
         Raises:
             DataFetchError: If prices cannot be fetched
         """
+        if not tickers:
+            return {}
+
+        # For single ticker, use regular fetch
+        if len(tickers) == 1:
+            ticker = tickers[0].strip().upper()
+            try:
+                price = self.fetch_current_price(ticker, use_cache=True)
+                return {ticker: price}
+            except Exception as e:
+                logger.warning(f"Error fetching price for {ticker}: {e}")
+                return {}
+
+        # Use parallel fetching for multiple tickers
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         prices: Dict[str, float] = {}
-        for ticker in tickers:
+        MAX_WORKERS = 5
+
+        def fetch_single(ticker: str) -> tuple[str, Optional[float]]:
+            """Fetch single ticker price, return (ticker, price)."""
             try:
                 ticker = ticker.strip().upper()
                 price = self.fetch_current_price(ticker, use_cache=True)
-                prices[ticker] = price
+                return (ticker, price)
             except Exception as e:
                 logger.warning(f"Error fetching price for {ticker}: {e}")
-                # Continue with other tickers
+                return (ticker, None)
+
+        # Use ThreadPoolExecutor for parallel fetching
+        with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(tickers))) as executor:
+            future_to_ticker = {
+                executor.submit(fetch_single, ticker): ticker 
+                for ticker in tickers
+            }
+            
+            for future in as_completed(future_to_ticker):
+                ticker, price = future.result()
+                if price is not None:
+                    prices[ticker] = price
+
         return prices
 
     def fetch_bulk_prices(

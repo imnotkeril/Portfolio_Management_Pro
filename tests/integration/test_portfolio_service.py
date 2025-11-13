@@ -35,8 +35,10 @@ def portfolio_service(mock_data_service: DataService) -> PortfolioService:
 
 def test_create_portfolio(portfolio_service: PortfolioService) -> None:
     """Test creating a portfolio."""
+    import uuid
+    unique_name = f"Test Portfolio {uuid.uuid4().hex[:8]}"
     request = CreatePortfolioRequest(
-        name="Test Portfolio",
+        name=unique_name,
         description="Test description",
         starting_capital=100000.0,
         positions=[
@@ -52,7 +54,7 @@ def test_create_portfolio(portfolio_service: PortfolioService) -> None:
 
         portfolio = portfolio_service.create_portfolio(request)
 
-        assert portfolio.name == "Test Portfolio"
+        assert portfolio.name == unique_name
         assert portfolio.starting_capital == 100000.0
         assert len(portfolio.get_all_positions()) == 2
 

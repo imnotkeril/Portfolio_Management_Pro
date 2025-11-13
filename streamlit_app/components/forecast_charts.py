@@ -241,7 +241,7 @@ def plot_forecast_comparison(
                     showlegend=True,
                 ))
 
-            # Forecast Period не отображаем - только Validation Period для тестирования
+            # Forecast Period not displayed - only Validation Period for testing
 
         else:
             # No validation period
@@ -289,12 +289,12 @@ def plot_forecast_comparison(
             annotation_position="top left",
         )
 
-    # Forecast Period не отображаем - только Validation Period для тестирования
+    # Forecast Period not displayed - only Validation Period for testing
 
     # 5. LAYOUT
     layout = get_chart_layout()
     
-    # X-axis: ТОЧНО от training_start до forecast_end (БЕЗ padding)
+    # X-axis: EXACTLY from training_start to forecast_end (WITHOUT padding)
     chart_start = None
     if training_start:
         chart_start = pd.Timestamp(training_start)
@@ -312,7 +312,7 @@ def plot_forecast_comparison(
         chart_end = pd.Timestamp(historical_dates[-1])
     
     if chart_start and chart_end:
-        # БЕЗ padding - график начинается и заканчивается точно (до validation_end)
+        # WITHOUT padding - chart starts and ends exactly (up to validation_end)
         xaxis_settings["range"] = [chart_start, chart_end]
         xaxis_settings["autorange"] = False
     
@@ -606,12 +606,12 @@ def plot_individual_forecast(
             annotation_position="top left",
         )
 
-    # Forecast Period не отображаем - только Validation Period для тестирования
+    # Forecast Period not displayed - only Validation Period for testing
 
     # 5. LAYOUT
     layout = get_chart_layout()
     
-    # X-axis: ТОЧНО от training_start до validation_end (БЕЗ padding, без Forecast Period)
+    # X-axis: EXACTLY from training_start to validation_end (WITHOUT padding, without Forecast Period)
     chart_start = None
     if training_start:
         chart_start = pd.Timestamp(training_start)
@@ -629,7 +629,7 @@ def plot_individual_forecast(
         chart_end = pd.Timestamp(historical_dates[-1])
     
     if chart_start and chart_end:
-        # БЕЗ padding - график начинается и заканчивается точно (до validation_end)
+        # WITHOUT padding - chart starts and ends exactly (up to validation_end)
         xaxis_settings["range"] = [chart_start, chart_end]
         xaxis_settings["autorange"] = False
     

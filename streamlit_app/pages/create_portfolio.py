@@ -1,4 +1,4 @@
-"""Create portfolio page with wizard and multiple methods."""
+"""Create portfolio page with step-by-step portfolio creation and multiple input methods."""
 
 import logging
 from datetime import datetime
@@ -35,84 +35,112 @@ def render_create_portfolio() -> None:
     # Show help section
     render_creation_help()
 
-    # Start wizard by default
-    render_creation_wizard()
+    # Start portfolio creation by default
+    render_portfolio_creation()
 
 
 def render_creation_help() -> None:
     """Render help section for portfolio creation."""
     with st.expander("How to Create a Portfolio", expanded=False):
         st.markdown("""
-        ### Choose Your Creation Method
-
-        **Wizard** - *Step-by-step guidance (Recommended for beginners)*
-        - Guided process with validation at each step
-        - Built-in templates and examples
-        - Automatic data enrichment and validation
-
-        ### Supported Text Formats
+        ### Step-by-Step Portfolio Creation
+        
+        This process guides you through creating a portfolio in 5 steps:
+        
+        1. **Portfolio Information** - Name, description, currency, and initial investment
+        2. **Choose Input Method** - Select how you want to add assets:
+           - **Text Input** - Fast entry using natural language formats
+           - **Upload File** - Import from CSV or Excel files
+           - **Manual Entry** - Add each asset individually with full control
+           - **Use Template** - Start with pre-built investment strategies
+        3. **Add Assets** - Enter your portfolio assets based on selected method
+        4. **Settings & Review** - Configure options and review your portfolio
+        5. **Create** - Finalize and create your portfolio
+        
+        ### Supported Text Input Formats
         ```
         AAPL:40%, MSFT:30%, GOOGL:30%          # Colon with percentages
         AAPL 0.4, MSFT 0.3, GOOGL 0.3         # Space with decimals  
         AAPL 40, MSFT 30, GOOGL 30            # Numbers > 1 (auto %)
         AAPL, MSFT, GOOGL                     # Equal weights
         ```
-
+        
         ### Important Notes
-        - Weights should sum to 100% (auto-normalization available)
-        - Use standard ticker symbols (AAPL, MSFT, etc.)
-        - Company data is fetched automatically
+        - Weights are automatically normalized to sum to 100%
+        - Use standard ticker symbols (AAPL, MSFT, GOOGL, etc.)
+        - Company information and prices are fetched automatically
         - All portfolios are validated before creation
+        - You can allocate cash as a percentage of your portfolio
         """)
 
 
-def render_creation_wizard() -> None:
-    """Render step-by-step portfolio creation wizard."""
-    st.subheader("Portfolio Creation Wizard")
+def render_portfolio_creation() -> None:
+    """Render step-by-step portfolio creation."""
+    st.subheader("Portfolio Creation")
 
-    # Initialize wizard state
-    if 'wizard_step' not in st.session_state:
-        st.session_state.wizard_step = 1
+    # Initialize creation state
+    if 'creation_step' not in st.session_state:
+        st.session_state.creation_step = 1
 
-    if 'wizard_data' not in st.session_state:
-        st.session_state.wizard_data = {}
+    if 'creation_data' not in st.session_state:
+        st.session_state.creation_data = {}
 
     # Progress bar
-    progress = (st.session_state.wizard_step - 1) / 4
-    st.progress(progress, text=f"Step {st.session_state.wizard_step} of 5")
+    progress = (st.session_state.creation_step - 1) / 4
+    st.progress(progress, text=f"Step {st.session_state.creation_step} of 5")
 
-    # Wizard steps
-    if st.session_state.wizard_step == 1:
-        render_wizard_step_1()
-    elif st.session_state.wizard_step == 2:
-        render_wizard_step_2()
-    elif st.session_state.wizard_step == 3:
-        render_wizard_step_3()
-    elif st.session_state.wizard_step == 4:
-        render_wizard_step_4()
-    elif st.session_state.wizard_step == 5:
-        render_wizard_step_5()
+    # Creation steps
+    if st.session_state.creation_step == 1:
+        render_step_1()
+    elif st.session_state.creation_step == 2:
+        render_step_2()
+    elif st.session_state.creation_step == 3:
+        render_step_3()
+    elif st.session_state.creation_step == 4:
+        render_step_4()
+    elif st.session_state.creation_step == 5:
+        render_step_5()
 
 
-def render_wizard_step_1() -> None:
-    """Wizard Step 1: Portfolio Information."""
+def render_step_1() -> None:
+    """Step 1: Portfolio Information."""
     st.write("### Step 1: Portfolio Information")
+    
+    with st.expander("What information do I need?", expanded=False):
+        st.markdown("""
+        **Portfolio Name** - A unique name to identify your portfolio (required)
+        - Must be unique - cannot match existing portfolio names
+        - Use descriptive names like "Tech Growth Portfolio" or "Dividend Income"
+        
+        **Description** - Optional notes about your investment strategy
+        - Helps you remember the purpose of this portfolio
+        - Example: "Long-term growth focused on technology stocks"
+        
+        **Base Currency** - The currency for your portfolio
+        - Currently supports: USD, EUR, GBP, JPY, CAD, AUD
+        - All values and calculations will be in this currency
+        
+        **Initial Investment** - Starting capital amount
+        - Used to calculate number of shares for each position
+        - Can be adjusted later if needed
+        - Minimum: $1.00
+        """)
 
     col1, col2 = st.columns(2)
 
     with col1:
         portfolio_name = st.text_input(
             "Portfolio Name *",
-            value=st.session_state.wizard_data.get('name', ''),
+            value=st.session_state.creation_data.get('name', ''),
             help="Enter a unique name for your portfolio",
-            key='wizard_name'
+            key='creation_name'
         )
 
         portfolio_description = st.text_area(
             "Description",
-            value=st.session_state.wizard_data.get('description', ''),
+            value=st.session_state.creation_data.get('description', ''),
             help="Optional description of your investment strategy",
-            key='wizard_description'
+            key='creation_description'
         )
 
     with col2:
@@ -120,16 +148,16 @@ def render_wizard_step_1() -> None:
             "Base Currency",
             ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"],
             index=0,
-            key='wizard_currency'
+            key='creation_currency'
         )
 
         initial_value = st.number_input(
             "Initial Investment ($)",
             min_value=1.0,
-            value=st.session_state.wizard_data.get('initial_value', 100000.0),
+            value=st.session_state.creation_data.get('initial_value', 100000.0),
             step=1000.0,
-            help="Used to calculate share quantities",
-            key='wizard_initial_value'
+            help="Used to calculate share quantities for each position",
+            key='creation_initial_value'
         )
 
     # Validation - Level 1: UI validation
@@ -154,31 +182,55 @@ def render_wizard_step_1() -> None:
 
     with col1:
         if st.button("Cancel", use_container_width=True):
-            reset_wizard()
+            reset_creation()
             st.rerun()
 
     with col3:
         if st.button("Next Step →", use_container_width=True, disabled=not name_valid, type="primary"):
-            st.session_state.wizard_data.update({
+            st.session_state.creation_data.update({
                 'name': portfolio_name,
                 'description': portfolio_description,
                 'currency': currency,
                 'initial_value': initial_value
             })
-            st.session_state.wizard_step = 2
+            st.session_state.creation_step = 2
             st.rerun()
 
 
-def render_wizard_step_2() -> None:
-    """Wizard Step 2: Input Method Selection."""
+def render_step_2() -> None:
+    """Step 2: Input Method Selection."""
     st.write("### Step 2: Choose Input Method")
+
+    with st.expander("Which method should I choose?", expanded=False):
+        st.markdown("""
+        **Text Input** - Best for quick entry
+        - Fastest way to create a portfolio
+        - Supports multiple text formats
+        - Good for portfolios with 5-20 assets
+        
+        **Upload File** - Best for existing data
+        - Import from CSV or Excel spreadsheets
+        - Perfect if you already have a portfolio list
+        - Supports column mapping for flexibility
+        
+        **Manual Entry** - Best for precision
+        - Add each asset one by one
+        - Full control over each position
+        - Real-time ticker validation
+        
+        **Use Template** - Best for beginners
+        - Pre-built investment strategies
+        - Factor-based portfolios (Value, Growth, Quality)
+        - Classic strategies (60/40, All Weather)
+        - Can be customized after selection
+        """)
 
     method = st.radio(
         "How would you like to add assets?",
         ["Text Input", "Upload File", "Manual Entry", "Use Template"],
         index=0,
         help="Choose the most convenient method for your data",
-        key='wizard_input_method'
+        key='creation_input_method'
     )
 
     # Show preview of selected method
@@ -198,42 +250,57 @@ def render_wizard_step_2() -> None:
 
     elif method == "Use Template":
         st.info("**Quick start**: Begin with proven strategies")
-        st.markdown("**Available**: Conservative, Growth, Income, Tech Focus, ESG")
+        st.markdown("**Available**: Value Factor, Growth Factor, Quality Factor, 60/40 Portfolio, All Weather, Tech Focus")
 
     # Navigation buttons
     col1, col2, col3 = st.columns([1, 1, 2])
 
     with col1:
         if st.button("← Previous", use_container_width=True):
-            st.session_state.wizard_step = 1
+            st.session_state.creation_step = 1
             st.rerun()
 
     with col3:
         if st.button("Next Step →", use_container_width=True, type="primary"):
-            st.session_state.wizard_data['input_method'] = method
-            st.session_state.wizard_step = 3
+            st.session_state.creation_data['input_method'] = method
+            st.session_state.creation_step = 3
             st.rerun()
 
 
-def render_wizard_step_3() -> None:
-    """Wizard Step 3: Asset Input."""
+def render_step_3() -> None:
+    """Step 3: Asset Input."""
     st.write("### Step 3: Add Your Assets")
 
-    method = st.session_state.wizard_data['input_method']
+    method = st.session_state.creation_data['input_method']
 
     if method == "Text Input":
-        render_wizard_text_input()
+        render_text_input()
     elif method == "Upload File":
-        render_wizard_file_upload()
+        render_file_upload()
     elif method == "Manual Entry":
-        render_wizard_manual_entry()
+        render_manual_entry()
     elif method == "Use Template":
-        render_wizard_template_selection()
+        render_template_selection()
 
 
-def render_wizard_text_input() -> None:
-    """Wizard text input for assets."""
+def render_text_input() -> None:
+    """Text input for assets."""
     st.markdown("**Enter your portfolio assets** (one of these formats):")
+    
+    with st.expander("How does text input work?", expanded=False):
+        st.markdown("""
+        **Supported Formats:**
+        - `AAPL:40%, MSFT:30%, GOOGL:30%` - Colon with percentages
+        - `AAPL 0.4, MSFT 0.3, GOOGL 0.3` - Space with decimals (0.0 to 1.0)
+        - `AAPL 40, MSFT 30, GOOGL 30` - Numbers > 1 (automatically treated as percentages)
+        - `AAPL, MSFT, GOOGL` - Equal weights (each asset gets equal allocation)
+        
+        **Tips:**
+        - Weights don't need to sum to exactly 100% - they will be normalized automatically
+        - Use standard ticker symbols (AAPL, MSFT, GOOGL, etc.)
+        - Invalid tickers will be highlighted and excluded
+        - You can mix formats in the same input
+        """)
 
     # Example tabs
     tab1, tab2, tab3, tab4 = st.tabs(["Percentages", "Decimals", "Numbers", "Equal Weight"])
@@ -249,10 +316,10 @@ def render_wizard_text_input() -> None:
 
     text_input = st.text_area(
         "Portfolio Assets:",
-        value=st.session_state.wizard_data.get('asset_text', ''),
+        value=st.session_state.creation_data.get('asset_text', ''),
         height=120,
-        placeholder="Enter tickers and weights here...",
-        key='wizard_asset_text'
+        placeholder="Enter tickers and weights here...\nExample: AAPL 30%, MSFT 25%, GOOGL 20%, AMZN 15%, TSLA 10%",
+        key='creation_asset_text'
     )
 
     parsed_assets = []
@@ -304,7 +371,7 @@ def render_wizard_text_input() -> None:
                         weight_status = "Perfect" if abs(total_weight - 1.0) < 0.001 else "Will normalize"
                         st.metric("Status", weight_status)
 
-                    st.session_state.wizard_data['parsed_assets'] = parsed_assets
+                    st.session_state.creation_data['parsed_assets'] = parsed_assets
                     validation_passed = True
                 else:
                     st.error("No valid tickers found")
@@ -320,26 +387,56 @@ def render_wizard_text_input() -> None:
 
     with col1:
         if st.button("← Previous", use_container_width=True):
-            st.session_state.wizard_step = 2
+            st.session_state.creation_step = 2
             st.rerun()
 
     with col3:
         can_proceed = bool(text_input.strip() and validation_passed)
         if st.button("Next Step →", use_container_width=True, disabled=not can_proceed, type="primary"):
-            st.session_state.wizard_data['asset_text'] = text_input
-            st.session_state.wizard_step = 4
+            st.session_state.creation_data['asset_text'] = text_input
+            st.session_state.creation_step = 4
             st.rerun()
 
 
-def render_wizard_file_upload() -> None:
-    """Wizard file upload for assets."""
+def render_file_upload() -> None:
+    """File upload for assets."""
     st.markdown("**Upload a CSV or Excel file** with your portfolio data")
+    
+    with st.expander("What file format do I need?", expanded=False):
+        st.markdown("""
+        **File Requirements:**
+        - Supported formats: CSV, Excel (.xlsx, .xls)
+        - **Required column**: `ticker` (or any column name you can map)
+        - **Optional columns**: `weight`, `name`, `sector`
+        
+        **Example CSV format:**
+        ```
+        ticker,weight
+        AAPL,30
+        MSFT,25
+        GOOGL,20
+        ```
+        
+        **Example with equal weights:**
+        ```
+        ticker
+        AAPL
+        MSFT
+        GOOGL
+        ```
+        (Weights will be automatically set to equal)
+        
+        **Column Mapping:**
+        - You can select which column contains tickers
+        - You can select which column contains weights (or use equal weights)
+        - Invalid tickers will be automatically excluded
+        """)
 
     uploaded_file = st.file_uploader(
         "Choose file",
         type=['csv', 'xlsx', 'xls'],
         help="File should contain ticker symbols and optionally weights",
-        key='wizard_file_upload'
+        key='creation_file_upload'
     )
 
     if uploaded_file:
@@ -366,7 +463,7 @@ def render_wizard_file_upload() -> None:
                     "Ticker Column *",
                     df.columns.tolist(),
                     help="Column containing stock symbols",
-                    key='wizard_ticker_col'
+                    key='creation_ticker_col'
                 )
 
             with col2:
@@ -375,7 +472,7 @@ def render_wizard_file_upload() -> None:
                     "Weight Column",
                     weight_options,
                     help="Column with weights/allocations (optional)",
-                    key='wizard_weight_col'
+                    key='creation_weight_col'
                 )
 
             # Preview processed data
@@ -431,7 +528,7 @@ def render_wizard_file_upload() -> None:
                         st.success(f"{len(valid_tickers)} valid tickers found")
 
                         # Store file data
-                        st.session_state.wizard_data['file_data'] = {
+                        st.session_state.creation_data['file_data'] = {
                             'tickers': valid_tickers,
                             'weights': [weights[tickers.index(t)] for t in valid_tickers if t in tickers]
                         }
@@ -451,26 +548,48 @@ def render_wizard_file_upload() -> None:
 
     with col1:
         if st.button("← Previous", use_container_width=True):
-            st.session_state.wizard_step = 2
+            st.session_state.creation_step = 2
             st.rerun()
 
     with col3:
-        can_proceed = uploaded_file and 'file_data' in st.session_state.wizard_data
+        can_proceed = uploaded_file and 'file_data' in st.session_state.creation_data
         if st.button("Next Step →", use_container_width=True, disabled=not can_proceed, type="primary"):
-            st.session_state.wizard_step = 4
+            st.session_state.creation_step = 4
             st.rerun()
 
 
-def render_wizard_manual_entry() -> None:
-    """Wizard manual entry for assets."""
+def render_manual_entry() -> None:
+    """Manual entry for assets."""
     st.markdown("**Add assets manually** for full control over your portfolio")
+    
+    with st.expander("How does manual entry work?", expanded=False):
+        st.markdown("""
+        **Manual Entry Process:**
+        1. Enter ticker symbol (e.g., AAPL)
+        2. Enter weight as percentage (e.g., 30 for 30%)
+        3. Click "Validate Ticker" to check if ticker is valid
+        4. Click "Add Asset" to add to portfolio
+        5. Repeat for each asset
+        
+        **Features:**
+        - Real-time ticker validation
+        - See current price when validating
+        - View total weight as you add assets
+        - Remove assets from the table
+        - Weights are automatically normalized to sum to 100%
+        
+        **Best for:**
+        - Small portfolios (5-10 assets)
+        - When you want to validate each ticker individually
+        - Precise control over each position
+        """)
 
     # Initialize manual assets
-    if 'manual_assets' not in st.session_state.wizard_data:
-        st.session_state.wizard_data['manual_assets'] = []
+    if 'manual_assets' not in st.session_state.creation_data:
+        st.session_state.creation_data['manual_assets'] = []
 
     # Asset entry form
-    with st.form("wizard_asset_entry", clear_on_submit=True):
+    with st.form("creation_asset_entry", clear_on_submit=True):
         st.subheader("Add New Asset")
 
         col1, col2 = st.columns(2)
@@ -480,7 +599,7 @@ def render_wizard_manual_entry() -> None:
                 "Ticker *",
                 placeholder="e.g., AAPL",
                 help="Stock symbol",
-                key='wizard_manual_ticker'
+                key='creation_manual_ticker'
             )
 
         with col2:
@@ -490,8 +609,8 @@ def render_wizard_manual_entry() -> None:
                 max_value=100.0,
                 value=10.0,
                 step=0.1,
-                help="Percentage allocation",
-                key='wizard_manual_weight'
+                help="Percentage allocation (will be normalized to sum to 100%)",
+                key='creation_manual_weight'
             )
 
         col1, col2 = st.columns(2)
@@ -532,10 +651,10 @@ def render_wizard_manual_entry() -> None:
                 
                 if validation_results.get(ticker.upper(), False):
                     # Check for duplicates
-                    existing_tickers = [asset['ticker'] for asset in st.session_state.wizard_data['manual_assets']]
+                    existing_tickers = [asset['ticker'] for asset in st.session_state.creation_data['manual_assets']]
 
                     if ticker.upper() not in existing_tickers:
-                        st.session_state.wizard_data['manual_assets'].append({
+                        st.session_state.creation_data['manual_assets'].append({
                             'ticker': ticker.upper(),
                             'weight': weight / 100,
                             'name': ticker.upper()
@@ -548,13 +667,13 @@ def render_wizard_manual_entry() -> None:
                     st.error(f"{ticker.upper()} is not a valid ticker")
 
     # Show current assets
-    if st.session_state.wizard_data['manual_assets']:
+    if st.session_state.creation_data['manual_assets']:
         st.subheader("Current Assets")
 
         assets_data = []
         total_weight = 0
 
-        for i, asset in enumerate(st.session_state.wizard_data['manual_assets']):
+        for i, asset in enumerate(st.session_state.creation_data['manual_assets']):
             assets_data.append({
                 'Ticker': asset['ticker'],
                 'Weight': f"{asset['weight']:.1%}",
@@ -579,14 +698,14 @@ def render_wizard_manual_entry() -> None:
             indices_to_remove = [i for i, row in edited_df.iterrows() if row['Remove']]
             if indices_to_remove:
                 for i in reversed(sorted(indices_to_remove)):
-                    st.session_state.wizard_data['manual_assets'].pop(i)
+                    st.session_state.creation_data['manual_assets'].pop(i)
                 st.rerun()
 
         # Portfolio metrics
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric("Total Assets", len(st.session_state.wizard_data['manual_assets']))
+            st.metric("Total Assets", len(st.session_state.creation_data['manual_assets']))
         with col2:
             st.metric("Total Weight", f"{total_weight:.1%}")
         with col3:
@@ -598,19 +717,41 @@ def render_wizard_manual_entry() -> None:
 
     with col1:
         if st.button("← Previous", use_container_width=True):
-            st.session_state.wizard_step = 2
+            st.session_state.creation_step = 2
             st.rerun()
 
     with col3:
-        can_proceed = len(st.session_state.wizard_data.get('manual_assets', [])) > 0
+        can_proceed = len(st.session_state.creation_data.get('manual_assets', [])) > 0
         if st.button("Next Step →", use_container_width=True, disabled=not can_proceed, type="primary"):
-            st.session_state.wizard_step = 4
+            st.session_state.creation_step = 4
             st.rerun()
 
 
-def render_wizard_template_selection() -> None:
-    """Wizard template selection."""
+def render_template_selection() -> None:
+    """Template selection."""
     st.markdown("**Start with a proven strategy** and customize as needed")
+    
+    with st.expander("What are portfolio templates?", expanded=False):
+        st.markdown("""
+        **Portfolio Templates** are pre-built investment strategies based on:
+        
+        **Factor-Based Strategies:**
+        - **Value Factor** - Undervalued companies with low P/E ratios
+        - **Quality Factor** - High ROE companies with low debt
+        - **Growth Factor** - Fast-growing companies with high revenue growth
+        - **Low Volatility** - Stocks with beta < 0.8 for stability
+        - **Dividend Factor** - High dividend yield stocks (3%+)
+        
+        **Classic Strategies:**
+        - **60/40 Portfolio** - Classic balanced allocation (60% stocks, 40% bonds)
+        - **All Weather Portfolio** - Multi-asset diversification across economic conditions
+        - **Tech Focus** - Technology sector concentration
+        
+        **Customization:**
+        - All templates can be customized after selection
+        - You can modify weights, add/remove assets
+        - Templates are starting points - make them your own!
+        """)
 
     # Template definitions
     templates = {
@@ -663,7 +804,7 @@ def render_wizard_template_selection() -> None:
         "Choose a template:",
         list(templates.keys()),
         help="Select a base strategy to start with",
-        key='wizard_template_selection'
+        key='creation_template_selection'
     )
 
     if selected_template:
@@ -690,7 +831,7 @@ def render_wizard_template_selection() -> None:
                 value=template_info['assets'],
                 height=100,
                 help="Edit the allocation to suit your needs",
-                key='wizard_custom_template'
+                key='creation_custom_template'
             )
             final_template_text = custom_text
         else:
@@ -715,9 +856,9 @@ def render_wizard_template_selection() -> None:
 
                         st.dataframe(pd.DataFrame(template_data), hide_index=True, use_container_width=True)
 
-                    st.session_state.wizard_data['template_text'] = final_template_text
-                    st.session_state.wizard_data['template_name'] = selected_template
-                    st.session_state.wizard_data['description'] = template_info['description']
+                    st.session_state.creation_data['template_text'] = final_template_text
+                    st.session_state.creation_data['template_name'] = selected_template
+                    st.session_state.creation_data['description'] = template_info['description']
                 else:
                     st.error("Could not parse template")
 
@@ -730,19 +871,39 @@ def render_wizard_template_selection() -> None:
 
     with col1:
         if st.button("← Previous", use_container_width=True):
-            st.session_state.wizard_step = 2
+            st.session_state.creation_step = 2
             st.rerun()
 
     with col3:
-        can_proceed = selected_template and 'template_text' in st.session_state.wizard_data
+        can_proceed = selected_template and 'template_text' in st.session_state.creation_data
         if st.button("Next Step →", use_container_width=True, disabled=not can_proceed, type="primary"):
-            st.session_state.wizard_step = 4
+            st.session_state.creation_step = 4
             st.rerun()
 
 
-def render_wizard_step_4() -> None:
-    """Wizard Step 4: Options and Settings."""
+def render_step_4() -> None:
+    """Step 4: Options and Settings."""
     st.write("### Step 4: Portfolio Settings & Review")
+    
+    with st.expander("What settings should I configure?", expanded=False):
+        st.markdown("""
+        **Portfolio Options:**
+        - **Fetch company information** - Automatically get company names, sectors, and market data
+        - **Auto-normalize weights** - Automatically adjust weights to sum to 100%
+        - **Update current prices** - Fetch latest market prices for all assets
+        - **Calculate share quantities** - Calculate number of shares based on initial investment
+        
+        **Cash Management:**
+        - **Planned Cash Allocation** - Percentage to intentionally keep in cash
+        - Useful for maintaining liquidity or waiting for better entry points
+        - Remaining percentage will be allocated to your assets
+        - Example: 10% cash means 90% goes to your selected assets
+        
+        **Review:**
+        - Check all your portfolio details before creation
+        - Verify asset count and total weight
+        - Make sure everything looks correct
+        """)
 
     # Settings section
     st.subheader("Portfolio Options")
@@ -792,7 +953,7 @@ def render_wizard_step_4() -> None:
 
     with col2:
         if cash_allocation > 0:
-            cash_amount = st.session_state.wizard_data.get('initial_value', 100000) * (cash_allocation / 100)
+            cash_amount = st.session_state.creation_data.get('initial_value', 100000) * (cash_allocation / 100)
             st.metric("Cash Amount", f"${cash_amount:,.0f}")
             st.info(f"Remaining for investments: {100 - cash_allocation}%")
 
@@ -803,37 +964,37 @@ def render_wizard_step_4() -> None:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("Name", st.session_state.wizard_data.get('name', 'N/A'))
-        st.metric("Currency", st.session_state.wizard_data.get('currency', 'USD'))
+        st.metric("Name", st.session_state.creation_data.get('name', 'N/A'))
+        st.metric("Currency", st.session_state.creation_data.get('currency', 'USD'))
 
     with col2:
-        st.metric("Initial Value", f"${st.session_state.wizard_data.get('initial_value', 0):,.0f}")
-        method_display = st.session_state.wizard_data.get('input_method', 'N/A')
+        st.metric("Initial Value", f"${st.session_state.creation_data.get('initial_value', 0):,.0f}")
+        method_display = st.session_state.creation_data.get('input_method', 'N/A')
         st.metric("Method", method_display)
 
     with col3:
         # Count assets based on method
         asset_count = 0
-        if 'parsed_assets' in st.session_state.wizard_data:
-            asset_count = len(st.session_state.wizard_data['parsed_assets'])
-        elif 'manual_assets' in st.session_state.wizard_data:
-            asset_count = len(st.session_state.wizard_data['manual_assets'])
-        elif 'file_data' in st.session_state.wizard_data:
-            asset_count = len(st.session_state.wizard_data['file_data']['tickers'])
-        elif 'template_text' in st.session_state.wizard_data:
+        if 'parsed_assets' in st.session_state.creation_data:
+            asset_count = len(st.session_state.creation_data['parsed_assets'])
+        elif 'manual_assets' in st.session_state.creation_data:
+            asset_count = len(st.session_state.creation_data['manual_assets'])
+        elif 'file_data' in st.session_state.creation_data:
+            asset_count = len(st.session_state.creation_data['file_data']['tickers'])
+        elif 'template_text' in st.session_state.creation_data:
             try:
                 parsed_template = parse_ticker_weights_text(
-                    st.session_state.wizard_data['template_text'])
+                    st.session_state.creation_data['template_text'])
                 asset_count = len(parsed_template)
             except Exception:
                 asset_count = 0
 
         st.metric("Assets", asset_count)
-        description = st.session_state.wizard_data.get('description', 'No description')
+        description = st.session_state.creation_data.get('description', 'No description')
         st.metric("Description", description[:15] + "..." if len(description) > 15 else description)
 
     # Save settings
-    st.session_state.wizard_data['settings'] = {
+    st.session_state.creation_data['settings'] = {
         'fetch_info': fetch_info,
         'auto_normalize': auto_normalize,
         'update_prices': update_prices,
@@ -846,17 +1007,17 @@ def render_wizard_step_4() -> None:
 
     with col1:
         if st.button("← Previous", use_container_width=True):
-            st.session_state.wizard_step = 3
+            st.session_state.creation_step = 3
             st.rerun()
 
     with col3:
         if st.button("Create Portfolio", use_container_width=True, type="primary"):
-            st.session_state.wizard_step = 5
+            st.session_state.creation_step = 5
             st.rerun()
 
 
-def render_wizard_step_5() -> None:
-    """Wizard Step 5: Portfolio Creation and Results."""
+def render_step_5() -> None:
+    """Step 5: Portfolio Creation and Results."""
     st.write("### Step 5: Creating Portfolio...")
 
     # Show progress
@@ -868,7 +1029,7 @@ def render_wizard_step_5() -> None:
         progress_bar.progress(0.2, "Creating portfolio structure...")
         status_container.info("Setting up portfolio...")
 
-        result = create_portfolio_from_wizard_data()
+        result = create_portfolio_from_creation_data()
 
         if result['success']:
             progress_bar.progress(1.0, "Portfolio created successfully!")
@@ -1022,17 +1183,17 @@ def render_wizard_step_5() -> None:
             with col1:
                 if st.button("Analyze Portfolio", use_container_width=True, type="primary"):
                     st.session_state.selected_portfolio_id = portfolio.id
-                    reset_wizard()
+                    reset_creation()
                     st.switch_page("pages/portfolio_analysis.py")
 
             with col2:
                 if st.button("Create Another", use_container_width=True):
-                    reset_wizard()
+                    reset_creation()
                     st.rerun()
 
             with col3:
                 if st.button("Go to Dashboard", use_container_width=True):
-                    reset_wizard()
+                    reset_creation()
                     st.switch_page("pages/dashboard.py")
 
         else:
@@ -1045,38 +1206,38 @@ def render_wizard_step_5() -> None:
 
             with col1:
                 if st.button("Try Again", use_container_width=True, type="primary"):
-                    st.session_state.wizard_step = 4
+                    st.session_state.creation_step = 4
                     st.rerun()
 
             with col2:
                 if st.button("Start Over", use_container_width=True):
-                    reset_wizard()
+                    reset_creation()
                     st.rerun()
 
     except Exception as e:
         progress_bar.progress(0.0, "Unexpected error")
         status_container.error("Unexpected error occurred")
         st.error(f"Unexpected error: {str(e)}")
-        logger.error(f"Wizard creation error: {e}", exc_info=True)
+        logger.error(f"Portfolio creation error: {e}", exc_info=True)
 
         if st.button("Start Over", use_container_width=True):
-            reset_wizard()
+            reset_creation()
             st.rerun()
 
 
-def create_portfolio_from_wizard_data() -> Dict[str, Any]:
-    """Create portfolio from wizard data."""
+def create_portfolio_from_creation_data() -> Dict[str, Any]:
+    """Create portfolio from creation data."""
     try:
-        wizard_data = st.session_state.wizard_data
+        creation_data = st.session_state.creation_data
         portfolio_service: PortfolioService = st.session_state.portfolio_service
         data_service: DataService = st.session_state.data_service
 
         # Prepare positions based on input method
         positions: List[PositionSchema] = []
 
-        if 'parsed_assets' in wizard_data:
+        if 'parsed_assets' in creation_data:
             # From text input
-            for asset in wizard_data['parsed_assets']:
+            for asset in creation_data['parsed_assets']:
                 # Ensure weight is normalized (0.0 to 1.0)
                 weight = asset['weight']
                 if weight > 1.0:
@@ -1088,9 +1249,9 @@ def create_portfolio_from_wizard_data() -> Dict[str, Any]:
                     weight_target=weight
                 ))
 
-        elif 'manual_assets' in wizard_data:
+        elif 'manual_assets' in creation_data:
             # From manual entry
-            for asset in wizard_data['manual_assets']:
+            for asset in creation_data['manual_assets']:
                 # Ensure weight is normalized (0.0 to 1.0)
                 weight = asset['weight']
                 if weight > 1.0:
@@ -1102,9 +1263,9 @@ def create_portfolio_from_wizard_data() -> Dict[str, Any]:
                     weight_target=weight
                 ))
 
-        elif 'template_text' in wizard_data:
+        elif 'template_text' in creation_data:
             # From template
-            parsed_template = parse_ticker_weights_text(wizard_data['template_text'])
+            parsed_template = parse_ticker_weights_text(creation_data['template_text'])
             for asset in parsed_template:
                 # Ensure weight is normalized (0.0 to 1.0)
                 weight = asset['weight']
@@ -1117,9 +1278,9 @@ def create_portfolio_from_wizard_data() -> Dict[str, Any]:
                     weight_target=weight
                 ))
 
-        elif 'file_data' in wizard_data:
+        elif 'file_data' in creation_data:
             # From file upload
-            file_data = wizard_data['file_data']
+            file_data = creation_data['file_data']
             tickers = file_data['tickers']
             weights = file_data['weights']
 
@@ -1142,12 +1303,12 @@ def create_portfolio_from_wizard_data() -> Dict[str, Any]:
         existing_portfolios = portfolio_service.list_portfolios()
         existing_names = [p.name for p in existing_portfolios]
 
-        if wizard_data['name'] in existing_names:
-            return {'success': False, 'error': f"Portfolio '{wizard_data['name']}' already exists"}
+        if creation_data['name'] in existing_names:
+            return {'success': False, 'error': f"Portfolio '{creation_data['name']}' already exists"}
 
         # Get initial value and calculate shares
-        initial_value = wizard_data.get('initial_value', 100000.0)
-        settings = wizard_data.get('settings', {})
+        initial_value = creation_data.get('initial_value', 100000.0)
+        settings = creation_data.get('settings', {})
         cash_allocation = settings.get('cash_allocation', 0)
 
         # Adjust asset weights if cash allocation is planned
@@ -1292,10 +1453,10 @@ def create_portfolio_from_wizard_data() -> Dict[str, Any]:
 
         # Create portfolio - Level 3: Model validation via Service
         request = CreatePortfolioRequest(
-            name=wizard_data['name'],
-            description=wizard_data.get('description', ''),
+            name=creation_data['name'],
+            description=creation_data.get('description', ''),
             starting_capital=initial_value,
-            base_currency=wizard_data.get('currency', 'USD'),
+            base_currency=creation_data.get('currency', 'USD'),
             positions=positions
         )
 
@@ -1314,14 +1475,14 @@ def create_portfolio_from_wizard_data() -> Dict[str, Any]:
         logger.error(f"Portfolio creation validation error: {e}")
         return {'success': False, 'error': str(e)}
     except Exception as e:
-        logger.error(f"Error creating portfolio from wizard: {e}", exc_info=True)
+        logger.error(f"Error creating portfolio from creation data: {e}", exc_info=True)
         return {'success': False, 'error': str(e)}
 
 
-def reset_wizard() -> None:
-    """Reset wizard state."""
-    st.session_state.wizard_step = 1
-    st.session_state.wizard_data = {}
+def reset_creation() -> None:
+    """Reset portfolio creation state."""
+    st.session_state.creation_step = 1
+    st.session_state.creation_data = {}
 
 
 if __name__ == "__main__":

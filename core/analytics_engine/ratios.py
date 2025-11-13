@@ -50,7 +50,8 @@ def calculate_sharpe_ratio(
         )
         volatility = float(returns.std() * np.sqrt(periods_per_year))
 
-        if volatility == 0:
+        # Check for zero or near-zero volatility (with tolerance for floating point errors)
+        if volatility < 1e-10:
             return None
 
         excess_return = annual_return - risk_free_rate
