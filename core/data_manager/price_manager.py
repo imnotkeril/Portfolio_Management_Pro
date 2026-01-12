@@ -9,18 +9,18 @@ from typing import List, Optional
 import pandas as pd
 import yfinance as yf
 
-from core.exceptions import DataFetchError, TickerNotFoundError
+from config.constants import (
+    CACHE_TTL_CURRENT_PRICE,
+    CACHE_TTL_HISTORICAL_PRICES,
+    INITIAL_RETRY_DELAY,
+    MAX_RETRIES_API,
+    MAX_WORKERS_PARALLEL_FETCH,
+    RETRY_BACKOFF_MULTIPLIER,
+)
 from core.data_manager.cache import Cache
+from core.exceptions import DataFetchError, TickerNotFoundError
 
 logger = logging.getLogger(__name__)
-
-# Parallel fetching configuration
-MAX_WORKERS = 5  # Number of parallel threads for data fetching
-
-# Retry configuration
-MAX_RETRIES = 3
-INITIAL_RETRY_DELAY = 1.0  # seconds
-RETRY_BACKOFF_MULTIPLIER = 2.0
 
 
 class PriceManager:
@@ -85,6 +85,12 @@ class PriceManager:
         # Fetch from Yahoo Finance
         try:
             df = self._fetch_from_yahoo(ticker, start_date, end_date)
+        except DataFetchError:
+            # Re-raise DataFetchError as-is (already has context)
+            raise
+        except TickerNotFoundError:
+            # Re-raise TickerNotFoundError as-is
+            raise
         except Exception as e:
             logger.error(f"Failed to fetch from Yahoo Finance for {ticker}: {e}", exc_info=True)
             # TODO: Add fallback to other sources (Alpha Vantage, IEX Cloud)
@@ -95,7 +101,7 @@ class PriceManager:
 
         # Cache the result
         if use_cache:
-            self._cache.set(cache_key, df, ttl=86400)  # 24 hours
+            self._cache.set(cache_key, df, ttl=CACHE_TTL_HISTORICAL_PRICES)
 
         logger.info(
             f"Fetched {len(df)} days of price data for {ticker} "
@@ -141,7 +147,7 @@ class PriceManager:
 
             # Cache for 5 minutes
             if use_cache:
-                self._cache.set(cache_key, current_price, ttl=300)
+                self._cache.set(cache_key, current_price, ttl=CACHE_TTL_CURRENT_PRICE)
 
             logger.debug(f"Fetched current price for {ticker}: ${current_price:.2f}")
 
@@ -271,7 +277,7 @@ class PriceManager:
                     return (ticker, None)
 
             # Use ThreadPoolExecutor for parallel fetching
-            with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(tickers))) as executor:
+            with ThreadPoolExecutor(max_workers=min(MAX_WORKERS_PARALLEL_FETCH, len(tickers))) as executor:
                 future_to_ticker = {
                     executor.submit(fetch_single, ticker): ticker 
                     for ticker in tickers
@@ -325,7 +331,7 @@ class PriceManager:
 
         retry_delay = INITIAL_RETRY_DELAY
 
-        for attempt in range(MAX_RETRIES):
+        for attempt in range(MAX_RETRIES_API):
             try:
                 ticker_obj = yf.Ticker(ticker)
                 data = ticker_obj.history(
@@ -352,16 +358,16 @@ class PriceManager:
             except TickerNotFoundError:
                 raise
             except Exception as e:
-                if attempt < MAX_RETRIES - 1:
+                if attempt < MAX_RETRIES_API - 1:
                     logger.warning(
-                        f"Attempt {attempt + 1}/{MAX_RETRIES} failed for {ticker}: {e}. "
-                        f"Retrying in {retry_delay}s..."
+                        f"Attempt {attempt + 1}/{MAX_RETRIES_API} failed for {ticker}: {e}. "
+                        f"Retrying in {retry_delay:.1f}s..."
                     )
                     time.sleep(retry_delay)
                     retry_delay *= RETRY_BACKOFF_MULTIPLIER
                 else:
-                    logger.error(f"All {MAX_RETRIES} attempts failed for {ticker}")
-                    raise DataFetchError(f"Failed to fetch data for {ticker} after {MAX_RETRIES} attempts") from e
+                    logger.error(f"All {MAX_RETRIES_API} attempts failed for {ticker}")
+                    raise DataFetchError(f"Failed to fetch data for {ticker} after {MAX_RETRIES_API} attempts") from e
 
         raise DataFetchError(f"Failed to fetch data for {ticker}")  # Should never reach here
 

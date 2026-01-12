@@ -3,10 +3,12 @@
 import logging
 import pickle
 import time
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from config.constants import CACHE_MAX_SIZE
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -20,21 +22,25 @@ class Cache:
     Level 2: Disk cache (parquet/pickle files) for persistence
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None) -> None:
+    def __init__(self, cache_dir: Optional[Path] = None, max_size: int = CACHE_MAX_SIZE) -> None:
         """
-        Initialize cache system.
+        Initialize cache system with LRU eviction.
 
         Args:
             cache_dir: Directory for disk cache
                       (defaults to settings.price_cache_dir)
+            max_size: Maximum number of items in memory cache (default: CACHE_MAX_SIZE)
         """
-        self._memory_cache: Dict[str, Tuple[Any, float]] = {}
+        # Use OrderedDict for LRU functionality
+        self._memory_cache: OrderedDict[str, Tuple[Any, float]] = OrderedDict()
+        self._max_size = max_size
         self._cache_dir = cache_dir or settings.price_cache_dir
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._stats = {
             "hits": 0,
             "misses": 0,
             "sets": 0,
+            "evictions": 0,
         }
 
     def get(self, key: str) -> Optional[Any]:
@@ -51,6 +57,8 @@ class Cache:
         if key in self._memory_cache:
             value, expiry = self._memory_cache[key]
             if time.time() < expiry:
+                # Move to end (most recently used) for LRU
+                self._memory_cache.move_to_end(key)
                 self._stats["hits"] += 1
                 logger.debug(f"Cache hit (memory): {key}")
                 return value
@@ -93,7 +101,7 @@ class Cache:
 
     def set(self, key: str, value: Any, ttl: int = 3600) -> None:
         """
-        Set value in cache.
+        Set value in cache with LRU eviction if cache is full.
 
         Args:
             key: Cache key
@@ -103,8 +111,22 @@ class Cache:
         expiry = time.time() + ttl
         expiry_timestamp = datetime.now().timestamp() + ttl
 
-        # Store in memory
-        self._memory_cache[key] = (value, expiry)
+        # LRU eviction: remove oldest item if cache is full
+        if key not in self._memory_cache and len(self._memory_cache) >= self._max_size:
+            # Remove oldest (first) item
+            oldest_key = next(iter(self._memory_cache))
+            del self._memory_cache[oldest_key]
+            self._stats["evictions"] += 1
+            logger.debug(f"Cache eviction: {oldest_key} (cache full)")
+
+        # Store in memory (move to end if exists, or add new)
+        if key in self._memory_cache:
+            # Update existing
+            self._memory_cache[key] = (value, expiry)
+            self._memory_cache.move_to_end(key)
+        else:
+            # Add new
+            self._memory_cache[key] = (value, expiry)
 
         # Store on disk
         disk_path = self._cache_dir / f"{self._sanitize_key(key)}.pkl"
@@ -169,8 +191,10 @@ class Cache:
             "hits": self._stats["hits"],
             "misses": self._stats["misses"],
             "sets": self._stats["sets"],
+            "evictions": self._stats["evictions"],
             "hit_rate": hit_rate,
             "size": len(self._memory_cache),
+            "max_size": self._max_size,
         }
 
     def _sanitize_key(self, key: str) -> str:

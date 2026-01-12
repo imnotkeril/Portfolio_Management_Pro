@@ -8,60 +8,72 @@
 
 ---
 
-## 🚀 Features
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd WMC_Portfolio_Management
+
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # macOS/Linux
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Initialize database
+alembic upgrade head
+
+# Run application
+python run.py
+```
+
+The application will open at `http://localhost:8501`.
+
+---
+
+## ✨ Key Features
 
 ### Portfolio Management
-- **5 Portfolio Creation Methods**: Wizard, Text Input, CSV Import, Manual Entry, Templates
-- **Full CRUD Operations**: Create, Read, Update, Delete portfolios
-- **Position Management**: Add, remove, update positions with real-time validation
-- **Portfolio Cloning**: Duplicate existing portfolios with modifications
+- **4 Creation Methods**: Text Input, CSV Import, Manual Entry, Templates
+- **5-Step Creation Process**: Guided interface for all creation methods
+- **Full CRUD Operations**: Create, read, update, delete portfolios
+- **Transaction Tracking**: Record BUY/SELL/DEPOSIT/WITHDRAWAL operations
+- **Position Management**: Real-time validation, inline editing, bulk operations
 
 ### Analytics & Metrics
-- **70+ Financial Metrics** across 4 categories:
-  - **Performance** (18): Total Return, CAGR, Annualized Return, YTD, MTD, QTD, Best/Worst Periods, Win Rate, etc.
-  - **Risk** (22): Volatility (daily/weekly/monthly/annual), Max Drawdown, VaR (90%/95%/99%), CVaR, Downside Deviation, Skewness, Kurtosis, etc.
-  - **Ratios** (15): Sharpe, Sortino, Calmar, Sterling, Burke, Treynor, Information Ratio, Omega, etc.
-  - **Market** (15): Beta, Alpha (CAPM), R², Correlation, Tracking Error, Up/Down Capture, etc.
+- **70+ Financial Metrics**: Performance, Risk, Ratios, Market metrics
+- **5 Analysis Tabs**: Overview, Performance, Risk, Assets & Correlations, Export & Reports
+- **Interactive Charts**: Plotly-based visualizations with zoom, pan, hover
+- **Benchmark Comparison**: Compare portfolios against market indices
 
 ### Optimization
-- **17 Optimization Methods**:
-  - Equal Weight, Mean-Variance, Min Variance, Max Sharpe, Max Return
-  - Risk Parity, Kelly Criterion, Hierarchical Risk Parity (HRP)
-  - CVaR Optimization, Mean-CVaR, Robust Optimization
-  - Max Diversification, Min Correlation, Inverse Correlation
-  - Market Cap Weighting, Black-Litterman
-- **Efficient Frontier Generation**
-- **Flexible Constraints**: Weight limits, group constraints, turnover limits, cardinality
+- **18 Optimization Methods**: Mean-Variance, Black-Litterman, Risk Parity, HRP, CVaR, and more
+- **Efficient Frontier**: Visual risk-return optimization
+- **Out-of-Sample Testing**: Validate optimization on unseen data
+- **Flexible Constraints**: Weight limits, group constraints, cardinality
 
 ### Risk Analysis
-- **VaR Calculation**: Historical, Parametric, Cornish-Fisher methods
-- **CVaR (Conditional VaR)**: Expected shortfall analysis
-- **Monte Carlo Simulation**: 10,000+ simulation paths
-- **Stress Testing**: Historical and custom scenarios
-- **Sensitivity Analysis**: Parameter variation studies
+- **VaR Calculation**: Multiple methods (Historical, Parametric, Cornish-Fisher, Monte Carlo)
+- **Monte Carlo Simulation**: 1,000-100,000 simulation paths
+- **Stress Testing**: Historical scenarios (2008 Crisis, COVID-19, etc.) and custom scenarios
+- **Scenario Chains**: Sequential scenario testing with cumulative impact
 
 ### Forecasting
-- **Multiple Forecasting Methods**:
-  - Classical: ARIMA, GARCH, ARIMA-GARCH
-  - Machine Learning: Random Forest, SVM, XGBoost
-  - Deep Learning: LSTM, TCN, SSA-MAEMD-TCN
-  - Time Series: Prophet
-  - Ensemble Forecasting
-- **Out-of-Sample Validation**
-- **Portfolio-Level Forecasting**
+- **9 Forecasting Methods**: ARIMA, GARCH, LSTM, XGBoost, Prophet, Ensemble, and more
+- **Out-of-Sample Validation**: MAE, RMSE, MAPE, Directional Accuracy metrics
+- **Portfolio-Level Forecasting**: Aggregate portfolio predictions
+- **Multiple Forecast Horizons**: 1 day to 1 year
 
-### Visualizations
-- **7 Interactive Chart Types**:
-  - Cumulative Returns, Drawdown Chart
-  - Rolling Metrics, Correlation Heatmap
-  - Returns Distribution, Monthly Returns Heatmap
-  - Efficient Frontier (for optimization)
-
-### Performance
-- **Parallel Data Fetching**: 6.83x speedup for uncached data
-- **Multi-Level Caching**: In-memory → Disk → Database
-- **Optimized Calculations**: Vectorized operations with NumPy/Pandas
-- **Fast Metrics Calculation**: <500ms for 1-year data (target: <500ms, actual: ~14ms)
+### Transaction Management
+- **Transaction History**: Full audit trail with dates, prices, fees, notes
+- **CSV Import/Export**: Import transactions from files, export to CSV
+- **Position Calculation**: Automatic position calculation from transaction history
+- **Portfolio Modes**: Buy-and-Hold or With Transactions
 
 ---
 
@@ -69,83 +81,8 @@
 
 - **Python**: 3.9 or higher
 - **Operating System**: Windows, macOS, or Linux
-- **Internet Connection**: Required for fetching market data
-
----
-
-## 🛠️ Installation
-
-### 1. Clone the Repository
-
-```bash
-git clone <repository-url>
-cd WMC_Portfolio_Management
-```
-
-### 2. Create Virtual Environment
-
-```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
-
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. (Optional) Install Development Dependencies
-
-```bash
-pip install -r requirements-dev.txt
-```
-
-### 5. Initialize Database
-
-```bash
-# Run database migrations
-alembic upgrade head
-```
-
----
-
-## 🚀 Quick Start
-
-### Run the Application
-
-```bash
-python run.py
-```
-
-The application will open in your default browser at `http://localhost:8501`.
-
-### First Steps
-
-1. **Create a Portfolio**:
-   - Click "Create Portfolio" in the navigation
-   - Choose one of 5 creation methods:
-     - **Wizard**: Step-by-step guided process
-     - **Text Input**: Natural language (e.g., "60% AAPL, 40% MSFT")
-     - **CSV Import**: Upload your existing portfolio
-     - **Manual Entry**: Add positions one by one
-     - **Templates**: Pre-built strategies
-
-2. **View Analytics**:
-   - Navigate to "Portfolio Analysis"
-   - Select a portfolio and date range
-   - View 70+ calculated metrics
-
-3. **Optimize Portfolio**:
-   - Go to "Optimization" page
-   - Select optimization method
-   - Configure constraints
-   - Generate optimized weights
+- **Internet Connection**: Required for fetching market data (yfinance)
+- **Memory**: 4GB+ RAM recommended for large portfolios
 
 ---
 
@@ -156,89 +93,55 @@ WMC_Portfolio_Management/
 ├── core/                      # Core business logic (framework-agnostic)
 │   ├── analytics_engine/      # 70+ metrics calculation
 │   ├── data_manager/          # Price fetching, caching, validation
-│   ├── optimization_engine/   # 17 optimization methods
+│   ├── optimization_engine/   # 18 optimization methods
 │   ├── risk_engine/          # VaR, Monte Carlo, stress testing
-│   ├── forecasting_engine/   # Forecasting models
-│   └── scenario_engine/      # Scenario analysis
+│   ├── forecasting_engine/   # 9 forecasting models
+│   └── scenario_engine/      # Historical and custom scenarios
 ├── services/                  # Service layer (orchestration)
-│   ├── analytics_service.py
-│   ├── data_service.py
-│   ├── portfolio_service.py
-│   ├── optimization_service.py
-│   └── ...
 ├── streamlit_app/            # UI layer (Streamlit)
 │   ├── app.py               # Main application
 │   ├── pages/               # Page components
-│   ├── components/          # Reusable UI components
-│   └── utils/               # UI utilities
+│   └── components/          # Reusable UI components
 ├── models/                   # SQLAlchemy ORM models
-├── database/                 # Database utilities
-│   └── migrations/          # Alembic migrations
+├── database/                 # Database utilities & migrations
 ├── config/                   # Configuration
-├── tests/                    # Test suite
-│   ├── unit/                # Unit tests
-│   ├── integration/         # Integration tests
-│   └── performance/         # Performance tests
-├── scripts/                  # Utility scripts
-├── docs/                     # Documentation
-├── requirements.txt          # Production dependencies
-├── requirements-dev.txt      # Development dependencies
-└── run.py                    # Application entry point
+└── tests/                    # Test suite
 ```
 
 ---
 
 ## 🧪 Testing
 
-### Run All Tests
-
 ```bash
+# Run all tests
 pytest
-```
 
-### Run with Coverage
-
-```bash
+# Run with coverage
 pytest --cov=core --cov=services --cov-report=html
-```
 
-### Run Specific Test Categories
-
-```bash
-# Unit tests only
-pytest tests/unit/
-
-# Integration tests
-pytest tests/integration/
-
-# Performance tests
-pytest tests/performance/ -m performance
+# Run specific test categories
+pytest tests/unit/           # Unit tests
+pytest tests/integration/    # Integration tests
+pytest tests/performance/    # Performance tests
 ```
 
 ---
 
 ## 📊 Performance
 
-### Benchmarks
-
 | Operation | Target | Actual | Status |
 |-----------|--------|--------|--------|
 | Portfolio creation | <100ms | ~50ms | ✅ |
 | Fetch 1-year (cached) | <10ms | <1ms | ✅ |
-| Fetch 1-year (uncached) | <2s | ~200-800ms | ✅ |
 | Calculate 70 metrics | <500ms | ~14ms | ✅ |
-| Bulk fetch (8 tickers, uncached) | <500ms | ~212ms | ✅ |
-| Bulk fetch speedup | - | **6.83x** | ✅ |
-
-See [Performance Report](docs/PERFORMANCE_REPORT.md) for detailed analysis.
+| Bulk fetch (8 tickers) | <500ms | ~212ms | ✅ |
+| Parallel fetch speedup | - | **6.83x** | ✅ |
 
 ---
 
 ## 🔧 Configuration
 
-### Environment Variables
-
-Create a `.env` file in the project root (see `.env.example`):
+Create a `.env` file in the project root:
 
 ```env
 # Database
@@ -250,47 +153,40 @@ LOG_FILE=logs/app.log
 
 # Cache
 CACHE_DIR=data/cache
+
+# Risk-Free Rate (optional)
+RISK_FREE_RATE=0.0435
 ```
-
-### Settings
-
-Configuration is managed through `config/settings.py` using Pydantic Settings.
 
 ---
 
 ## 📚 Documentation
 
-- **[Architecture](docs/ARCHITECTURE.md)**: System architecture and design decisions
-- **[Implementation Plan](docs/PLAN.md)**: Development phases and tasks
-- **[Requirements](docs/REQUIREMENTS.md)**: Business requirements and user stories
-- **[Performance Report](docs/PERFORMANCE_REPORT.md)**: Performance profiling and optimization
-- **[Architecture Rules](docs/ARC-RULES.md)**: Coding standards and best practices
+- **[User Guide](USER_GUIDE.md)**: Complete user manual with detailed instructions, examples, and workflows
+
+For detailed information about features, methods, and usage, see the [User Guide](USER_GUIDE.md).
 
 ---
 
 ## 🛣️ Roadmap
 
 ### Completed ✅
-- [x] Phase 0: Project Setup
-- [x] Phase 1: Data Infrastructure
-- [x] Phase 2: Portfolio Core
-- [x] Phase 3: Analytics Engine (70+ metrics)
-- [x] Phase 4: Streamlit UI
-- [x] Phase 5: Charts & Visualizations
-- [x] Phase 6: Optimization Engine (17 methods)
-- [x] Phase 7: Risk & Scenarios
-- [x] Phase 9: Testing & Optimization (partial)
+- Portfolio Management (4 creation methods, CRUD, transactions)
+- Analytics Engine (70+ metrics, 5 tabs with sub-tabs)
+- Optimization Engine (18 methods, efficient frontier)
+- Risk Analysis (VaR, Monte Carlo, 5 scenario types)
+- Forecasting (9 models, validation, ensemble)
+- Transaction Tracking (full history, import/export)
 
 ### In Progress 🚧
-- [ ] Phase 8: Reports & Export
-- [ ] Phase 9: Documentation & Polish
+- Reports & Export (PDF generation in progress)
+- Documentation & Polish
 
 ### Planned 📋
-- [ ] User Authentication
-- [ ] Multi-user Support
-- [ ] Real-time Data Updates
-- [ ] Mobile Responsive UI
-- [ ] Next.js Migration (Future)
+- User Authentication
+- Multi-user Support
+- Real-time Data Updates
+- Next.js Migration (Future)
 
 ---
 
@@ -304,11 +200,11 @@ Configuration is managed through `config/settings.py` using Pydantic Settings.
 
 ### Development Guidelines
 
-- Follow [Architecture Rules](docs/ARC-RULES.md)
 - Write tests for new features
 - Maintain >80% test coverage for core modules
 - Use type hints for all functions
 - Follow SOLID principles and DRY
+- Follow existing code structure and patterns
 
 ---
 
@@ -325,14 +221,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Plotly**: Interactive charts
 - **CVXPy**: Convex optimization
 - **NumPy/Pandas**: Data manipulation and calculations
-
----
-
-## 📧 Contact
-
-For questions, issues, or contributions, please open an issue on GitHub.
+- **scikit-learn**: Machine learning models
+- **TensorFlow**: Deep learning models
 
 ---
 
 **Built with ❤️ for portfolio managers and financial analysts**
-

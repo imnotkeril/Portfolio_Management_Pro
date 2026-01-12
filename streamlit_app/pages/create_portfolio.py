@@ -957,7 +957,51 @@ def render_step_4() -> None:
             st.metric("Cash Amount", f"${cash_amount:,.0f}")
             st.info(f"Remaining for investments: {100 - cash_allocation}%")
 
+    # Portfolio Mode selection
+    st.markdown("---")
+    st.subheader("Portfolio Mode")
+    
+    portfolio_mode = st.radio(
+        "How do you want to manage this portfolio?",
+        options=['Buy-and-Hold', 'With Transactions'],
+        index=0,
+        help="""
+        **Buy-and-Hold**: Simple mode - positions remain fixed throughout the analysis period.
+        - Fast analysis
+        - Best for quick backtests and strategy testing
+        - Can still use strategies for backtesting (strategies generate simulated transactions)
+        
+        **With Transactions**: Advanced mode - track all real trades over time.
+        - More accurate performance tracking
+        - Accounts for all purchases, sales, deposits, and withdrawals
+        - Can also use strategies for backtesting
+        """,
+        key='creation_portfolio_mode'
+    )
+    
+    st.session_state.creation_data['portfolio_mode'] = portfolio_mode
+    
+    if portfolio_mode == 'With Transactions':
+        create_initial_transactions = st.checkbox(
+            "Create initial transactions from positions",
+            value=True,
+            help="If checked, initial BUY transactions will be created for each position when portfolio is created",
+            key='create_initial_txns'
+        )
+        st.session_state.creation_data['create_initial_transactions'] = create_initial_transactions
+        st.info("""
+        💡 **Tip**: Initial transactions will be created from your positions above.
+        Each position will become a BUY transaction with the purchase price you specify.
+        You can add more transactions later in the portfolio editor.
+        """)
+    else:
+        st.info("""
+        💡 **Note**: You can add strategies later for backtesting, even with Buy-and-Hold mode.
+        Strategies will generate simulated transactions for analysis without modifying your portfolio.
+        """)
+
     # Portfolio preview
+    st.markdown("---")
     st.subheader("Portfolio Summary")
 
     # Basic info
@@ -1465,6 +1509,58 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
         # Positions already have calculated shares in PositionSchema objects
         # They were used when creating portfolio, so no need to update again
         # The portfolio is created with correct shares already
+
+        # Create initial transactions if mode is "With Transactions"
+        portfolio_mode = creation_data.get('portfolio_mode', 'Buy-and-Hold')
+        if portfolio_mode == 'With Transactions' and creation_data.get('create_initial_transactions', False):
+            from services.transaction_service import TransactionService
+            from datetime import date
+            
+            transaction_service = TransactionService()
+            creation_date = date.today()
+            
+            portfolio_positions = portfolio.get_all_positions()
+            for pos in portfolio_positions:
+                if pos.ticker == 'CASH':
+                    # CASH position = DEPOSIT transaction
+                    if pos.shares > 0:
+                        try:
+                            transaction_service.add_transaction(
+                                portfolio_id=portfolio.id,
+                                transaction_date=creation_date,
+                                transaction_type='DEPOSIT',
+                                ticker='CASH',
+                                shares=pos.shares,
+                                price=1.0,
+                                notes='Initial cash allocation',
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to create initial DEPOSIT transaction: {e}")
+                else:
+                    # Stock position = BUY transaction
+                    purchase_price = pos.purchase_price
+                    if not purchase_price:
+                        # Try to get current price
+                        try:
+                            purchase_price = prices.get(pos.ticker)
+                            if not purchase_price:
+                                purchase_price = data_service.fetch_current_price(pos.ticker)
+                        except Exception:
+                            purchase_price = 1.0  # Fallback
+                    
+                    if purchase_price and purchase_price > 0:
+                        try:
+                            transaction_service.add_transaction(
+                                portfolio_id=portfolio.id,
+                                transaction_date=creation_date,
+                                transaction_type='BUY',
+                                ticker=pos.ticker,
+                                shares=pos.shares,
+                                price=purchase_price,
+                                notes='Initial position',
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to create initial BUY transaction for {pos.ticker}: {e}")
 
         return {'success': True, 'portfolio': portfolio}
 

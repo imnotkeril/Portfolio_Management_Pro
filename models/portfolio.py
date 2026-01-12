@@ -9,6 +9,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from models.position import Position
+    from models.transaction import Transaction
+else:
+    Transaction = "Transaction"
 
 from database.session import Base
 
@@ -58,6 +61,14 @@ class Portfolio(Base):
         back_populates="portfolio",
         cascade="all, delete-orphan",
         lazy="selectin",  # Eager load positions
+    )
+    transactions: Mapped[List["Transaction"]] = relationship(  # noqa: F821
+        "Transaction",
+        back_populates="portfolio",
+        cascade="all, delete-orphan",
+        lazy="select",  # Changed from selectin to avoid initialization issues
+        # Note: order_by removed - transactions should be sorted in queries if needed
+        # Using order_by with string reference causes issues with TYPE_CHECKING
     )
 
     # Indexes

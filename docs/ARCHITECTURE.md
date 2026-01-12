@@ -6,7 +6,27 @@
 
 ---
 
-### Recent Updates (2025-11-13)
+### Recent Updates (2025-01-XX)
+
+- **Phase 2 (Revised): Transaction Management UI Integration** - Integrated transaction management into existing pages:
+  - **REMOVED**: Separate transactions page (`streamlit_app/pages/transactions.py`) - deleted
+  - **REMOVED**: "Transactions" from navigation menu
+  - **ADDED**: Transaction tabs in portfolio view and editor (`streamlit_app/pages/portfolio_list.py`)
+  - **ADDED**: Portfolio mode selection in create portfolio Step 4 (`streamlit_app/pages/create_portfolio.py`)
+  - **ADDED**: Automatic initial transaction creation when creating portfolio in "With Transactions" mode
+  - **ADDED**: Transaction management tab with summary statistics, add/edit/delete functionality
+  - **ADDED**: CSV export functionality for transactions
+  - **ADDED**: Portfolio mode indicator (Buy-and-Hold vs With Transactions)
+  - **IMPORTANT**: Strategies can be applied to ANY portfolio mode (buy-and-hold or with transactions)
+
+- **Phase 1: Transaction Infrastructure** - Implemented transaction tracking system:
+  - Created `Transaction` ORM model (`models/transaction.py`) with support for BUY, SELL, DEPOSIT, WITHDRAWAL operations
+  - Added transaction relationship to `Portfolio` model
+  - Created transaction domain model (`core/data_manager/transaction.py`) with validation
+  - Implemented `TransactionRepository` for persistence operations
+  - Created `TransactionService` for orchestrating transaction operations
+  - Added database migration `004_create_transactions.py`
+  - Comprehensive unit tests for transaction domain and repository
 
 - Added explicit docstrings for `WMCBaseException.__init__` and the `TickerInfo` initializer to clarify expected arguments and metadata handling.
 - Documented the timezone normalization unit test to describe its role in validating mixed timezone price data ingestion.
@@ -124,7 +144,8 @@
 │  │              │  │              │  │              │     │
 │  │ - Portfolios │  │ - Yahoo Fin. │  │ - In-Memory  │     │
 │  │ - Positions  │  │ - Alpha Vant.│  │ - Disk Cache │     │
-│  │ - Prices     │  │ - IEX Cloud  │  │ - Redis(fut.)│     │
+│  │ - Transactions│  │ - IEX Cloud  │  │ - Redis(fut.)│     │
+│  │ - Prices     │  │              │  │              │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -187,13 +208,15 @@
 ### 3.2 Data Manager Module
 
 **Path**: `core/data_manager/`  
-**Status**: 🔲 Not Implemented
+**Status**: 🟢 Phase 1-2 Implemented (Partial)
 
 **Purpose**: Manage all data operations including portfolios, positions, price data, and ticker validation.
 
 **Components**:
 - `portfolio.py` - Portfolio domain model and business logic
 - `portfolio_repository.py` - Repository pattern for portfolio persistence
+- `transaction.py` - Transaction domain model (Phase 1) - BUY, SELL, DEPOSIT, WITHDRAWAL operations
+- `transaction_repository.py` - Repository pattern for transaction persistence (Phase 1)
 - `price_manager.py` - Fetch and cache price data from multiple sources
 - `ticker_validator.py` - Validate ticker symbols and fetch company info
 - `cache.py` - Caching system (in-memory + disk)
@@ -210,6 +233,7 @@
 - Ticker validation with company info
 - Portfolio CRUD operations
 - Position management (add, remove, update)
+- Transaction tracking (Phase 1) - Record BUY, SELL, DEPOSIT, WITHDRAWAL operations
 
 **Data Flow**:
 ```
@@ -493,6 +517,7 @@ User Request → Service Layer → Data Manager
 **Components**:
 - ✅ `data_service.py` - Data fetching orchestration (Phase 1)
 - ✅ `portfolio_service.py` - Portfolio CRUD orchestration (Phase 2)
+- ✅ `transaction_service.py` - Transaction management orchestration (Phase 1) - Add, get, delete transactions
 - ✅ `schemas.py` - Pydantic validation schemas (Phase 2)
 - ✅ `analytics_service.py` - Analytics calculation orchestration (Phase 3)
 - ✅ `report_service.py` - PDF report generation (Phase 4, Phase 8)
@@ -548,6 +573,8 @@ User Request → Service Layer → Data Manager
 - ✅ `components/portfolio_card.py` - Portfolio summary card (Phase 4)
 - ✅ `components/metrics_display.py` - Metrics grid display (Phase 4)
 - ✅ `components/position_table.py` - Position table component (Phase 4)
+- ✅ `components/transaction_form.py` - Transaction form component (Phase 2) - Add/edit transactions (used in portfolio tabs)
+- ✅ `components/transaction_table.py` - Transaction table component (Phase 2) - Display transaction history (used in portfolio tabs)
 - ✅ Plotly charts (Asset/Sector Allocation) - Integrated in `portfolio_list.py` (Phase 4)
 - ✅ `components/market_index_card.py` - Market index card component (Dashboard) - Displays index name, symbol, current price, and daily change
 - ✅ `components/market_indices_chart.py` - Market indices comparison chart (Dashboard) - Interactive Plotly chart comparing multiple indices with normalized values
@@ -630,6 +657,7 @@ User Request → Service Layer → Data Manager
 - `portfolio.py` - Portfolio model
 - `position.py` - Position model
 - `price_history.py` - Price history model
+- `transaction.py` - Transaction model (Phase 1) - Tracks BUY, SELL, DEPOSIT, WITHDRAWAL operations
 - `user.py` - User model (future authentication)
 
 **Dependencies**:
@@ -924,7 +952,40 @@ CREATE TABLE price_history (
 
 ---
 
-### 5.4 Users Table (Future - Phase 10+)
+### 5.4 Transactions Table (Phase 1)
+
+```sql
+CREATE TABLE transactions (
+    id                VARCHAR(36) PRIMARY KEY,
+    portfolio_id      VARCHAR(36) NOT NULL,
+    transaction_date  DATE NOT NULL,
+    transaction_type  VARCHAR(20) NOT NULL,  -- BUY, SELL, DEPOSIT, WITHDRAWAL
+    ticker            VARCHAR(10) NOT NULL,
+    shares            FLOAT NOT NULL,
+    price             FLOAT NOT NULL,
+    amount            FLOAT NOT NULL,  -- shares * price
+    fees              FLOAT,
+    notes             TEXT,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE,
+    INDEX idx_transaction_portfolio (portfolio_id),
+    INDEX idx_transaction_date (transaction_date),
+    INDEX idx_transaction_portfolio_date (portfolio_id, transaction_date)
+);
+```
+
+**Purpose**: Track all portfolio operations (purchases, sales, deposits, withdrawals)  
+**Relationships**: Many-to-one with `portfolios`  
+**Constraints**: 
+- Cascade delete when portfolio deleted
+- `transaction_type` must be one of: BUY, SELL, DEPOSIT, WITHDRAWAL
+- DEPOSIT/WITHDRAWAL transactions must have ticker='CASH'
+- `shares` and `price` must be > 0 (enforced in business logic)
+
+---
+
+### 5.5 Users Table (Future - Phase 10+)
 
 ```sql
 CREATE TABLE users (

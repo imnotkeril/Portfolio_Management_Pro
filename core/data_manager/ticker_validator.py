@@ -7,14 +7,14 @@ from typing import Dict, Optional
 
 import yfinance as yf
 
-from core.exceptions import TickerNotFoundError, ValidationError
+from config.constants import CACHE_TTL_TICKER_VALIDATION, MAX_TICKER_LENGTH, MIN_TICKER_LENGTH
 from core.data_manager.cache import Cache
+from core.exceptions import TickerNotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
 
 # Ticker format: 1-10 alphanumeric characters or hyphens, uppercase
-TICKER_PATTERN = re.compile(r"^[A-Z0-9-]{1,10}$")
-TICKER_VALIDATION_CACHE_TTL = 86400  # 24 hours in seconds
+TICKER_PATTERN = re.compile(rf"^[A-Z0-9-]{{{MIN_TICKER_LENGTH},{MAX_TICKER_LENGTH}}}$")
 
 
 class TickerInfo:
@@ -94,7 +94,7 @@ class TickerValidator:
         if ticker in self._validation_cache:
             is_valid, cached_time = self._validation_cache[ticker]
             if cached_time and datetime.now() - cached_time < timedelta(
-                seconds=TICKER_VALIDATION_CACHE_TTL
+                seconds=CACHE_TTL_TICKER_VALIDATION
             ):
                 logger.debug(f"In-memory cache hit for ticker validation: {ticker}")
                 return is_valid
@@ -108,9 +108,9 @@ class TickerValidator:
             is_valid = bool(info and "symbol" in info)
 
             # Cache results
-            cache_until = datetime.now() + timedelta(seconds=TICKER_VALIDATION_CACHE_TTL)
+            cache_until = datetime.now() + timedelta(seconds=CACHE_TTL_TICKER_VALIDATION)
             self._validation_cache[ticker] = (is_valid, cache_until)
-            self._cache.set(cache_key, is_valid, ttl=TICKER_VALIDATION_CACHE_TTL)
+            self._cache.set(cache_key, is_valid, ttl=CACHE_TTL_TICKER_VALIDATION)
 
             if is_valid:
                 logger.info(f"Ticker validated: {ticker}")

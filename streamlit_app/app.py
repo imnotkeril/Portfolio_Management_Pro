@@ -1,6 +1,7 @@
 """Main Streamlit application entry point."""
 
 import logging
+from pathlib import Path
 
 import streamlit as st
 
@@ -12,6 +13,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+logger = logging.getLogger(__name__)
+
 # Page configuration
 st.set_page_config(
     page_title="Portfolio Management System",
@@ -21,25 +24,50 @@ st.set_page_config(
 )
 
 # Apply custom CSS
-with open("streamlit_app/styles.css", "r", encoding="utf-8") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+from pathlib import Path
+
+css_path = Path(__file__).parent / "styles.css"
+if css_path.exists():
+    try:
+        with open(css_path, "r", encoding="utf-8") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except Exception as e:
+        logger.warning(f"Could not load CSS file: {e}")
+else:
+    logger.warning("CSS file not found, using default styles")
 
 # Sidebar navigation
 with st.sidebar:
     st.title("Portfolio Manager")
     st.markdown("---")
 
+    # Check if page was set in session state (e.g., from portfolio list)
+    if "page" in st.session_state:
+        default_page = st.session_state.page
+        # Clear it after using
+        del st.session_state.page
+    else:
+        default_page = "Dashboard"
+
+    # Find index of default page
+    page_options = [
+        "Dashboard",
+        "Create Portfolio",
+        "Portfolio List",
+        "Portfolio Analysis",
+        "Portfolio Optimization",
+        "Risk Analysis",
+        "Forecasting",
+    ]
+    try:
+        default_index = page_options.index(default_page)
+    except ValueError:
+        default_index = 0
+
     page = st.radio(
         "Navigation",
-        [
-            "Dashboard",
-            "Create Portfolio",
-            "Portfolio List",
-            "Portfolio Analysis",
-            "Portfolio Optimization",
-            "Risk Analysis",
-            "Forecasting",
-        ],
+        page_options,
+        index=default_index,
         label_visibility="collapsed",
     )
 
@@ -76,10 +104,17 @@ with st.sidebar:
                     "status": "limited",
                     "response_time": response_time
                 }
-        except Exception as e:
+        except (ImportError, AttributeError) as e:
+            logger.warning(f"API check failed due to import/attribute error: {e}")
             st.session_state.api_status = {
                 "status": "offline",
-                "error": str(e)
+                "error": "Service unavailable"
+            }
+        except Exception as e:
+            logger.error(f"Unexpected error during API check: {e}", exc_info=True)
+            st.session_state.api_status = {
+                "status": "unknown",
+                "error": "Unexpected error"
             }
 
     # Display status
