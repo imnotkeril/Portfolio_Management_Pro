@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 if "db_initialized" not in st.session_state:
     try:
         # Import all models to ensure they are registered with SQLAlchemy
-        from models import Portfolio, Position, Transaction  # noqa: F401
+        from models import Portfolio, Position, PriceHistory, Transaction  # noqa: F401
         
         # Initialize database tables
         from database.session import init_db
