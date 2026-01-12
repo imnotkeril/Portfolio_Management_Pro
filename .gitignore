@@ -96,6 +96,7 @@ data/prices/
 *.backup
 *.swp
 *.swo
+fix_linting.py
 
 # OS Files
 .DS_Store
