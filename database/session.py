@@ -1,6 +1,7 @@
 """Database session management."""
 
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Generator
 
 from sqlalchemy import create_engine
@@ -56,5 +57,16 @@ def get_db_session() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     """Create all database tables."""
+    # Ensure database directory exists for SQLite
+    if settings.database_url.startswith("sqlite:///"):
+        db_path = settings.database_url.replace("sqlite:///", "")
+        if db_path != ":memory:":
+            db_file = Path(db_path)
+            db_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Import all models to ensure they are registered
+    from models import Portfolio, Position, Transaction  # noqa: F401
+    
+    # Create all tables
     Base.metadata.create_all(bind=engine)
 
