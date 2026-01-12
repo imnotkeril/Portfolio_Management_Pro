@@ -2996,18 +2996,32 @@ def _render_custom_scenario(
     # Parse asset impacts
     asset_impacts = {}
     if asset_impacts_text:
+        from services.data_service import DataService
+        
+        data_service = DataService()
         for line in asset_impacts_text.strip().split("\n"):
             if ":" in line:
                 parts = line.split(":")
                 if len(parts) == 2:
                     ticker = parts[0].strip().upper()
+                    # Validate ticker format
+                    if not ticker or len(ticker) > 10:
+                        st.warning(f"Invalid ticker format: {ticker}")
+                        continue
+                    # Validate ticker exists (skip CASH)
+                    if ticker != "CASH" and not data_service.validate_ticker(ticker):
+                        st.warning(f"Invalid ticker: {ticker}")
+                        continue
                     try:
-                        impact = (
-                            float(parts[1].strip().replace("%", "")) / 100.0
-                        )
+                        impact = float(parts[1].strip().replace("%", "")) / 100.0
+                        # Validate impact range (-100% to +100%)
+                        if not -1.0 <= impact <= 1.0:
+                            st.warning(f"Impact {impact*100:.1f}% out of range (-100% to +100%) for {ticker}")
+                            continue
                         asset_impacts[ticker] = impact
                     except ValueError:
-                        pass
+                        st.warning(f"Invalid impact value for {ticker}")
+                        continue
 
     # Create and run scenario
     if st.button("Create & Run Scenario", key="run_custom"):

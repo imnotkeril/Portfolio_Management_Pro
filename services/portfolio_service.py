@@ -7,7 +7,9 @@ from core.data_manager.portfolio import Portfolio
 from core.data_manager.portfolio_repository import PortfolioRepository
 from core.exceptions import (
     ConflictError,
+    DataFetchError,
     PortfolioNotFoundError,
+    TickerNotFoundError,
     ValidationError,
 )
 from services.data_service import DataService
@@ -405,9 +407,14 @@ class PortfolioService:
             try:
                 price = self._data_service.fetch_current_price(ticker)
                 prices[ticker] = price
-            except Exception as e:
+            except (DataFetchError, TickerNotFoundError) as e:
                 logger.warning(
-                    f"Failed to fetch price for {ticker}: {e}"
+                    f"Failed to fetch price for {ticker}: {e.message if hasattr(e, 'message') else str(e)}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error fetching price for {ticker}: {e}",
+                    exc_info=True
                 )
                 # Continue with other tickers
                 continue

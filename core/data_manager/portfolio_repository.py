@@ -201,8 +201,15 @@ class PortfolioRepository:
             True if deleted, False if not found
         """
         with get_db_session() as session:
+            # Use query with explicit options to avoid loading relationships
+            from sqlalchemy.orm import noload
+            
             portfolio_orm = (
                 session.query(PortfolioORM)
+                .options(
+                    noload(PortfolioORM.positions),
+                    noload(PortfolioORM.transactions),  # Don't load transactions
+                )
                 .filter(PortfolioORM.id == portfolio_id)
                 .first()
             )

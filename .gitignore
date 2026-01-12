@@ -150,3 +150,6 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# Documentation (not for public GitHub)
+docs/
+
