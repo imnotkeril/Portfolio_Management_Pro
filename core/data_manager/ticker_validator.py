@@ -2,7 +2,7 @@
 
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, Optional
 
 import yfinance as yf
@@ -102,10 +102,47 @@ class TickerValidator:
         # Validate via API
         try:
             ticker_obj = yf.Ticker(ticker)
-            info = ticker_obj.info
-
-            # Check if ticker has valid info (not empty dict)
-            is_valid = bool(info and "symbol" in info)
+            
+            # Try multiple methods to validate ticker
+            # Method 1: Check info dict
+            try:
+                info = ticker_obj.info
+                if info and isinstance(info, dict) and len(info) > 0:
+                    # Check for symbol or other indicators of valid ticker
+                    if "symbol" in info or "longName" in info or "shortName" in info:
+                        is_valid = True
+                    else:
+                        # If info exists but no symbol, try method 2
+                        is_valid = None
+                else:
+                    is_valid = None
+            except Exception:
+                is_valid = None
+            
+            # Method 2: Check historical data (more reliable)
+            if is_valid is None:
+                try:
+                    # Try to get recent history (last 30 days for better reliability)
+                    end_date = date.today()
+                    start_date = end_date - timedelta(days=30)
+                    history = ticker_obj.history(
+                        start=start_date, end=end_date, period="1mo"
+                    )
+                    is_valid = not history.empty and len(history) > 0
+                except Exception:
+                    is_valid = False
+            
+            # Method 3: If still not determined, check if ticker has any data
+            if is_valid is None or is_valid is False:
+                try:
+                    # Try getting fast_info as last resort
+                    fast_info = ticker_obj.fast_info
+                    if fast_info and hasattr(fast_info, 'lastPrice'):
+                        is_valid = True
+                    else:
+                        is_valid = False
+                except Exception:
+                    is_valid = False
 
             # Cache results
             cache_until = datetime.now() + timedelta(seconds=CACHE_TTL_TICKER_VALIDATION)
