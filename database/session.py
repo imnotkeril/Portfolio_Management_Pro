@@ -65,7 +65,7 @@ def init_db() -> None:
             db_file.parent.mkdir(parents=True, exist_ok=True)
     
     # Import all models to ensure they are registered
-    from models import Portfolio, Position, Transaction  # noqa: F401
+    from models import Portfolio, Position, PriceHistory, Transaction  # noqa: F401
     
     # Create all tables
     Base.metadata.create_all(bind=engine)
