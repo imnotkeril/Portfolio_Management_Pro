@@ -7,32 +7,9 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
+<img width="1581" height="1190" alt="1" src="https://github.com/user-attachments/assets/4a8ebd9a-611c-4e7d-8d81-76232791b85d" />
 
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-# Clone repository
-git clone <repository-url>
-cd WMC_Portfolio_Management
-
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # macOS/Linux
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Initialize database
-alembic upgrade head
-
-# Run application
-python run.py
-```
-
-The application will open at `http://localhost:8501`.
+<img width="1656" height="1200" alt="Screenshot_16" src="https://github.com/user-attachments/assets/0288e9ec-88d4-41ce-8cb2-b792a156f2ce" />
 
 ---
 
@@ -89,7 +66,7 @@ The application will open at `http://localhost:8501`.
 ## 📁 Project Structure
 
 ```
-WMC_Portfolio_Management/
+Portfolio_Management_Pro/
 ├── core/                      # Core business logic (framework-agnostic)
 │   ├── analytics_engine/      # 70+ metrics calculation
 │   ├── data_manager/          # Price fetching, caching, validation
@@ -225,5 +202,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **TensorFlow**: Deep learning models
 
 ---
-
-**Built with ❤️ for portfolio managers and financial analysts**
