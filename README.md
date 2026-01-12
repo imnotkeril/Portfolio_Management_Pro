@@ -1,6 +1,6 @@
 # Portfolio Management Terminal
 
-[Streamlit APP](https://proportfolio.streamlit.app/)
+## 🌐 Live Application [Streamlit APP](https://proportfolio.streamlit.app/)
 
 **Professional portfolio management system with comprehensive analytics, optimization, and risk management.**
 
@@ -202,11 +202,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **NumPy/Pandas**: Data manipulation and calculations
 - **scikit-learn**: Machine learning models
 - **TensorFlow**: Deep learning models
-
----
-
-## 🌐 Live Application
-
-The application will be available at https://proportfolio.streamlit.app/
 
 ---
