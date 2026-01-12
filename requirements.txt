@@ -32,7 +32,6 @@ Pillow>=10.0.0
 # Optimization
 cvxpy>=1.4.0
 ecos>=2.0.0
-pypfopt>=1.5.0
 
 # Forecasting
 prophet>=1.1.0              # Facebook Prophet
