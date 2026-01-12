@@ -202,3 +202,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **TensorFlow**: Deep learning models
 
 ---
+
+## 🌐 Live Application
+
+The application will be available at https://proportfolio.streamlit.app/
+
+---
