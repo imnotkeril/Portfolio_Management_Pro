@@ -2,6 +2,7 @@
 
 import logging
 import re
+import time
 from datetime import date, datetime, timedelta
 from typing import Dict, Optional
 
@@ -99,62 +100,105 @@ class TickerValidator:
                 logger.debug(f"In-memory cache hit for ticker validation: {ticker}")
                 return is_valid
 
-        # Validate via API
-        try:
-            ticker_obj = yf.Ticker(ticker)
-            
-            # Try multiple methods to validate ticker
-            # Method 1: Check info dict
+        # Validate via API with retry logic
+        max_retries = 2
+        retry_delay = 0.5
+        is_valid = False  # Default to False
+        
+        for attempt in range(max_retries):
             try:
-                info = ticker_obj.info
-                if info and isinstance(info, dict) and len(info) > 0:
-                    # Check for symbol or other indicators of valid ticker
-                    if "symbol" in info or "longName" in info or "shortName" in info:
-                        is_valid = True
+                ticker_obj = yf.Ticker(ticker)
+                
+                # Try multiple methods to validate ticker
+                # Method 1: Check info dict (fastest, but may fail)
+                try:
+                    info = ticker_obj.info
+                    if info and isinstance(info, dict) and len(info) > 0:
+                        # Check for symbol or other indicators of valid ticker
+                        if "symbol" in info or "longName" in info or "shortName" in info:
+                            is_valid = True
+                            break  # Success, exit retry loop
+                        else:
+                            # If info exists but no symbol, try method 2
+                            is_valid = None
                     else:
-                        # If info exists but no symbol, try method 2
                         is_valid = None
-                else:
+                except Exception as e:
+                    error_str = str(e).lower()
+                    # If rate limited or unauthorized, wait and retry
+                    if "401" in error_str or "rate limit" in error_str or "429" in error_str:
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Rate limit hit for {ticker}, retrying in {retry_delay}s...")
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                            continue
                     is_valid = None
-            except Exception:
-                is_valid = None
-            
-            # Method 2: Check historical data (more reliable)
-            if is_valid is None:
-                try:
-                    # Try to get recent history (last 30 days for better reliability)
-                    end_date = date.today()
-                    start_date = end_date - timedelta(days=30)
-                    history = ticker_obj.history(
-                        start=start_date, end=end_date, period="1mo"
-                    )
-                    is_valid = not history.empty and len(history) > 0
-                except Exception:
-                    is_valid = False
-            
-            # Method 3: If still not determined, check if ticker has any data
-            if is_valid is None or is_valid is False:
-                try:
-                    # Try getting fast_info as last resort
-                    fast_info = ticker_obj.fast_info
-                    if fast_info and hasattr(fast_info, 'lastPrice'):
-                        is_valid = True
-                    else:
+                
+                # Method 2: Check historical data (more reliable, but slower)
+                if is_valid is None:
+                    try:
+                        # Try to get recent history (last 30 days for better reliability)
+                        end_date = date.today()
+                        start_date = end_date - timedelta(days=30)
+                        history = ticker_obj.history(
+                            start=start_date, end=end_date, period="1mo"
+                        )
+                        is_valid = not history.empty and len(history) > 0
+                        if is_valid:
+                            break  # Success, exit retry loop
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        if "401" in error_str or "rate limit" in error_str or "429" in error_str:
+                            if attempt < max_retries - 1:
+                                logger.warning(f"Rate limit hit for {ticker} (history), retrying...")
+                                time.sleep(retry_delay)
+                                retry_delay *= 2
+                                continue
                         is_valid = False
-                except Exception:
+                
+                # Method 3: If still not determined, check if ticker has any data
+                if is_valid is None or is_valid is False:
+                    try:
+                        # Try getting fast_info as last resort (lightweight)
+                        fast_info = ticker_obj.fast_info
+                        if fast_info and hasattr(fast_info, 'lastPrice'):
+                            is_valid = True
+                            break  # Success, exit retry loop
+                        else:
+                            is_valid = False
+                    except Exception:
+                        is_valid = False
+                
+                # If we got here and is_valid is still None, set to False
+                if is_valid is None:
                     is_valid = False
+                    
+                break  # Exit retry loop if we got here
+                
+            except Exception as e:
+                error_str = str(e).lower()
+                # Handle rate limiting and retry
+                if ("401" in error_str or "rate limit" in error_str or "429" in error_str) and attempt < max_retries - 1:
+                    logger.warning(f"API error for {ticker} (attempt {attempt + 1}/{max_retries}): {e}")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                else:
+                    logger.error(f"Error validating ticker {ticker}: {e}", exc_info=True)
+                    is_valid = False
+                    break
 
-            # Cache results
-            cache_until = datetime.now() + timedelta(seconds=CACHE_TTL_TICKER_VALIDATION)
-            self._validation_cache[ticker] = (is_valid, cache_until)
-            self._cache.set(cache_key, is_valid, ttl=CACHE_TTL_TICKER_VALIDATION)
+        # Cache results (after retry loop completes)
+        cache_until = datetime.now() + timedelta(seconds=CACHE_TTL_TICKER_VALIDATION)
+        self._validation_cache[ticker] = (is_valid, cache_until)
+        self._cache.set(cache_key, is_valid, ttl=CACHE_TTL_TICKER_VALIDATION)
 
-            if is_valid:
-                logger.info(f"Ticker validated: {ticker}")
-            else:
-                logger.warning(f"Ticker not found or invalid: {ticker}")
+        if is_valid:
+            logger.info(f"Ticker validated: {ticker}")
+        else:
+            logger.warning(f"Ticker not found or invalid: {ticker}")
 
-            return is_valid
+        return is_valid
 
         except Exception as e:
             logger.error(f"Error validating ticker {ticker}: {e}", exc_info=True)
@@ -162,7 +206,7 @@ class TickerValidator:
 
     def validate_tickers(self, tickers: list[str]) -> Dict[str, bool]:
         """
-        Validate multiple tickers.
+        Validate multiple tickers with rate limiting protection.
 
         Args:
             tickers: List of ticker symbols to validate
@@ -171,9 +215,17 @@ class TickerValidator:
             Dictionary mapping ticker to validation result (True/False)
         """
         results: Dict[str, bool] = {}
+        
+        # Add delay between requests to avoid rate limiting
+        # yfinance can be sensitive to rapid requests
+        delay_between_requests = 0.2  # 200ms delay between requests
 
-        for ticker in tickers:
+        for i, ticker in enumerate(tickers):
             try:
+                # Add delay before each request (except the first one)
+                if i > 0:
+                    time.sleep(delay_between_requests)
+                
                 results[ticker] = self.validate_ticker(ticker)
             except ValidationError as e:
                 logger.warning(f"Validation error for {ticker}: {e.message}")
@@ -181,6 +233,12 @@ class TickerValidator:
             except Exception as e:
                 logger.error(f"Unexpected error validating {ticker}: {e}", exc_info=True)
                 results[ticker] = False
+                
+                # If we hit rate limiting, add extra delay before next request
+                error_str = str(e).lower()
+                if "rate limit" in error_str or "429" in error_str or "401" in error_str:
+                    logger.warning(f"Rate limiting detected, adding extra delay...")
+                    time.sleep(1.0)  # Wait 1 second before continuing
 
         return results
 
