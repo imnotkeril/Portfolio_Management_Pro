@@ -147,7 +147,7 @@ with st.sidebar:
         border: 1px solid #2A2E39;
     ">
         <p style="color: #D1D4DC; font-size: 0.9em; margin: 0 0 8px 0;">
-            <strong style="color: {COLORS['primary']};">Wild Market Capital</strong>
+            <strong style="color: {COLORS['primary']};">Portfolio Management Terminal</strong>
         </p>
         <p style="color: {COLORS['secondary']}; font-size: 0.8em; margin: 0;
            line-height: 1.4;">

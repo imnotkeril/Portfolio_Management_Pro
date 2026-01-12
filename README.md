@@ -1,4 +1,4 @@
-# Wild Market Capital - Portfolio Management Terminal
+# Portfolio Management Terminal
 
 **Professional portfolio management system with comprehensive analytics, optimization, and risk management.**
 

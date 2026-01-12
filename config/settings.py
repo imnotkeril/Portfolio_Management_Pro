@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Application
-    app_name: str = "Wild Market Capital"
+    app_name: str = "Portfolio Management Terminal"
     app_version: str = "1.0.0"
     debug: bool = False
 
