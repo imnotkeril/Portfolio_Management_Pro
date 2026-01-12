@@ -101,8 +101,9 @@ class TickerValidator:
                 return is_valid
 
         # Validate via API with retry logic
-        max_retries = 2
-        retry_delay = 0.5
+        # On Streamlit Cloud, use more retries and longer delays
+        max_retries = 3  # Increased from 2
+        retry_delay = 1.0  # Increased from 0.5s
         is_valid = False  # Default to False
         
         for attempt in range(max_retries):
@@ -203,6 +204,9 @@ class TickerValidator:
     def validate_tickers(self, tickers: list[str]) -> Dict[str, bool]:
         """
         Validate multiple tickers with rate limiting protection.
+        
+        On Streamlit Cloud, rate limiting is more aggressive, so we use
+        longer delays and a whitelist of known valid tickers.
 
         Args:
             tickers: List of ticker symbols to validate
@@ -212,29 +216,81 @@ class TickerValidator:
         """
         results: Dict[str, bool] = {}
         
-        # Add delay between requests to avoid rate limiting
-        # yfinance can be sensitive to rapid requests
-        delay_between_requests = 0.2  # 200ms delay between requests
+        # Known valid tickers (popular stocks/ETFs that are almost always valid)
+        # This helps avoid unnecessary API calls on Streamlit Cloud
+        known_valid_tickers = {
+            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'AMD', 'CRM',
+            'VUG', 'IWF', 'VTV', 'IWD', 'QUAL', 'USMV', 'SPLV', 'VYM', 'SCHD', 'HDV',
+            'VTI', 'BND', 'GLD', 'VNQ', 'BTC-USD', 'TIP',
+            'BRK-B', 'JPM', 'WMT', 'CVX', 'XOM', 'JNJ', 'PG', 'V', 'MA',
+            'KO', 'VZ', 'T', 'PFE'
+        }
+        
+        # Check known valid tickers first (no API call needed)
+        for ticker in tickers:
+            ticker_upper = ticker.strip().upper()
+            if ticker_upper in known_valid_tickers:
+                results[ticker] = True
+                logger.debug(f"Known valid ticker (whitelist): {ticker_upper}")
+        
+        # Validate remaining tickers with API calls
+        remaining_tickers = [t for t in tickers if t.strip().upper() not in results]
+        
+        # On Streamlit Cloud, use longer delays to avoid rate limiting
+        # Increase delay significantly for cloud deployments
+        delay_between_requests = 0.5  # 500ms delay between requests (increased from 200ms)
+        consecutive_failures = 0
+        max_consecutive_failures = 3
 
-        for i, ticker in enumerate(tickers):
+        for i, ticker in enumerate(remaining_tickers):
             try:
                 # Add delay before each request (except the first one)
                 if i > 0:
                     time.sleep(delay_between_requests)
                 
-                results[ticker] = self.validate_ticker(ticker)
+                # If we've had consecutive failures, add extra delay
+                if consecutive_failures > 0:
+                    extra_delay = consecutive_failures * 0.5
+                    logger.warning(f"Adding extra delay {extra_delay}s due to {consecutive_failures} consecutive failures")
+                    time.sleep(extra_delay)
+                
+                ticker_upper = ticker.strip().upper()
+                is_valid = self.validate_ticker(ticker_upper)
+                results[ticker] = is_valid
+                
+                # Reset failure counter on success
+                if is_valid:
+                    consecutive_failures = 0
+                else:
+                    consecutive_failures += 1
+                    
             except ValidationError as e:
                 logger.warning(f"Validation error for {ticker}: {e.message}")
                 results[ticker] = False
+                consecutive_failures += 1
             except Exception as e:
                 logger.error(f"Unexpected error validating {ticker}: {e}", exc_info=True)
                 results[ticker] = False
+                consecutive_failures += 1
                 
                 # If we hit rate limiting, add extra delay before next request
                 error_str = str(e).lower()
                 if "rate limit" in error_str or "429" in error_str or "401" in error_str:
-                    logger.warning(f"Rate limiting detected, adding extra delay...")
-                    time.sleep(1.0)  # Wait 1 second before continuing
+                    logger.warning(f"Rate limiting detected for {ticker}, adding extra delay...")
+                    time.sleep(2.0)  # Wait 2 seconds before continuing (increased from 1s)
+                    
+                    # If too many failures, assume remaining tickers might fail too
+                    # and use format-based validation as fallback
+                    if consecutive_failures >= max_consecutive_failures:
+                        logger.warning(f"Too many consecutive failures ({consecutive_failures}), using format-based validation for remaining tickers")
+                        # For remaining tickers, just check format and assume valid if format is correct
+                        for remaining_ticker in remaining_tickers[i+1:]:
+                            remaining_ticker_upper = remaining_ticker.strip().upper()
+                            if TICKER_PATTERN.match(remaining_ticker_upper):
+                                # Format is valid, assume ticker is valid to avoid blocking user
+                                results[remaining_ticker] = True
+                                logger.warning(f"Assuming {remaining_ticker_upper} is valid based on format (API unavailable)")
+                        break
 
         return results
 
