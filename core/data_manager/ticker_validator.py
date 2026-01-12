@@ -200,10 +200,6 @@ class TickerValidator:
 
         return is_valid
 
-        except Exception as e:
-            logger.error(f"Error validating ticker {ticker}: {e}", exc_info=True)
-            return False
-
     def validate_tickers(self, tickers: list[str]) -> Dict[str, bool]:
         """
         Validate multiple tickers with rate limiting protection.
