@@ -21,6 +21,22 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Initialize database on first run
+if "db_initialized" not in st.session_state:
+    try:
+        # Import all models to ensure they are registered with SQLAlchemy
+        from models import Portfolio, Position, Transaction  # noqa: F401
+        
+        # Initialize database tables
+        from database.session import init_db
+        
+        init_db()
+        st.session_state.db_initialized = True
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}", exc_info=True)
+        st.session_state.db_initialized = False
+
 # Page configuration
 st.set_page_config(
     page_title="Portfolio Management System",
