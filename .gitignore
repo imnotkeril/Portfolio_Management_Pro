@@ -48,6 +48,8 @@ env/
 .settings/
 *.sublime-project
 *.sublime-workspace
+.cursorrules
+.playwright-mcp/
 
 # Jupyter Notebook
 .ipynb_checkpoints
