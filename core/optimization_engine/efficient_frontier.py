@@ -109,38 +109,12 @@ class EfficientFrontier:
         max_ret_result = max_ret_opt.optimize(constraints=constraints)
         max_ret = float(max_ret_result.expected_return or self._max_return)
         
-        # Generate efficient frontier with both efficient and inefficient parts
-        # Efficient part: from min variance to max return (minimize variance)
-        # Inefficient part: from min return to min variance (same optimization,
-        # but these are below efficient frontier)
-        
-        # For efficient part: target returns from min_ret to max_ret
-        # This will generate the full curve including inefficient part
-        # We'll filter later to separate efficient from inefficient
-        
-        # Generate target returns following ChatGPT example approach
-        # Use np.linspace for uniform distribution across return range
-        # This creates a smooth curve when plotted
-        
-        # Find the return of individual assets to find lower bound
-        # This helps create the "rounded bottom" of the curve
-        individual_returns = self._mean_returns.values
-        # Convert to list/array and ensure all are floats
-        if isinstance(individual_returns, (pd.Series, np.ndarray)):
-            individual_returns_list = [float(x) for x in individual_returns]
+        # Generate only the efficient branch:
+        # target returns from min-variance return to max-return portfolio.
+        if max_ret <= min_ret:
+            all_target_returns = np.array([min_ret], dtype=float)
         else:
-            individual_returns_list = [float(x) for x in individual_returns]
-        min_individual_ret = float(min(individual_returns_list))
-        
-        # Extend range slightly below min_ret for "rounded bottom" effect
-        # Use a small buffer (1% of range) to ensure smooth curve
-        ret_range = max_ret - min_ret
-        lower_bound = min(min_individual_ret, min_ret - 0.01 * ret_range)
-        
-        # Generate target returns uniformly across full range
-        # This ensures smooth curve without interpolation artifacts
-        # Use all n_points for the full range (min to max)
-        all_target_returns = np.linspace(lower_bound, max_ret, n_points)
+            all_target_returns = np.linspace(min_ret, max_ret, n_points)
         
         returns_list = []
         volatilities_list = []
@@ -153,6 +127,7 @@ class EfficientFrontier:
                 result = optimizer.optimize(
                     constraints=constraints,
                     target_return=target_ret_float,
+                    target_return_as_floor=True,
                 )
                 
                 # Check success and volatility with explicit None check
@@ -192,29 +167,37 @@ class EfficientFrontier:
                 )
                 continue
         
-        # Sort by volatility to ensure smooth curve
-        # Ensure all values are floats (not arrays) before sorting
+        # Sort and keep only Pareto-efficient upper envelope.
         if len(volatilities_list) > 0:
-            # Convert all to floats explicitly to avoid array comparison issues
-            volatilities_float = [float(v) for v in volatilities_list]
-            returns_float = [float(r) for r in returns_list]
-            
-            # Create list of tuples with index for stable sorting
-            # Use index in portfolios_list to avoid comparing dicts/arrays
             indexed_data = list(
-                enumerate(zip(volatilities_float, returns_float))
+                enumerate(zip([float(v) for v in volatilities_list], [float(r) for r in returns_list]))
             )
-            # Sort by volatility only (second element of tuple)
-            sorted_indexed = sorted(
-                indexed_data,
-                key=lambda x: x[1][0]
-                # Sort by volatility (first element of tuple)
-            )
-            
-            # Rebuild lists in sorted order
-            volatilities_list = [v for _, (v, _) in sorted_indexed]
-            returns_list = [r for _, (_, r) in sorted_indexed]
-            portfolios_list = [portfolios_list[i] for i, _ in sorted_indexed]
+            sorted_indexed = sorted(indexed_data, key=lambda x: x[1][0])
+
+            sorted_vols = [v for _, (v, _) in sorted_indexed]
+            sorted_rets = [r for _, (_, r) in sorted_indexed]
+            sorted_ports = [portfolios_list[i] for i, _ in sorted_indexed]
+
+            efficient_vols: List[float] = []
+            efficient_rets: List[float] = []
+            efficient_ports: List[dict] = []
+            best_ret = -np.inf
+            eps = 1e-8
+            for v, r, p in zip(sorted_vols, sorted_rets, sorted_ports):
+                if r > best_ret + eps:
+                    efficient_vols.append(v)
+                    efficient_rets.append(r)
+                    efficient_ports.append(p)
+                    best_ret = r
+
+            if len(efficient_vols) >= 2:
+                volatilities_list = efficient_vols
+                returns_list = efficient_rets
+                portfolios_list = efficient_ports
+            else:
+                volatilities_list = sorted_vols
+                returns_list = sorted_rets
+                portfolios_list = sorted_ports
         
         return (
             np.array(returns_list),

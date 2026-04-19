@@ -41,6 +41,8 @@ class BlackLittermanOptimizer(BaseOptimizer):
         view_confidences: Optional[List[float]] = None,
         tau: float = 0.05,
         objective: Optional[str] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio using Black-Litterman model.
@@ -61,6 +63,10 @@ class BlackLittermanOptimizer(BaseOptimizer):
         """
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
+        effective_cov = self._estimate_covariance_matrix(
+            covariance_method=covariance_method,
+            shrinkage_alpha=shrinkage_alpha,
+        )
         
         n = len(self.tickers)
         
@@ -85,7 +91,7 @@ class BlackLittermanOptimizer(BaseOptimizer):
             n_non_cash = len(non_cash_indices)
             
             # Extract non-CASH covariance and returns
-            cov_non_cash = self._cov_matrix.iloc[
+            cov_non_cash = effective_cov.iloc[
                 non_cash_indices, non_cash_indices
             ].values
             mean_returns_non_cash = self._mean_returns.iloc[
@@ -221,15 +227,24 @@ class BlackLittermanOptimizer(BaseOptimizer):
                                 P[i, asset2_idx] = -1.0
                                 Q[i] = view_return
                 
-                # Build confidence matrix Omega (diagonal)
-                Omega = np.diag([
-                    1.0 / (conf + 1e-6) for conf in view_confidences
-                ])
+                # Build view uncertainty matrix Omega (diagonal).
+                # Notebook-consistent base: diag(P @ (tau * Sigma) @ P.T).
+                # Confidence scales uncertainty: lower confidence => larger Omega.
+                tau_Sigma = tau * cov_non_cash
+                omega_base = np.diag(P @ tau_Sigma @ P.T)
+                omega_base = np.maximum(omega_base, 1e-12)
+                confidence_scale = np.array(
+                    [
+                        1.0 / max(float(conf), 1e-6)
+                        for conf in view_confidences
+                    ],
+                    dtype=float,
+                )
+                Omega = np.diag(omega_base * confidence_scale)
                 
                 # Black-Litterman formula (non-CASH only):
                 # mu_BL = [(tau*Sigma)^-1 + P^T * Omega^-1 * P]^-1
                 #        * [(tau*Sigma)^-1 * pi + P^T * Omega^-1 * Q]
-                tau_Sigma = tau * cov_non_cash
                 tau_Sigma_inv = np.linalg.inv(tau_Sigma)
                 Omega_inv = np.linalg.inv(Omega)
                 
@@ -251,6 +266,7 @@ class BlackLittermanOptimizer(BaseOptimizer):
                 self.risk_free_rate,
                 self.periods_per_year,
             )
+            mv_optimizer._cov_matrix = effective_cov.copy()
             
             # Temporarily update mean returns:
             # - Non-CASH assets: use Black-Litterman returns
@@ -270,18 +286,12 @@ class BlackLittermanOptimizer(BaseOptimizer):
             
             mv_optimizer._mean_returns = updated_mean_returns
             
-            # Calculate target return from Black-Litterman expected returns
-            # (only for non-CASH assets, CASH contributes risk-free rate)
-            target_return = np.dot(market_weights_non_cash, mu_BL_non_cash)
-            
-            # Optimize with target return from Black-Litterman
-            # CASH will be available as an option with risk-free return
-            # Use objective if provided, otherwise use target_return
+            # Optimize with BL posterior returns on the selected covariance.
+            # Notebook 02 default is max Sharpe on posterior mu.
             optimize_kwargs = {"constraints": constraints}
-            if objective:
-                optimize_kwargs["objective"] = objective
-            else:
-                optimize_kwargs["target_return"] = target_return
+            optimize_kwargs["covariance_method"] = covariance_method
+            optimize_kwargs["shrinkage_alpha"] = shrinkage_alpha
+            optimize_kwargs["objective"] = objective or "maximize_sharpe"
             
             result = mv_optimizer.optimize(**optimize_kwargs)
             
@@ -295,9 +305,16 @@ class BlackLittermanOptimizer(BaseOptimizer):
             if result.metadata is None:
                 result.metadata = {}
             result.metadata.update({
-                "target_return": target_return,
+                "target_return": float(np.dot(market_weights_non_cash, mu_BL_non_cash)),
                 "lambda_market": float(lambda_market),
                 "cash_excluded_from_implied_returns": True,
+                "tau": float(tau),
+                "covariance_method": covariance_method,
+                "shrinkage_alpha": (
+                    float(shrinkage_alpha)
+                    if covariance_method == "shrink"
+                    else None
+                ),
             })
             
             return result

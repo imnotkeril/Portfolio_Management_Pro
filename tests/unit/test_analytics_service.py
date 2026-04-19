@@ -310,3 +310,29 @@ def test_calculate_portfolio_values(analytics_service: AnalyticsService) -> None
     # First value should be close to starting capital (or calculated from prices)
     assert result.iloc[0] > 0
 
+
+def test_simulate_buy_and_hold_returns_from_weights(
+    analytics_service: AnalyticsService,
+) -> None:
+    """BH returns must match pct_change of fixed-share portfolio value (not daily-rebalanced weights)."""
+    idx = pd.bdate_range("2024-01-01", periods=5, normalize=True)
+    prices = pd.DataFrame(
+        {
+            "A": [100.0, 101.0, 102.0, 103.0, 104.0],
+            "B": [50.0, 50.0, 51.0, 52.0, 52.0],
+        },
+        index=idx,
+    )
+    analytics_service._fetch_portfolio_prices = lambda tickers, sd, ed: prices  # type: ignore[method-assign]
+
+    ret = analytics_service.simulate_buy_and_hold_returns_from_weights(
+        {"A": 0.6, "B": 0.4},
+        date(2024, 1, 1),
+        date(2024, 1, 31),
+    )
+    assert len(ret) == 4
+    n = np.array([0.6 / 100.0, 0.4 / 50.0])
+    v0 = float(np.dot(n, prices.iloc[0].values))
+    v1 = float(np.dot(n, prices.iloc[1].values))
+    assert abs(ret.iloc[0] - (v1 / v0 - 1.0)) < 1e-10
+

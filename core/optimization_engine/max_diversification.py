@@ -31,6 +31,8 @@ class MaxDiversificationOptimizer(BaseOptimizer):
     def optimize(
         self,
         constraints: Optional[Dict[str, any]] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio to maximize diversification ratio.
@@ -43,11 +45,15 @@ class MaxDiversificationOptimizer(BaseOptimizer):
         """
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
+        effective_cov = self._estimate_covariance_matrix(
+            covariance_method=covariance_method,
+            shrinkage_alpha=shrinkage_alpha,
+        )
 
         n = len(self.tickers)
         
         # Handle CASH: set minimum volatility to avoid division by zero
-        cov_matrix = self._cov_matrix.values.copy()
+        cov_matrix = effective_cov.values.copy()
         cash_indices = [
             i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
         ]
@@ -141,7 +147,7 @@ class MaxDiversificationOptimizer(BaseOptimizer):
 
             # Calculate diversification ratio for metadata
             # Use full covariance matrix for calculation
-            full_individual_vols = np.sqrt(np.diag(self._cov_matrix.values))
+            full_individual_vols = np.sqrt(np.diag(effective_cov.values))
             weighted_sum_vols = np.dot(weights, full_individual_vols)
             portfolio_vol = metrics["volatility"]
             div_ratio = (
@@ -162,6 +168,12 @@ class MaxDiversificationOptimizer(BaseOptimizer):
                 metadata={
                     "diversification_ratio": float(div_ratio),
                     "iterations": result.nit,
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:

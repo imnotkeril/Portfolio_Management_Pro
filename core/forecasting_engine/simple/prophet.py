@@ -2,11 +2,13 @@
 
 import logging
 import time
-from datetime import date
+from datetime import timedelta
 from typing import Optional
 
 import numpy as np
 import pandas as pd
+from dateutil.easter import easter
+from pandas.tseries.holiday import USFederalHolidayCalendar
 
 try:
     from prophet import Prophet
@@ -312,7 +314,9 @@ class ProphetForecaster(BaseForecaster):
         self, start_date: pd.Timestamp, end_date: pd.Timestamp
     ) -> pd.DataFrame:
         """
-        Get US holidays for Prophet in the specified date range.
+        Get US market holidays for Prophet in the specified date range.
+
+        Uses the federal holiday calendar plus Good Friday (NYSE closure).
 
         Args:
             start_date: Start date for holiday range
@@ -321,46 +325,36 @@ class ProphetForecaster(BaseForecaster):
         Returns:
             DataFrame with holidays in Prophet format
         """
-        # Generate US holidays dynamically
-        holiday_list = []
-
-        # Normalize dates
         if hasattr(start_date, "tz") and start_date.tz is not None:
             start_date = start_date.tz_localize(None)
         if hasattr(end_date, "tz") and end_date.tz is not None:
             end_date = end_date.tz_localize(None)
 
-        start_year = start_date.year
-        end_year = end_date.year
+        ts_start = pd.Timestamp(start_date).normalize()
+        ts_end = pd.Timestamp(end_date).normalize()
 
-        # Generate holidays for each year in range
+        cal = USFederalHolidayCalendar()
+        federal = cal.holidays(start=ts_start, end=ts_end, return_name=False)
+        holiday_ts = {pd.Timestamp(d).normalize() for d in federal}
+
+        start_year = int(ts_start.year)
+        end_year = int(ts_end.year)
         for year in range(start_year, end_year + 1):
-            # New Year's Day
-            holiday_list.append(date(year, 1, 1))
-            # Independence Day
-            holiday_list.append(date(year, 7, 4))
-            # Christmas
-            holiday_list.append(date(year, 12, 25))
+            good_friday = easter(year) - timedelta(days=2)
+            gf_ts = pd.Timestamp(good_friday).normalize()
+            if ts_start <= gf_ts <= ts_end:
+                holiday_ts.add(gf_ts)
 
-        # Filter holidays within date range
-        holiday_dates = [
-            d
-            for d in holiday_list
-            if start_date.date() <= d <= end_date.date()
-        ]
-
-        if not holiday_dates:
-            # Return empty DataFrame with correct structure
+        if not holiday_ts:
             return pd.DataFrame(
                 columns=["holiday", "ds", "lower_window", "upper_window"]
             )
 
-        holidays = pd.DataFrame({
-            "holiday": "us_holiday",
-            "ds": pd.to_datetime(holiday_dates),
+        sorted_ds = sorted(holiday_ts)
+        return pd.DataFrame({
+            "holiday": "us_market_holiday",
+            "ds": sorted_ds,
             "lower_window": 0,
             "upper_window": 0,
         })
-
-        return holidays
 

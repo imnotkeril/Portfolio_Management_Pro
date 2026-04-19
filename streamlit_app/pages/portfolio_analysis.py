@@ -2706,7 +2706,7 @@ def _render_distribution_analysis(portfolio_returns, benchmark_returns):
     
     with col2:
         st.subheader("Distribution of Monthly Returns")
-        monthly_returns = portfolio_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+        monthly_returns = portfolio_returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
         if not monthly_returns.empty:
             dist_data_monthly = get_return_distribution_data(monthly_returns, bins=30)
             if dist_data_monthly:

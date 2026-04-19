@@ -25,6 +25,8 @@ class MinCorrelationOptimizer(BaseOptimizer):
     def optimize(
         self,
         constraints: Optional[Dict[str, any]] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio to minimize average pairwise correlation.
@@ -40,41 +42,28 @@ class MinCorrelationOptimizer(BaseOptimizer):
         
         n = len(self.tickers)
         
-        # Handle CASH: set minimum volatility to avoid division by zero
-        cov_matrix = self._cov_matrix.values.copy()
+        # Build correlation matrix from returns (not from shrunk covariance),
+        # consistent with notebook objective w'Rw on train correlation.
+        corr_df = self.returns.corr().copy()
+        corr_df = corr_df.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        corr_matrix = corr_df.values.astype(float)
+
+        # Handle CASH: enforce near-zero correlation to other assets and 1.0 on diagonal
+        # to avoid spurious numerical effects from constant return series.
         cash_indices = [
             i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
         ]
-        # Set minimum volatility for CASH to avoid numerical issues
         for cash_idx in cash_indices:
-            if cov_matrix[cash_idx, cash_idx] < 1e-8:
-                cov_matrix[cash_idx, cash_idx] = 1e-8
+            corr_matrix[cash_idx, :] = 0.0
+            corr_matrix[:, cash_idx] = 0.0
+            corr_matrix[cash_idx, cash_idx] = 1.0
+        corr_matrix = 0.5 * (corr_matrix + corr_matrix.T)
+        corr_matrix = np.clip(corr_matrix, -1.0, 1.0)
         
-        # Build correlation matrix
-        std_devs = np.sqrt(np.diag(cov_matrix))
-        corr_matrix = cov_matrix / np.outer(std_devs, std_devs)
-        corr_matrix = np.nan_to_num(corr_matrix, nan=0.0)
-        
-        # Objective: minimize average pairwise correlation
-        # Average correlation = Σ_i Σ_j>i w_i * w_j * corr(i,j) / pairs
+        # Objective: minimize weighted portfolio correlation score:
+        # min w'Rw  (not pairwise-average approximation).
         def objective(weights: np.ndarray) -> float:
-            # Calculate weighted average correlation
-            # Sum of weighted correlations for all pairs
-            total_corr = 0.0
-            pair_count = 0
-            
-            for i in range(n):
-                for j in range(i + 1, n):
-                    pair_weight = weights[i] * weights[j]
-                    pair_corr = corr_matrix[i, j]
-                    total_corr += pair_weight * pair_corr
-                    pair_count += 1
-            
-            if pair_count == 0:
-                return 0.0
-            
-            avg_corr = total_corr / pair_count
-            return float(avg_corr)
+            return float(weights.T @ corr_matrix @ weights)
         
         constraints_list = [
             {
@@ -144,8 +133,16 @@ class MinCorrelationOptimizer(BaseOptimizer):
                 success=True,
                 message="Minimum correlation optimization completed",
                 metadata={
+                    "weighted_corr_score": float(avg_corr),
+                    # Legacy alias.
                     "average_correlation": float(avg_corr),
                     "iterations": result.nit,
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:

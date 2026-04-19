@@ -34,6 +34,8 @@ class CVaROptimizer(BaseOptimizer):
         self,
         constraints: Optional[Dict[str, any]] = None,
         confidence_level: float = 0.95,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio to minimize CVaR.
@@ -51,13 +53,15 @@ class CVaROptimizer(BaseOptimizer):
                 "Install with: pip install cvxpy>=1.4.0"
             )
         
-        if confidence_level not in [0.90, 0.95, 0.99]:
-            raise ValueError(
-                "Confidence level must be 0.90, 0.95, or 0.99"
-            )
+        if confidence_level <= 0.0 or confidence_level >= 1.0:
+            raise ValueError("confidence_level must be in (0, 1)")
         
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
+        effective_cov = self._estimate_covariance_matrix(
+            covariance_method=covariance_method,
+            shrinkage_alpha=shrinkage_alpha,
+        )
         
         n = len(self.tickers)
         T = len(self.returns)  # Number of historical periods
@@ -72,22 +76,22 @@ class CVaROptimizer(BaseOptimizer):
             # Prepare data
             returns_matrix = self.returns.values  # T × n matrix
             
-            # CVaR optimization using linear programming formulation
-            # Based on Rockafellar & Uryasev (2000)
+            # CVaR optimization using Rockafellar-Uryasev LP formulation
+            # on scenario losses L_t = -r_t^T w
             
             # Decision variables
             w = cp.Variable(n)  # Portfolio weights
-            alpha = cp.Variable()  # VaR (auxiliary variable)
+            alpha = cp.Variable()  # VaR of loss (auxiliary variable)
             u = cp.Variable(T)  # Auxiliary variables for CVaR
             
             # Confidence level parameter
-            beta = 1.0 - confidence_level  # Tail probability
+            tail_prob = 1.0 - confidence_level  # Tail mass
             
-            # Objective: minimize CVaR
-            # CVaR = alpha + (1/beta) * E[max(0, -r^T w - alpha)]
-            # Linearized: CVaR = alpha + (1/(beta*T)) * sum(u)
+            # Objective: minimize CVaR of losses
+            # CVaR = alpha + (1/(tail_prob*T)) * sum(u_t),
+            # u_t >= L_t - alpha, u_t >= 0, L_t = -r_t^T w
             objective = cp.Minimize(
-                alpha + (1.0 / (beta * T)) * cp.sum(u)
+                alpha + (1.0 / (tail_prob * T)) * cp.sum(u)
             )
             
             # Constraints
@@ -99,8 +103,8 @@ class CVaROptimizer(BaseOptimizer):
                 w >= min_bounds,
                 w <= max_bounds,
                 
-                # CVaR auxiliary constraints
-                # u >= -returns @ w - alpha (for each period)
+                # CVaR auxiliary constraints over losses
+                # u_t >= L_t - alpha, L_t = -r_t^T w
                 u >= -returns_matrix @ w - alpha,
                 u >= 0,
             ]
@@ -125,7 +129,7 @@ class CVaROptimizer(BaseOptimizer):
             
             # Risk constraints (if specified)
             if constraints_obj.max_volatility is not None:
-                portfolio_vol = cp.quad_form(w, self._cov_matrix.values)
+                portfolio_vol = cp.quad_form(w, effective_cov.values)
                 constraints_list.append(
                     cp.sqrt(portfolio_vol) <= constraints_obj.max_volatility
                 )
@@ -166,14 +170,16 @@ class CVaROptimizer(BaseOptimizer):
             # Calculate metrics
             metrics = self._calculate_portfolio_metrics(weights)
             
-            # Calculate actual CVaR for the optimized portfolio
+            # Calculate actual empirical tail loss for metadata (daily units)
             portfolio_returns = (self.returns @ weights).values
-            var_value = np.percentile(
-                portfolio_returns,
-                (1.0 - confidence_level) * 100
+            losses = -portfolio_returns
+            var_loss = float(np.quantile(losses, confidence_level))
+            tail_losses = losses[losses >= var_loss]
+            cvar_loss = (
+                float(tail_losses.mean())
+                if len(tail_losses) > 0
+                else var_loss
             )
-            tail_returns = portfolio_returns[portfolio_returns <= var_value]
-            cvar_value = float(tail_returns.mean()) if len(tail_returns) > 0 else var_value
             
             return OptimizationResult(
                 weights=weights,
@@ -188,10 +194,27 @@ class CVaROptimizer(BaseOptimizer):
                     f"(confidence: {confidence_level:.0%})"
                 ),
                 metadata={
-                    "cvar": cvar_value,
-                    "var": var_value,
+                    "cvar_loss_daily": cvar_loss,
+                    "var_loss_daily": var_loss,
+                    # Legacy aliases for backward compatibility.
+                    "cvar": cvar_loss,
+                    "var": var_loss,
                     "confidence_level": confidence_level,
+                    "tail_probability": tail_prob,
+                    "scenario_count": T,
+                    "recommended_scenario_count": 500,
+                    "scenario_count_warning": (
+                        "Guide recommends 500+ scenarios for stable CVaR estimates"
+                        if T < 500
+                        else None
+                    ),
                     "problem_status": problem.status,
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:

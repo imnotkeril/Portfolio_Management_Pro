@@ -1608,84 +1608,25 @@ def _display_optimization_results(
             f"Could not calculate current portfolio returns: {e}"
         )
     
-    # Calculate optimized portfolio returns for the SELECTED period
+    # Optimized path: buy-and-hold with initial weights = optimal (matches live BH)
     optimized_returns = None
     try:
-        # Get optimized portfolio historical returns (SAME logic as charts)
-        from services.data_service import DataService
-        data_service = DataService()
-        
-        optimal_weights_dict = result.get_weights_dict()
-        tickers_list = result.tickers
-        
-        # Fetch historical prices and calculate returns
-        asset_returns_df = pd.DataFrame()
-        for ticker in tickers_list:
-            if ticker == "CASH":
-                dr = pd.bdate_range(
-                    start=start_date, end=end_date, normalize=True
-                )
-                daily_return = (1 + risk_free_rate) ** (1.0 / 252) - 1
-                cash_returns = pd.Series(
-                    data=daily_return,
-                    index=dr,
-                    name=ticker,
-                )
-                asset_returns_df[ticker] = cash_returns
-            else:
-                try:
-                    prices = data_service.fetch_historical_prices(
-                        ticker=ticker,
-                        start_date=start_date,
-                        end_date=end_date,
-                        use_cache=True,
-                        save_to_db=False,
-                    )
-                    # Ensure prices is a DataFrame before checking .empty
-                    if not isinstance(prices, pd.DataFrame):
-                        logger.warning(
-                            f"fetch_historical_prices returned non-DataFrame "
-                            f"for {ticker}: {type(prices)}"
-                        )
-                        continue
-                    if not prices.empty:
-                        if "Date" in prices.columns:
-                            prices.set_index("Date", inplace=True)
-                        prices.index = pd.to_datetime(
-                            prices.index, errors="coerce"
-                        )
-                        prices.index = prices.index.tz_localize(None)
-                        asset_returns = (
-                            prices["Adjusted_Close"].pct_change().dropna()
-                        )
-                        asset_returns_df[ticker] = asset_returns
-                except Exception:
-                    pass
-        
-        if not asset_returns_df.empty:
-            # Align all returns to common index
-            asset_returns_df = asset_returns_df.sort_index()
-            common_index = asset_returns_df.index
-            
-            # Calculate optimized portfolio returns: weighted sum
-            optimized_returns = pd.Series(0.0, index=common_index)
-            for ticker, weight in optimal_weights_dict.items():
-                if ticker in asset_returns_df.columns:
-                    optimized_returns += (
-                        asset_returns_df[ticker] * weight
-                    )
-            
-            optimized_returns = optimized_returns.dropna()
-            
-            # CRITICAL: Align optimized returns with current portfolio
-            # to ensure same date range (SAME as charts)
-            if (current_returns is not None and
-                    not current_returns.empty):
-                aligned_index = current_returns.index.intersection(
-                    optimized_returns.index
-                )
-                optimized_returns = optimized_returns.reindex(aligned_index)
-                current_returns = current_returns.reindex(aligned_index)
+        optimized_returns = analytics_service.simulate_buy_and_hold_returns_from_weights(
+            result.get_weights_dict(),
+            start_date,
+            end_date,
+        )
+        if (
+            current_returns is not None
+            and not current_returns.empty
+            and optimized_returns is not None
+            and not optimized_returns.empty
+        ):
+            aligned_index = current_returns.index.intersection(
+                optimized_returns.index
+            )
+            optimized_returns = optimized_returns.reindex(aligned_index).dropna()
+            current_returns = current_returns.reindex(optimized_returns.index)
     except Exception as e:
         logger.warning(
             f"Could not calculate optimized portfolio returns: {e}"
@@ -2005,66 +1946,15 @@ def _display_optimization_results(
         current_values = current_analytics.get("portfolio_values")
         benchmark_returns = current_analytics.get("benchmark_returns")
         
-        # Calculate optimized portfolio historical returns
-        # Get asset returns for the period
-        from services.data_service import DataService
-        data_service = DataService()
-        
-        optimal_weights_dict = result.get_weights_dict()
-        tickers_list = result.tickers
-        
-        # Fetch historical prices for all assets
-        asset_returns_df = pd.DataFrame()
-        for ticker in tickers_list:
-            if ticker == "CASH":
-                # CASH returns = risk-free rate / periods
-                dr = pd.bdate_range(start=start_date, end=end_date, normalize=True)
-                daily_return = (1 + 0.0435) ** (1.0 / 252) - 1
-                cash_returns = pd.Series(
-                    data=daily_return,
-                    index=dr,
-                    name=ticker,
-                )
-                asset_returns_df[ticker] = cash_returns
-            else:
-                try:
-                    prices = data_service.fetch_historical_prices(
-                        ticker=ticker,
-                        start_date=start_date,
-                        end_date=end_date,
-                        use_cache=True,
-                        save_to_db=False,
-                    )
-                    # Ensure prices is a DataFrame before checking .empty
-                    if not isinstance(prices, pd.DataFrame):
-                        logger.warning(
-                            f"fetch_historical_prices returned non-DataFrame "
-                            f"for {ticker}: {type(prices)}"
-                        )
-                        continue
-                    if not prices.empty:
-                        if "Date" in prices.columns:
-                            prices.set_index("Date", inplace=True)
-                        prices.index = pd.to_datetime(prices.index, errors="coerce")
-                        prices.index = prices.index.tz_localize(None)
-                        
-                        asset_returns = prices["Adjusted_Close"].pct_change().dropna()
-                        asset_returns_df[ticker] = asset_returns
-                except Exception as e:
-                    logger.warning(f"Could not fetch returns for {ticker}: {e}")
-        
-        # Align all returns to common index
-        if not asset_returns_df.empty:
-            asset_returns_df = asset_returns_df.sort_index()
-            common_index = asset_returns_df.index
-            
-            # Calculate optimized portfolio returns: weighted sum
-            optimized_returns = pd.Series(0.0, index=common_index)
-            for ticker, weight in optimal_weights_dict.items():
-                if ticker in asset_returns_df.columns:
-                    optimized_returns += asset_returns_df[ticker] * weight
-            
-            optimized_returns = optimized_returns.dropna()
+        optimized_returns = analytics_service.simulate_buy_and_hold_returns_from_weights(
+            result.get_weights_dict(),
+            start_date,
+            end_date,
+        )
+        if optimized_returns is None:
+            optimized_returns = pd.Series(dtype=float)
+
+        if not optimized_returns.empty:
             
             # Calculate optimized portfolio values (cumulative)
             optimized_values = (1 + optimized_returns).cumprod()

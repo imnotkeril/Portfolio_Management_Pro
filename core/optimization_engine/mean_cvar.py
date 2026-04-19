@@ -34,13 +34,24 @@ class MeanCVaROptimizer(BaseOptimizer):
         self,
         constraints: Optional[Dict[str, any]] = None,
         confidence_level: float = 0.95,
+        cvar_cap_relax: float = 1.08,
+        optimization_mode: str = "cvar_cap",
+        risk_aversion: float = 1.0,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
-        Optimize portfolio to maximize Return / CVaR ratio.
+        Optimize Mean-CVaR portfolio.
         
         Args:
             constraints: Optional constraints dictionary
-            confidence_level: Confidence level for CVaR (0.90, 0.95, or 0.99)
+            confidence_level: Confidence level for CVaR in (0, 1)
+            cvar_cap_relax: CVaR cap multiplier over min-CVaR optimum
+                           (used in cvar_cap mode)
+            optimization_mode:
+                - "cvar_cap": maximize return with CVaR <= relax * min_CVaR
+                - "penalty": maximize return - lambda * CVaR (legacy fallback)
+            risk_aversion: Lambda for legacy penalty mode
         
         Returns:
             OptimizationResult with Mean-CVaR optimal weights
@@ -51,13 +62,19 @@ class MeanCVaROptimizer(BaseOptimizer):
                 "Install with: pip install cvxpy>=1.4.0"
             )
         
-        if confidence_level not in [0.90, 0.95, 0.99]:
-            raise ValueError(
-                "Confidence level must be 0.90, 0.95, or 0.99"
-            )
+        if confidence_level <= 0.0 or confidence_level >= 1.0:
+            raise ValueError("confidence_level must be in (0, 1)")
+        if cvar_cap_relax <= 0:
+            raise ValueError("cvar_cap_relax must be positive")
+        if optimization_mode not in ["cvar_cap", "penalty"]:
+            raise ValueError("optimization_mode must be 'cvar_cap' or 'penalty'")
         
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
+        effective_cov = self._estimate_covariance_matrix(
+            covariance_method=covariance_method,
+            shrinkage_alpha=shrinkage_alpha,
+        )
         
         n = len(self.tickers)
         T = len(self.returns)  # Number of historical periods
@@ -71,38 +88,22 @@ class MeanCVaROptimizer(BaseOptimizer):
         try:
             # Prepare data
             returns_matrix = self.returns.values  # T × n matrix
-            mean_returns = self._mean_returns.values  # n vector
+            # Use daily expected returns to keep units consistent with CVaR,
+            # which is computed from daily scenario returns.
+            mean_returns_daily = self.returns.mean().values  # n vector (daily)
             
-            # Decision variables
-            w = cp.Variable(n)  # Portfolio weights
-            alpha = cp.Variable()  # VaR (auxiliary variable)
-            u = cp.Variable(T)  # Auxiliary variables for CVaR
-            
-            # Confidence level parameter
-            beta = 1.0 - confidence_level  # Tail probability
-            
-            # Expected return
-            expected_return = mean_returns @ w
-            
-            # CVaR = alpha + (1/(beta*T)) * sum(u)
-            cvar = alpha + (1.0 / (beta * T)) * cp.sum(u)
-            
-            # Objective: maximize Return / CVaR
-            # For numerical stability, we maximize Return - lambda * CVaR
-            # where lambda is a risk aversion parameter
-            risk_aversion = 1.0
-            objective = cp.Maximize(expected_return - risk_aversion * cvar)
-            
-            # Constraints
+            # Common variables and CVaR terms.
+            w = cp.Variable(n)
+            alpha = cp.Variable()
+            u = cp.Variable(T)
+            tail_prob = 1.0 - confidence_level
+            expected_return_daily = mean_returns_daily @ w
+            cvar = alpha + (1.0 / (tail_prob * T)) * cp.sum(u)
+
             constraints_list = [
-                # Weights sum to 1
                 cp.sum(w) == 1.0,
-                
-                # Weight bounds
                 w >= min_bounds,
                 w <= max_bounds,
-                
-                # CVaR auxiliary constraints
                 u >= -returns_matrix @ w - alpha,
                 u >= 0,
             ]
@@ -114,8 +115,10 @@ class MeanCVaROptimizer(BaseOptimizer):
             
             # Return constraint (if specified)
             if constraints_obj.min_return is not None:
+                # min_return is annualized in constraints; convert to daily
+                min_return_daily = (1.0 + constraints_obj.min_return) ** (1.0 / self.periods_per_year) - 1.0
                 constraints_list.append(
-                    expected_return >= constraints_obj.min_return
+                    expected_return_daily >= min_return_daily
                 )
             
             # Cash constraint (if specified)
@@ -131,13 +134,31 @@ class MeanCVaROptimizer(BaseOptimizer):
             
             # Risk constraints (if specified)
             if constraints_obj.max_volatility is not None:
-                portfolio_vol = cp.quad_form(w, self._cov_matrix.values)
+                portfolio_vol = cp.quad_form(w, effective_cov.values)
                 constraints_list.append(
                     cp.sqrt(portfolio_vol) <= constraints_obj.max_volatility
                 )
-            
-            # Solve - try multiple solvers
-            problem = cp.Problem(objective, constraints_list)
+
+            # Notebook-consistent default:
+            # 1) Solve min-CVaR LP.
+            # 2) Maximize expected return under CVaR cap = relax * min_CVaR.
+            if optimization_mode == "cvar_cap":
+                min_cvar_problem = cp.Problem(cp.Minimize(cvar), constraints_list)
+                min_cvar_problem.solve(solver=cp.SCS, verbose=False)
+                if min_cvar_problem.status not in ["optimal", "optimal_inaccurate"]:
+                    raise CalculationError(
+                        f"Mean-CVaR min-CVaR phase failed: {min_cvar_problem.status}"
+                    )
+                min_cvar_value = float(min_cvar_problem.value)
+                cvar_cap = float(cvar_cap_relax) * min_cvar_value
+                cap_constraints = list(constraints_list) + [cvar <= cvar_cap]
+                objective = cp.Maximize(expected_return_daily)
+                problem = cp.Problem(objective, cap_constraints)
+            else:
+                objective = cp.Maximize(expected_return_daily - risk_aversion * cvar)
+                min_cvar_value = None
+                cvar_cap = None
+                problem = cp.Problem(objective, constraints_list)
             
             # Try solvers in order of preference
             solvers_to_try = [
@@ -178,13 +199,7 @@ class MeanCVaROptimizer(BaseOptimizer):
                                    str(c.args[0]).find('expected_return') >= 0)
                         ]
                         # Rebuild constraints without min_return
-                        relaxed_constraints = [
-                            cp.sum(w) == 1.0,
-                            w >= min_bounds,
-                            w <= max_bounds,
-                            u >= -returns_matrix @ w - alpha,
-                            u >= 0,
-                        ]
+                        relaxed_constraints = [cp.sum(w) == 1.0, w >= min_bounds, w <= max_bounds, u >= -returns_matrix @ w - alpha, u >= 0]
                         if constraints_obj.max_cash_weight is not None:
                             cash_indices = [
                                 i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
@@ -194,7 +209,18 @@ class MeanCVaROptimizer(BaseOptimizer):
                                     cp.sum([w[i] for i in cash_indices]) <= constraints_obj.max_cash_weight
                                 )
                         
-                        relaxed_problem = cp.Problem(objective, relaxed_constraints)
+                        if optimization_mode == "cvar_cap":
+                            relaxed_min_problem = cp.Problem(cp.Minimize(cvar), relaxed_constraints)
+                            relaxed_min_problem.solve(solver=cp.SCS, verbose=False)
+                            if relaxed_min_problem.status in ["optimal", "optimal_inaccurate"]:
+                                relaxed_min_cvar_value = float(relaxed_min_problem.value)
+                                relaxed_cvar_cap = float(cvar_cap_relax) * relaxed_min_cvar_value
+                                relaxed_cap_constraints = list(relaxed_constraints) + [cvar <= relaxed_cvar_cap]
+                                relaxed_problem = cp.Problem(cp.Maximize(expected_return_daily), relaxed_cap_constraints)
+                            else:
+                                relaxed_problem = cp.Problem(cp.Maximize(expected_return_daily - risk_aversion * cvar), relaxed_constraints)
+                        else:
+                            relaxed_problem = cp.Problem(objective, relaxed_constraints)
                         for solver in solvers_to_try:
                             try:
                                 relaxed_problem.solve(solver=solver, verbose=False)
@@ -231,10 +257,11 @@ class MeanCVaROptimizer(BaseOptimizer):
             tail_returns = portfolio_returns[portfolio_returns <= var_value]
             cvar_value = float(tail_returns.mean()) if len(tail_returns) > 0 else var_value
             
-            # Calculate Mean-CVaR ratio
+            # Calculate Mean-CVaR ratio in consistent annualized units
             mean_cvar_ratio = None
-            if cvar_value < 0 and abs(cvar_value) > 1e-6:
-                mean_cvar_ratio = metrics["expected_return"] / abs(cvar_value)
+            annualized_cvar = abs(cvar_value) * np.sqrt(self.periods_per_year)
+            if annualized_cvar > 1e-6:
+                mean_cvar_ratio = metrics["expected_return"] / annualized_cvar
             
             return OptimizationResult(
                 weights=weights,
@@ -249,11 +276,39 @@ class MeanCVaROptimizer(BaseOptimizer):
                     f"(confidence: {confidence_level:.0%})"
                 ),
                 metadata={
+                    "cvar_loss_daily": cvar_value,
+                    "var_loss_daily": var_value,
+                    # Legacy aliases.
                     "cvar": cvar_value,
+                    "annualized_cvar": annualized_cvar,
                     "var": var_value,
                     "mean_cvar_ratio": mean_cvar_ratio,
                     "confidence_level": confidence_level,
+                    "tail_probability": tail_prob,
+                    "scenario_count": T,
+                    "recommended_scenario_count": 500,
+                    "scenario_count_warning": (
+                        "Guide recommends 500+ scenarios for stable CVaR estimates"
+                        if T < 500
+                        else None
+                    ),
+                    "optimization_mode": optimization_mode,
+                    "cvar_cap_relax": (
+                        float(cvar_cap_relax) if optimization_mode == "cvar_cap" else None
+                    ),
+                    "min_cvar_lp_value": (
+                        float(min_cvar_value) if optimization_mode == "cvar_cap" and min_cvar_value is not None else None
+                    ),
+                    "cvar_cap": (
+                        float(cvar_cap) if optimization_mode == "cvar_cap" and cvar_cap is not None else None
+                    ),
                     "problem_status": problem.status,
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:

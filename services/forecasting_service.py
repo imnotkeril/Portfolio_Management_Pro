@@ -18,6 +18,13 @@ from services.portfolio_service import PortfolioService
 logger = logging.getLogger(__name__)
 
 
+def _validation_business_day_count(start_d: date, end_d: date) -> int:
+    """Count NYSE-style business days in [start_d, end_d] (aligns with model bdate_range)."""
+    if start_d > end_d:
+        return 0
+    return len(pd.bdate_range(start=start_d, end=end_d, inclusive="both"))
+
+
 class ForecastingService:
     """Service for orchestrating forecasting operations."""
 
@@ -138,10 +145,10 @@ class ForecastingService:
             # For out-of-sample: need to forecast Validation Period + Forecast Horizon
             # For regular: just Forecast Horizon
             if out_of_sample:
-                validation_days = (end_date - start_date).days
+                validation_days = _validation_business_day_count(start_date, end_date)
                 total_horizon = validation_days + horizon
                 logger.info(
-                    f"Out-of-sample forecast: {validation_days} days validation + "
+                    f"Out-of-sample forecast: {validation_days} business days validation + "
                     f"{horizon} days forecast = {total_horizon} days total"
                 )
             else:
@@ -151,7 +158,6 @@ class ForecastingService:
 
             # If out-of-sample, evaluate on validation period
             if out_of_sample:
-                validation_days = (end_date - start_date).days
                 validation_prices = self._data_service.fetch_historical_prices(
                     ticker=ticker,
                     start_date=start_date,
@@ -313,6 +319,7 @@ class ForecastingService:
                             forecast_result.final_value = float(validation_forecast_values[-1])
                         forecast_result.change_pct = 0.0
 
+            forecast_result.last_historical_price = float(prices.iloc[-1])
             return forecast_result.to_dict()
 
         except Exception as e:
@@ -409,10 +416,10 @@ class ForecastingService:
             # For out-of-sample: need to forecast Validation Period + Forecast Horizon
             # For regular: just Forecast Horizon
             if out_of_sample:
-                validation_days = (end_date - start_date).days
+                validation_days = _validation_business_day_count(start_date, end_date)
                 total_horizon = validation_days + horizon
                 logger.info(
-                    f"Out-of-sample portfolio forecast: {validation_days} days validation + "
+                    f"Out-of-sample portfolio forecast: {validation_days} business days validation + "
                     f"{horizon} days forecast = {total_horizon} days total"
                 )
             else:
@@ -422,7 +429,6 @@ class ForecastingService:
 
             # If out-of-sample, evaluate on validation period
             if out_of_sample:
-                validation_days = (end_date - start_date).days
                 # Fetch validation period portfolio prices
                 validation_price_data = self._data_service.fetch_bulk_prices(
                     tickers=tickers,
@@ -594,6 +600,7 @@ class ForecastingService:
                             forecast_result.final_value = float(validation_forecast_values[-1])
                         forecast_result.change_pct = 0.0
 
+            forecast_result.last_historical_price = float(portfolio_prices.iloc[-1])
             return forecast_result.to_dict()
 
         except Exception as e:
@@ -654,10 +661,50 @@ class ForecastingService:
 
         return results
 
+    def run_multiple_forecasts_portfolio(
+        self,
+        portfolio_id: str,
+        start_date: date,
+        end_date: date,
+        horizon: int,
+        methods: List[str],
+        method_params: Optional[Dict[str, Dict[str, any]]] = None,
+        out_of_sample: bool = False,
+        training_ratio: float = 0.3,
+    ) -> Dict[str, Dict[str, any]]:
+        """Run multiple forecasting methods on portfolio value series (same as Streamlit batch)."""
+        results: Dict[str, Dict[str, any]] = {}
+        mp = method_params or {}
+        for method in methods:
+            try:
+                params = mp.get(method, {})
+                result = self.forecast_portfolio(
+                    portfolio_id=portfolio_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    horizon=horizon,
+                    method=method,
+                    method_params=params,
+                    out_of_sample=out_of_sample,
+                    training_ratio=training_ratio,
+                )
+                results[method] = result
+            except Exception as e:
+                logger.error(
+                    "Error running portfolio %s forecast with %s: %s",
+                    portfolio_id,
+                    method,
+                    e,
+                    exc_info=True,
+                )
+                results[method] = {"success": False, "message": str(e)}
+        return results
+
     def create_ensemble(
         self,
         forecasts: Dict[str, Dict[str, any]],
         method: str = "weighted_average",
+        last_historical_price: Optional[float] = None,
     ) -> Dict[str, any]:
         """
         Create ensemble forecast from multiple forecasts.
@@ -665,6 +712,8 @@ class ForecastingService:
         Args:
             forecasts: Dictionary mapping method name to forecast result
             method: Ensemble method: 'weighted_average', 'simple_average', 'stacking'
+            last_historical_price: Base price for change_pct (last bar before forecast).
+                If None, taken from the first successful forecast's last_historical_price.
 
         Returns:
             Ensemble forecast result
@@ -724,19 +773,38 @@ class ForecastingService:
             raise ValueError("Ensemble values are empty")
         
         final_value = float(ensemble_values[-1])
-        first_value = float(ensemble_values[0])
-        
-        # Calculate change_pct safely
-        if first_value > 0 and np.isfinite(first_value) and np.isfinite(final_value):
+
+        base_price = last_historical_price
+        if base_price is None or not np.isfinite(base_price) or base_price <= 0:
+            for fd in successful_forecasts.values():
+                v = fd.get("last_historical_price")
+                if v is not None:
+                    vf = float(v)
+                    if np.isfinite(vf) and vf > 0:
+                        base_price = vf
+                        break
+
+        # change_pct vs last historical price (consistent with single-model forecasts)
+        if base_price is not None and base_price > 0 and np.isfinite(final_value):
             try:
-                change_pct = ((final_value - first_value) / first_value) * 100.0
+                change_pct = ((final_value - base_price) / base_price) * 100.0
                 if not np.isfinite(change_pct):
                     change_pct = 0.0
             except (ZeroDivisionError, OverflowError) as e:
                 logger.warning(f"Error calculating ensemble change_pct: {e}")
                 change_pct = 0.0
         else:
-            change_pct = 0.0
+            first_value = float(ensemble_values[0])
+            if first_value > 0 and np.isfinite(first_value) and np.isfinite(final_value):
+                try:
+                    change_pct = ((final_value - first_value) / first_value) * 100.0
+                    if not np.isfinite(change_pct):
+                        change_pct = 0.0
+                except (ZeroDivisionError, OverflowError) as e:
+                    logger.warning(f"Error calculating ensemble change_pct: {e}")
+                    change_pct = 0.0
+            else:
+                change_pct = 0.0
 
         return {
             "method": "Ensemble",
@@ -803,12 +871,6 @@ class ForecastingService:
 
         if portfolio_value == 0:
             raise ValueError("Portfolio value is zero")
-
-        # Calculate weights
-        weights = {}
-        for pos in positions:
-            if pos.ticker != "CASH" and pos.ticker in current_prices:
-                weights[pos.ticker] = (current_prices[pos.ticker] * pos.shares) / portfolio_value
 
         # Calculate portfolio value over time
         portfolio_prices = pd.Series(index=price_data.index, dtype=float)

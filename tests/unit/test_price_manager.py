@@ -173,8 +173,8 @@ def test_fetch_historical_prices_invalid_ticker(mock_ticker_class) -> None:
     mock_ticker.info = {}  # Empty info means ticker not found
     mock_ticker_class.return_value = mock_ticker
 
-    # fetch_historical_prices wraps TickerNotFoundError in DataFetchError
-    with pytest.raises(DataFetchError):
+    # fetch_historical_prices propagates TickerNotFoundError for invalid tickers
+    with pytest.raises(TickerNotFoundError):
         manager.fetch_historical_prices(
             "INVALID", date(2024, 1, 1), date(2024, 1, 2), use_cache=False
         )

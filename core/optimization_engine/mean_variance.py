@@ -28,6 +28,9 @@ class MeanVarianceOptimizer(BaseOptimizer):
         target_risk: Optional[float] = None,
         risk_aversion: float = 0.5,
         objective: Optional[str] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
+        target_return_as_floor: bool = False,
     ) -> OptimizationResult:
         """
         Optimize portfolio using mean-variance optimization.
@@ -45,11 +48,20 @@ class MeanVarianceOptimizer(BaseOptimizer):
         """
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
+        effective_cov = self._estimate_covariance_matrix(
+            covariance_method=covariance_method,
+            shrinkage_alpha=shrinkage_alpha,
+        )
         
         # Use objective parameter if provided
         if objective == "maximize_sharpe":
             return self._maximize_sharpe(
-                min_bounds, max_bounds, constraints_obj
+                min_bounds,
+                max_bounds,
+                constraints_obj,
+                effective_cov,
+                covariance_method,
+                shrinkage_alpha,
             )
         elif objective == "minimize_volatility":
             return self._minimize_variance_with_return(
@@ -57,6 +69,9 @@ class MeanVarianceOptimizer(BaseOptimizer):
                 min_bounds=min_bounds,
                 max_bounds=max_bounds,
                 constraints_obj=constraints_obj,
+                cov_matrix=effective_cov,
+                covariance_method=covariance_method,
+                shrinkage_alpha=shrinkage_alpha,
             )
         elif objective == "maximize_return":
             # Maximize return without risk constraint
@@ -65,6 +80,9 @@ class MeanVarianceOptimizer(BaseOptimizer):
                 min_bounds=min_bounds,
                 max_bounds=max_bounds,
                 constraints_obj=constraints_obj,
+                cov_matrix=effective_cov,
+                covariance_method=covariance_method,
+                shrinkage_alpha=shrinkage_alpha,
             )
         
         # Legacy behavior: use target_return/target_risk if objective not specified
@@ -76,16 +94,36 @@ class MeanVarianceOptimizer(BaseOptimizer):
         if target_return is not None:
             # Minimize variance subject to target return
             return self._minimize_variance_with_return(
-                target_return, min_bounds, max_bounds, constraints_obj
+                target_return,
+                min_bounds,
+                max_bounds,
+                constraints_obj,
+                effective_cov,
+                covariance_method,
+                shrinkage_alpha,
+                target_return_as_floor=target_return_as_floor,
             )
         elif target_risk is not None:
             # Maximize return subject to target risk
             return self._maximize_return_with_risk(
-                target_risk, min_bounds, max_bounds, constraints_obj
+                target_risk,
+                min_bounds,
+                max_bounds,
+                constraints_obj,
+                effective_cov,
+                covariance_method,
+                shrinkage_alpha,
             )
         else:
             # Maximize Sharpe ratio (default)
-            return self._maximize_sharpe(min_bounds, max_bounds, constraints_obj)
+            return self._maximize_sharpe(
+                min_bounds,
+                max_bounds,
+                constraints_obj,
+                effective_cov,
+                covariance_method,
+                shrinkage_alpha,
+            )
     
     def _minimize_variance_with_return(
         self,
@@ -93,6 +131,10 @@ class MeanVarianceOptimizer(BaseOptimizer):
         min_bounds: np.ndarray,
         max_bounds: np.ndarray,
         constraints_obj: OptimizationConstraints,
+        cov_matrix: np.ndarray,
+        covariance_method: str,
+        shrinkage_alpha: float,
+        target_return_as_floor: bool = False,
     ) -> OptimizationResult:
         """Minimize variance subject to target return (or just minimize variance if target_return is None)."""
         n = len(self.tickers)
@@ -104,7 +146,7 @@ class MeanVarianceOptimizer(BaseOptimizer):
         # Add diversification penalty if specified
         def objective(weights: np.ndarray) -> float:
             variance = float(
-                weights.T @ self._cov_matrix.values @ weights
+                weights.T @ cov_matrix.values @ weights
             )
             # Add diversification penalty: lambda * sum(w_i^2)
             # This encourages more equal weights (higher diversification)
@@ -122,12 +164,22 @@ class MeanVarianceOptimizer(BaseOptimizer):
         
         # Add return constraint only if target_return is specified
         if target_return is not None:
-            constraints.append({
-                "type": "eq",
-                "fun": lambda w: float(
-                    np.dot(w, self._mean_returns) - target_return
-                ),
-            })
+            if target_return_as_floor:
+                # Inequality is far more stable for frontier sweeps (SLSQP); exact
+                # equality often fails or drops points when combined with other constraints.
+                constraints.append({
+                    "type": "ineq",
+                    "fun": lambda w: float(
+                        np.dot(w, self._mean_returns) - target_return
+                    ),
+                })
+            else:
+                constraints.append({
+                    "type": "eq",
+                    "fun": lambda w: float(
+                        np.dot(w, self._mean_returns) - target_return
+                    ),
+                })
         
         # Add min_return constraint if specified
         if constraints_obj.min_return is not None:
@@ -195,6 +247,12 @@ class MeanVarianceOptimizer(BaseOptimizer):
                     "target_return": target_return,
                     "iterations": result.nit,
                     "fun": float(result.fun),
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:
@@ -213,6 +271,9 @@ class MeanVarianceOptimizer(BaseOptimizer):
         min_bounds: np.ndarray,
         max_bounds: np.ndarray,
         constraints_obj: OptimizationConstraints,
+        cov_matrix: np.ndarray,
+        covariance_method: str,
+        shrinkage_alpha: float,
     ) -> OptimizationResult:
         """Maximize return subject to target risk (or just maximize return if target_risk is None)."""
         n = len(self.tickers)
@@ -240,7 +301,7 @@ class MeanVarianceOptimizer(BaseOptimizer):
         if target_risk is not None:
             def risk_constraint(weights: np.ndarray) -> float:
                 variance = float(
-                    weights.T @ self._cov_matrix.values @ weights
+                    weights.T @ cov_matrix.values @ weights
                 )
                 volatility = np.sqrt(variance)
                 return target_risk - volatility  # Must be >= 0
@@ -314,6 +375,12 @@ class MeanVarianceOptimizer(BaseOptimizer):
                 metadata={
                     "target_risk": target_risk,
                     "iterations": result.nit,
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:
@@ -331,6 +398,9 @@ class MeanVarianceOptimizer(BaseOptimizer):
         min_bounds: np.ndarray,
         max_bounds: np.ndarray,
         constraints_obj: OptimizationConstraints,
+        cov_matrix: np.ndarray,
+        covariance_method: str,
+        shrinkage_alpha: float,
     ) -> OptimizationResult:
         """Maximize Sharpe ratio."""
         n = len(self.tickers)
@@ -343,7 +413,7 @@ class MeanVarianceOptimizer(BaseOptimizer):
         def objective(weights: np.ndarray) -> float:
             portfolio_return = np.dot(weights, self._mean_returns)
             portfolio_variance = float(
-                weights.T @ self._cov_matrix.values @ weights
+                weights.T @ cov_matrix.values @ weights
             )
             portfolio_vol = np.sqrt(portfolio_variance)
             
@@ -420,6 +490,12 @@ class MeanVarianceOptimizer(BaseOptimizer):
                 metadata={
                     "iterations": result.nit,
                     "fun": float(result.fun),
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:

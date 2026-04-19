@@ -68,11 +68,16 @@ def test_validate_ticker_valid(mock_ticker_class) -> None:
 @patch("core.data_manager.ticker_validator.yf.Ticker")
 def test_validate_ticker_invalid(mock_ticker_class) -> None:
     """Test validation of invalid ticker."""
-    validator = TickerValidator()
+    from core.data_manager.cache import Cache
+    cache = Cache()
+    cache.clear()
+    validator = TickerValidator(cache=cache)
 
     # Mock ticker with no info
     mock_ticker = MagicMock()
     mock_ticker.info = {}
+    mock_ticker.history.return_value = {}
+    mock_ticker.fast_info = None
     mock_ticker_class.return_value = mock_ticker
 
     result = validator.validate_ticker("INVALID")
@@ -86,9 +91,10 @@ def test_validate_tickers_multiple() -> None:
     with patch.object(validator, "validate_ticker") as mock_validate:
         mock_validate.side_effect = [True, False, True]
 
-        results = validator.validate_tickers(["AAPL", "INVALID", "MSFT"])
+        # Use non-whitelisted tickers so bulk validation calls validate_ticker
+        results = validator.validate_tickers(["ABNB", "INVALID", "UBER"])
 
-        assert results == {"AAPL": True, "INVALID": False, "MSFT": True}
+        assert results == {"ABNB": True, "INVALID": False, "UBER": True}
         assert mock_validate.call_count == 3
 
 

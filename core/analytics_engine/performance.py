@@ -233,7 +233,7 @@ def calculate_best_worst_periods(
 
     try:
         # Resample to monthly
-        monthly_returns = returns.resample("M").apply(
+        monthly_returns = returns.resample("ME").apply(
             lambda x: (1 + x).prod() - 1
         )
 

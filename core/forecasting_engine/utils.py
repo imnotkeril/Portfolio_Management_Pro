@@ -148,10 +148,14 @@ def calculate_confidence_intervals(
     alpha = 1 - confidence_level
     z_score = stats.norm.ppf(1 - alpha / 2)
 
+    # Widen intervals with forecast horizon (uncertainty ~ sqrt(step) for i.i.d.-like errors)
+    n = len(forecast)
+    horizon_scale = np.sqrt(np.arange(1, n + 1, dtype=float)) if n > 0 else np.array([])
+
     # Calculate intervals
-    upper = forecast + z_score * std_error
-    lower = forecast - z_score * std_error
-    
+    upper = forecast + z_score * std_error * horizon_scale
+    lower = forecast - z_score * std_error * horizon_scale
+
     # Ensure reasonable bounds
     # Lower bound should not be negative for prices
     lower = np.maximum(lower, forecast * 0.1)  # At least 10% of forecast

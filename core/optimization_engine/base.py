@@ -10,6 +10,11 @@ import pandas as pd
 
 from core.exceptions import CalculationError
 from core.optimization_engine.constraints import OptimizationConstraints
+try:
+    from sklearn.covariance import LedoitWolf
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +289,64 @@ class BaseOptimizer(ABC):
             "volatility": volatility,
             "sharpe_ratio": sharpe_ratio,
         }
+
+    def _estimate_covariance_matrix(
+        self,
+        covariance_method: str = "sample",
+        shrinkage_alpha: float = 0.25,
+    ) -> pd.DataFrame:
+        """
+        Estimate annualized covariance matrix using selected method.
+
+        Supported methods:
+        - sample: plain sample covariance
+        - shrink: diagonal shrinkage (Ledoit-style target to diagonal)
+        - ledoit_wolf: sklearn Ledoit-Wolf shrinkage estimator
+        """
+        method = (covariance_method or "sample").lower()
+
+        if method == "sample":
+            return self._cov_matrix.copy()
+
+        sample_cov_daily = self.returns.cov()
+
+        if method == "shrink":
+            alpha = float(np.clip(shrinkage_alpha, 0.0, 1.0))
+            diag_target = np.diag(np.diag(sample_cov_daily.values))
+            shrunk_daily = (
+                (1.0 - alpha) * sample_cov_daily.values + alpha * diag_target
+            )
+            return pd.DataFrame(
+                shrunk_daily * self.periods_per_year,
+                index=sample_cov_daily.index,
+                columns=sample_cov_daily.columns,
+            )
+
+        if method == "ledoit_wolf":
+            if SKLEARN_AVAILABLE:
+                lw = LedoitWolf().fit(self.returns.values)
+                lw_cov_annual = lw.covariance_ * self.periods_per_year
+                return pd.DataFrame(
+                    lw_cov_annual,
+                    index=self.tickers,
+                    columns=self.tickers,
+                )
+            logger.warning(
+                "Ledoit-Wolf requested but sklearn unavailable, "
+                "falling back to diagonal shrink."
+            )
+            diag_target = np.diag(np.diag(sample_cov_daily.values))
+            shrunk_daily = 0.75 * sample_cov_daily.values + 0.25 * diag_target
+            return pd.DataFrame(
+                shrunk_daily * self.periods_per_year,
+                index=sample_cov_daily.index,
+                columns=sample_cov_daily.columns,
+            )
+
+        raise ValueError(
+            f"Unknown covariance_method: {covariance_method}. "
+            "Supported: sample, shrink, ledoit_wolf"
+        )
     
     def _build_constraints(
         self, constraints: Optional[Dict[str, any]]

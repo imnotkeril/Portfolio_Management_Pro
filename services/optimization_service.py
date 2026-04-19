@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -93,7 +93,148 @@ class OptimizationService:
         )
         self._data_service = data_service or DataService()
         self._risk_free_rate = risk_free_rate
-    
+
+    def load_portfolio_returns_and_benchmark(
+        self,
+        portfolio_id: str,
+        start_date: date,
+        end_date: date,
+        *,
+        benchmark_ticker: Optional[str] = None,
+    ) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
+        """
+        Load aligned daily asset returns (plus optional CASH column) for a date window.
+
+        When ``benchmark_ticker`` is set (tracking-error / alpha methods), returns are
+        intersected with benchmark trading dates, same as ``optimize_portfolio``.
+        """
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        if not portfolio:
+            raise ValueError(f"Portfolio {portfolio_id} not found")
+
+        positions = portfolio.get_all_positions()
+        if len(positions) == 0:
+            raise ValueError("Portfolio has no positions")
+
+        has_cash = any(pos.ticker == "CASH" for pos in positions)
+        tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
+
+        if not tickers and not has_cash:
+            raise ValueError("Portfolio has no valid tickers")
+
+        if tickers:
+            logger.info(
+                "Fetching price data for %d tickers from %s to %s",
+                len(tickers),
+                start_date,
+                end_date,
+            )
+            price_data = self._data_service.fetch_bulk_prices(
+                tickers=tickers,
+                start_date=start_date,
+                end_date=end_date,
+                use_cache=True,
+                save_to_db=False,
+            )
+            if price_data.empty:
+                raise InsufficientDataError(
+                    f"No price data available for period {start_date} to {end_date}"
+                )
+            if "Ticker" in price_data.columns and "Adjusted_Close" in price_data.columns:
+                if "Date" in price_data.columns:
+                    price_data["Date"] = pd.to_datetime(
+                        price_data["Date"], errors="coerce"
+                    )
+                    price_data["Date"] = price_data["Date"].dt.tz_localize(None)
+                    pivot_df = price_data.pivot_table(
+                        index="Date",
+                        columns="Ticker",
+                        values="Adjusted_Close",
+                        aggfunc="last",
+                    )
+                    price_data = pivot_df
+            if not isinstance(price_data.index, pd.DatetimeIndex):
+                price_data.index = pd.to_datetime(price_data.index, errors="coerce")
+            start_ts = pd.Timestamp(start_date)
+            end_ts = pd.Timestamp(end_date)
+            price_data = price_data[
+                (price_data.index >= start_ts) & (price_data.index <= end_ts)
+            ]
+            if price_data.empty:
+                raise InsufficientDataError(
+                    f"No price data available for period {start_date} to {end_date}"
+                )
+            returns = price_data.pct_change().dropna()
+        else:
+            dr = pd.bdate_range(start=start_date, end=end_date, normalize=True)
+            returns = pd.DataFrame(index=dr)
+            returns.index = pd.to_datetime(returns.index, errors="coerce")
+            returns.index = returns.index.tz_localize(None)
+
+        if has_cash:
+            daily_return = (1 + self._risk_free_rate) ** (
+                1.0 / TRADING_DAYS_PER_YEAR
+            ) - 1
+            cash_returns = pd.Series(
+                data=daily_return,
+                index=returns.index,
+                name="CASH",
+            )
+            returns["CASH"] = cash_returns
+
+        if returns.empty or len(returns) < 30:
+            raise InsufficientDataError(
+                "Insufficient data points for optimization "
+                f"(need at least 30, got {len(returns)})"
+            )
+
+        if not benchmark_ticker:
+            return returns, None
+
+        benchmark_prices = self._data_service.fetch_historical_prices(
+            ticker=benchmark_ticker,
+            start_date=start_date,
+            end_date=end_date,
+            use_cache=True,
+            save_to_db=False,
+        )
+        if benchmark_prices.empty:
+            raise InsufficientDataError(
+                f"No price data for benchmark {benchmark_ticker}"
+            )
+        if "Date" in benchmark_prices.columns:
+            benchmark_prices = benchmark_prices.set_index("Date")
+            benchmark_prices.index = pd.to_datetime(
+                benchmark_prices.index, errors="coerce"
+            )
+            benchmark_prices.index = benchmark_prices.index.tz_localize(None)
+
+        benchmark_returns = benchmark_prices["Adjusted_Close"].pct_change().dropna()
+
+        returns.index = pd.to_datetime(returns.index, errors="coerce")
+        returns.index = returns.index.tz_localize(None)
+        benchmark_returns.index = pd.to_datetime(
+            benchmark_returns.index, errors="coerce"
+        )
+        benchmark_returns.index = benchmark_returns.index.tz_localize(None)
+
+        common_index = returns.index.intersection(benchmark_returns.index)
+        if len(common_index) < 30:
+            raise InsufficientDataError("Insufficient aligned data points")
+
+        returns_aligned = returns.reindex(common_index).dropna()
+        benchmark_aligned = benchmark_returns.reindex(common_index).dropna()
+        final_index = returns_aligned.index.intersection(benchmark_aligned.index)
+
+        if len(final_index) < 30:
+            raise InsufficientDataError(
+                "Insufficient aligned data points after filtering"
+            )
+
+        returns_out = returns_aligned.reindex(final_index)
+        benchmark_out = benchmark_aligned.reindex(final_index)
+        return returns_out, benchmark_out
+
     def optimize_portfolio(
         self,
         portfolio_id: str,
@@ -139,22 +280,11 @@ class OptimizationService:
         portfolio = self._portfolio_service.get_portfolio(portfolio_id)
         if not portfolio:
             raise ValueError(f"Portfolio {portfolio_id} not found")
-        
+
         positions = portfolio.get_all_positions()
         if len(positions) == 0:
             raise ValueError("Portfolio has no positions")
-        
-        # Check if CASH position exists
-        has_cash = any(pos.ticker == "CASH" for pos in positions)
-        
-        # Get tickers (exclude CASH for price fetching, add it later)
-        tickers = [
-            pos.ticker for pos in positions if pos.ticker != "CASH"
-        ]
-        
-        if not tickers and not has_cash:
-            raise ValueError("Portfolio has no valid tickers")
-        
+
         # Determine optimization period (training or analysis)
         if out_of_sample:
             # Out-of-sample: use period BEFORE start_date for training
@@ -170,99 +300,27 @@ class OptimizationService:
             # Regular mode: use specified period
             optimization_start = start_date
             optimization_end = end_date
-        
-        # Fetch price data using bulk method (if tickers exist)
-        if tickers:
-            logger.info(
-                f"Fetching price data for {len(tickers)} tickers "
-                f"from {optimization_start} to {optimization_end}"
+
+        if method in ("min_tracking_error", "max_alpha") and not benchmark_ticker:
+            raise ValueError(
+                f"Method {method} requires benchmark_ticker"
             )
-            
-            price_data = self._data_service.fetch_bulk_prices(
-                tickers=tickers,
-                start_date=optimization_start,
-                end_date=optimization_end,
-                use_cache=True,
-                save_to_db=False,
-            )
-            
-            if price_data.empty:
-                raise InsufficientDataError(
-                    f"No price data available for period "
-                    f"{optimization_start} to {optimization_end}"
-                )
-            
-            # Convert to pivot format (dates as index, tickers as columns)
-            # fetch_bulk_prices returns DataFrame with Date, Adjusted_Close, Ticker columns
-            if "Ticker" in price_data.columns and "Adjusted_Close" in price_data.columns:
-                # Pivot to have dates as index, tickers as columns
-                if "Date" in price_data.columns:
-                    price_data["Date"] = pd.to_datetime(
-                        price_data["Date"], errors="coerce"
-                    )
-                    price_data["Date"] = price_data["Date"].dt.tz_localize(None)
-                    pivot_df = price_data.pivot_table(
-                        index="Date",
-                        columns="Ticker",
-                        values="Adjusted_Close",
-                        aggfunc="last",
-                    )
-                    price_data = pivot_df
-            
-            # Ensure index is datetime
-            if not isinstance(price_data.index, pd.DatetimeIndex):
-                price_data.index = pd.to_datetime(
-                    price_data.index, errors="coerce"
-                )
-            
-            # Filter by date range
-            start_ts = pd.Timestamp(optimization_start)
-            end_ts = pd.Timestamp(optimization_end)
-            price_data = price_data[
-                (price_data.index >= start_ts) & (price_data.index <= end_ts)
-            ]
-            
-            if price_data.empty:
-                raise InsufficientDataError(
-                    f"No price data available for period "
-                    f"{optimization_start} to {optimization_end}"
-                )
-            
-            # Calculate returns
-            returns = price_data.pct_change().dropna()
-        else:
-            # Only CASH - create empty returns DataFrame with date index
-            dr = pd.bdate_range(start=optimization_start, end=optimization_end, normalize=True)
-            returns = pd.DataFrame(index=dr)
-            returns.index = pd.to_datetime(returns.index, errors="coerce")
-            returns.index = returns.index.tz_localize(None)
-        
-        # Add CASH returns if CASH position exists
-        if has_cash:
-            # Daily return = (1 + annual_rate)^(1/252) - 1
-            daily_return = (1 + self._risk_free_rate) ** (
-                1.0 / TRADING_DAYS_PER_YEAR
-            ) - 1
-            
-            # Create CASH returns series with same index as returns
-            cash_returns = pd.Series(
-                data=daily_return,
-                index=returns.index,
-                name="CASH",
-            )
-            
-            # Add CASH column to returns DataFrame
-            returns["CASH"] = cash_returns
-        
-        if returns.empty or len(returns) < 30:
-            raise InsufficientDataError(
-                "Insufficient data points for optimization "
-                f"(need at least 30, got {len(returns)})"
-            )
-        
+
+        bench_arg = (
+            benchmark_ticker
+            if method in ("min_tracking_error", "max_alpha")
+            else None
+        )
+        returns, bm_series = self.load_portfolio_returns_and_benchmark(
+            portfolio_id,
+            optimization_start,
+            optimization_end,
+            benchmark_ticker=bench_arg,
+        )
+
         # Get optimizer class
         optimizer_class = OPTIMIZATION_METHODS[method]
-        
+
         # If using mean_variance with maximize_sharpe objective, use MaxSharpeOptimizer
         # for consistency with Efficient Frontier calculation
         if (
@@ -278,75 +336,10 @@ class OptimizationService:
             method_params = {
                 k: v for k, v in method_params.items() if k != "objective"
             }
-        
+
         # Initialize optimizer
         if method in ["min_tracking_error", "max_alpha"]:
-            # Methods that require benchmark
-            if not benchmark_ticker:
-                raise ValueError(
-                    f"Method {method} requires benchmark_ticker"
-                )
-            
-            benchmark_prices = self._data_service.fetch_historical_prices(
-                ticker=benchmark_ticker,
-                start_date=optimization_start,
-                end_date=optimization_end,
-                use_cache=True,
-                save_to_db=False,
-            )
-            
-            if benchmark_prices.empty:
-                raise InsufficientDataError(
-                    f"No price data for benchmark {benchmark_ticker}"
-                )
-            
-            # Set Date as index if available
-            if "Date" in benchmark_prices.columns:
-                benchmark_prices.set_index("Date", inplace=True)
-                benchmark_prices.index = pd.to_datetime(
-                    benchmark_prices.index, errors="coerce"
-                )
-                benchmark_prices.index = benchmark_prices.index.tz_localize(None)
-            
-            # Extract Adjusted_Close and calculate returns
-            benchmark_returns = (
-                benchmark_prices["Adjusted_Close"].pct_change().dropna()
-            )
-            
-            # Align returns - ensure both have DatetimeIndex
-            returns.index = pd.to_datetime(returns.index, errors="coerce")
-            returns.index = returns.index.tz_localize(None)
-            benchmark_returns.index = pd.to_datetime(
-                benchmark_returns.index, errors="coerce"
-            )
-            benchmark_returns.index = benchmark_returns.index.tz_localize(None)
-            
-            # Find common index
-            common_index = returns.index.intersection(benchmark_returns.index)
-            
-            if len(common_index) < 30:
-                raise InsufficientDataError(
-                    "Insufficient aligned data points"
-                )
-            
-            # Align both to common index
-            returns_aligned = returns.reindex(common_index).dropna()
-            benchmark_aligned = benchmark_returns.reindex(common_index).dropna()
-            
-            # Final intersection after dropna
-            final_index = returns_aligned.index.intersection(
-                benchmark_aligned.index
-            )
-            
-            if len(final_index) < 30:
-                raise InsufficientDataError(
-                    "Insufficient aligned data points after filtering"
-                )
-            
-            optimizer = optimizer_class(
-                returns_aligned.reindex(final_index),
-                benchmark_aligned.reindex(final_index),
-            )
+            optimizer = optimizer_class(returns, bm_series)
         else:
             optimizer = optimizer_class(returns)
         

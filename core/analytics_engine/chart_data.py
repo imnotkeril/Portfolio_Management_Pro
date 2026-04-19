@@ -1125,7 +1125,7 @@ def get_win_rate_statistics_data(
     weekly_stats = calculate_win_rate_stats(weekly_returns, "weekly") if not weekly_returns.empty else {}
     
     # Monthly win rate
-    monthly_returns = portfolio_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+    monthly_returns = portfolio_returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
     monthly_stats = calculate_win_rate_stats(monthly_returns, "monthly") if not monthly_returns.empty else {}
     
     # Quarterly win rate
@@ -1142,7 +1142,7 @@ def get_win_rate_statistics_data(
     window_days = 252  # ~12 months of trading days
     
     # Pre-calculate monthly returns for efficiency
-    monthly_returns_full = portfolio_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+    monthly_returns_full = portfolio_returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
     
     # For each day, get returns from last 12 months (252 trading days)
     for i in range(len(portfolio_returns)):
@@ -1154,7 +1154,7 @@ def get_win_rate_statistics_data(
         
         if len(window_returns) >= 20:  # At least 20 days to have meaningful data
             # Calculate monthly returns in this window
-            monthly_in_window = window_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+            monthly_in_window = window_returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
             
             # Need at least 3 months to calculate meaningful win rate
             if len(monthly_in_window) >= 3:
@@ -1167,7 +1167,7 @@ def get_win_rate_statistics_data(
         bench_daily = calculate_win_rate_stats(benchmark_returns, "daily")
         bench_weekly_returns = benchmark_returns.resample("W").apply(lambda x: (1 + x).prod() - 1)
         bench_weekly = calculate_win_rate_stats(bench_weekly_returns, "weekly") if not bench_weekly_returns.empty else {}
-        bench_monthly_returns = benchmark_returns.resample("M").apply(lambda x: (1 + x).prod() - 1)
+        bench_monthly_returns = benchmark_returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
         bench_monthly = calculate_win_rate_stats(bench_monthly_returns, "monthly") if not bench_monthly_returns.empty else {}
         bench_quarterly_returns = benchmark_returns.resample("Q").apply(lambda x: (1 + x).prod() - 1)
         bench_quarterly = calculate_win_rate_stats(bench_quarterly_returns, "quarterly") if not bench_quarterly_returns.empty else {}

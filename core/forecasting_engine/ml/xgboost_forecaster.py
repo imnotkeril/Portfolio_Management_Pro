@@ -453,13 +453,15 @@ class XGBoostForecaster(BaseForecaster):
                 np.std(returns[-20:]) if len(returns) >= 20 else 0.0,
             ])
 
-            # RSI (simplified) (1 feature)
+            # RSI (simplified) — match calculate_technical_indicators(): mean of gains/losses over window / 14
             if len(returns) >= 14:
                 delta = returns[-14:]
-                gain = np.mean(delta[delta > 0]) if np.any(delta > 0) else 0.0
-                loss = np.mean(-delta[delta < 0]) if np.any(delta < 0) else 0.0001
-                rs = gain / loss if loss > 0 else 0.0
-                rsi = 100 - (100 / (1 + rs)) if rs > 0 else 50.0
+                gain = float(np.mean(np.maximum(delta, 0.0)))
+                loss = float(np.mean(np.maximum(-delta, 0.0)))
+                loss_safe = loss if loss > 1e-10 else 1e-10
+                rs = gain / loss_safe
+                rs = 0.0 if not np.isfinite(rs) else rs
+                rsi = 100.0 - (100.0 / (1.0 + rs)) if rs > 0 else 50.0
             else:
                 rsi = 50.0
             features.append(rsi)

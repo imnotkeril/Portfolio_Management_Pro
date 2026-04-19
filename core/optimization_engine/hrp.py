@@ -32,6 +32,9 @@ class HRPOptimizer(BaseOptimizer):
     def optimize(
         self,
         constraints: Optional[Dict[str, any]] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
+        linkage_method: str = "average",
     ) -> OptimizationResult:
         """
         Optimize portfolio using Hierarchical Risk Parity.
@@ -68,7 +71,11 @@ class HRPOptimizer(BaseOptimizer):
         
         try:
             # Handle CASH: set minimum volatility to avoid division by zero
-            cov_matrix = self._cov_matrix.values.copy()
+            effective_cov = self._estimate_covariance_matrix(
+                covariance_method=covariance_method,
+                shrinkage_alpha=shrinkage_alpha,
+            )
+            cov_matrix = effective_cov.values.copy()
             cash_indices = [
                 i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
             ]
@@ -78,7 +85,7 @@ class HRPOptimizer(BaseOptimizer):
                     cov_matrix[cash_idx, cash_idx] = 1e-8
             
             # Work with full covariance matrix
-            cov_df = self._cov_matrix.copy()
+            cov_df = effective_cov.copy()
             for cash_idx in cash_indices:
                 if cov_df.iloc[cash_idx, cash_idx] < 1e-8:
                     cov_df.iloc[cash_idx, cash_idx] = 1e-8
@@ -89,17 +96,21 @@ class HRPOptimizer(BaseOptimizer):
             corr_matrix = np.nan_to_num(corr_matrix, nan=0.0)
             
             # Step 2: Hierarchical clustering
-            # Convert correlation to distance (1 - corr)
-            distance_matrix = 1 - corr_matrix
+            # Notebook-compatible metric:
+            # d(i,j) = sqrt(0.5 * (1 - corr(i,j)))
+            distance_matrix = np.sqrt(
+                np.clip(0.5 * (1.0 - corr_matrix), 0.0, None)
+            )
             # Make symmetric and ensure non-negative
             distance_matrix = (
                 distance_matrix + distance_matrix.T
             ) / 2
             distance_matrix = np.maximum(distance_matrix, 0.0)
+            np.fill_diagonal(distance_matrix, 0.0)
             
             # Convert to condensed distance matrix for linkage
             condensed_distances = squareform(distance_matrix, checks=False)
-            linkage_matrix = linkage(condensed_distances, method="ward")
+            linkage_matrix = linkage(condensed_distances, method=linkage_method)
             
             # Step 3: Quasi-diagonalization (reorder by cluster)
             ordered_indices = leaves_list(linkage_matrix)
@@ -110,10 +121,7 @@ class HRPOptimizer(BaseOptimizer):
             ].values
             
             # Step 4: Recursive bisection for weights
-            weights_ordered = self._recursive_bisection(
-                cov_ordered,
-                list(range(n)),
-            )
+            weights_ordered = self._recursive_bisection(cov_ordered)
             
             # Reorder weights back to original order
             weights = np.zeros(n)
@@ -145,6 +153,13 @@ class HRPOptimizer(BaseOptimizer):
                 message="HRP optimization completed",
                 metadata={
                     "n_assets": n,
+                    "linkage_method": linkage_method,
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:
@@ -210,90 +225,48 @@ class HRPOptimizer(BaseOptimizer):
         
         return linkage_matrix
     
-    def _recursive_bisection(
-        self,
-        cov_matrix: np.ndarray,
-        indices: np.ndarray,
-    ) -> np.ndarray:
+    def _recursive_bisection(self, cov_matrix: np.ndarray) -> np.ndarray:
         """
-        Recursively bisect portfolio to allocate weights.
-        
-        This is the core of HRP algorithm. It recursively splits
-        the portfolio into two clusters and allocates weights
-        inversely proportional to cluster variance.
-        
-        Args:
-            cov_matrix: Covariance matrix (ordered)
-            indices: Asset indices in current cluster
-        
-        Returns:
-            Weights array for assets in this cluster
+        Recursive bisection with cluster-variance allocation.
+
+        For each split:
+        - compute cluster variance via inverse-variance allocation inside cluster
+        - allocate between left/right clusters inversely to cluster variance
         """
-        n = len(indices)
-        
-        if n == 1:
-            # Base case: single asset gets full weight
-            return np.array([1.0])
-        
-        if n == 2:
-            # Base case: two assets, allocate inversely to variance
-            var1 = cov_matrix[0, 0]
-            var2 = cov_matrix[1, 1]
-            
-            # Inverse variance weighting
-            w1 = 1.0 / var1 if var1 > 0 else 0.5
-            w2 = 1.0 / var2 if var2 > 0 else 0.5
-            
-            weights = np.array([w1, w2])
-            return weights / weights.sum()
-        
-        # For more than 2 assets, split into two clusters
-        # Find split point that minimizes inter-cluster correlation
-        # Simple approach: split at midpoint
-        split_point = n // 2
-        
-        # Split indices
-        left_indices = indices[:split_point]
-        right_indices = indices[split_point:]
-        
-        # Get sub-covariance matrices
-        left_cov = cov_matrix[:split_point, :split_point]
-        right_cov = cov_matrix[split_point:, split_point:]
-        
-        # Calculate cluster variances
-        left_var = np.trace(left_cov) / len(left_indices)
-        right_var = np.trace(right_cov) / len(right_indices)
-        
-        # Allocate weight inversely to variance
-        if left_var > 0 and right_var > 0:
-            left_weight = 1.0 / left_var
-            right_weight = 1.0 / right_var
-        else:
-            # Equal weights if variance is zero
-            left_weight = 1.0
-            right_weight = 1.0
-        
-        total_weight = left_weight + right_weight
-        left_weight /= total_weight
-        right_weight /= total_weight
-        
-        # Recursively allocate within each cluster
-        left_weights = self._recursive_bisection(
-            left_cov,
-            np.arange(len(left_indices)),
-        )
-        right_weights = self._recursive_bisection(
-            right_cov,
-            np.arange(len(right_indices)),
-        )
-        
-        # Combine weights
-        weights = np.concatenate([
-            left_weights * left_weight,
-            right_weights * right_weight,
-        ])
-        
-        return weights
+        n = cov_matrix.shape[0]
+        weights = np.ones(n, dtype=float)
+        clusters = [(0, n)]
+
+        def _cluster_variance(cov: np.ndarray, idx: list[int]) -> float:
+            if len(idx) == 1:
+                return float(cov[idx[0], idx[0]])
+            sub = cov[np.ix_(idx, idx)]
+            ivp = 1.0 / np.maximum(np.diag(sub), 1e-20)
+            ivp = ivp / ivp.sum()
+            ivp_col = ivp.reshape(-1, 1)
+            return float((ivp_col.T @ sub @ ivp_col)[0, 0])
+
+        while clusters:
+            next_clusters = []
+            for start, end in clusters:
+                if end - start <= 1:
+                    continue
+                split = start + (end - start) // 2
+                left = list(range(start, split))
+                right = list(range(split, end))
+                left_var = _cluster_variance(cov_matrix, left)
+                right_var = _cluster_variance(cov_matrix, right)
+                inv_left = 1.0 / max(left_var, 1e-20)
+                inv_right = 1.0 / max(right_var, 1e-20)
+                alpha = inv_left / (inv_left + inv_right)
+                weights[left] *= alpha
+                weights[right] *= (1.0 - alpha)
+                next_clusters.append((start, split))
+                next_clusters.append((split, end))
+            clusters = next_clusters
+
+        weights = np.maximum(weights, 0.0)
+        return weights / max(weights.sum(), 1e-20)
     
     def _build_constraints(
         self, constraints: Optional[Dict[str, any]]

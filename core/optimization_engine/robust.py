@@ -38,6 +38,10 @@ class RobustOptimizer(BaseOptimizer):
         uncertainty_radius_returns: float = 0.1,
         uncertainty_radius_cov: float = 0.1,
         objective: Optional[str] = None,
+        robust_kappa: Optional[float] = None,
+        robust_lambda: Optional[float] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio using robust optimization.
@@ -67,90 +71,67 @@ class RobustOptimizer(BaseOptimizer):
             )
             return fallback.optimize(constraints=constraints, objective=objective)
         
-        # If objective is specified and not maximize_sharpe, use mean-variance
-        # Robust optimization currently only supports maximize_sharpe
         if objective and objective != "maximize_sharpe":
-            logger.info(
-                f"Robust optimization only supports maximize_sharpe, "
-                f"falling back to mean-variance for objective: {objective}"
+            logger.warning(
+                "Robust optimizer uses fixed robust utility objective; "
+                "ignoring unsupported objective=%s",
+                objective,
             )
-            from core.optimization_engine.mean_variance import (
-                MeanVarianceOptimizer,
-            )
-            fallback = MeanVarianceOptimizer(
-                self.returns,
-                self.risk_free_rate,
-                self.periods_per_year,
-            )
-            return fallback.optimize(constraints=constraints, objective=objective)
         
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
+        effective_cov = self._estimate_covariance_matrix(
+            covariance_method=covariance_method,
+            shrinkage_alpha=shrinkage_alpha,
+        )
         
         n = len(self.tickers)
         
         try:
-            # Robust optimization: minimize worst-case risk
-            # Subject to worst-case return constraint
-            
             # Decision variable
             w = cp.Variable(n)
-            
-            # Nominal (estimated) values
+
+            # Nominal annualized moments
             mu_nominal = self._mean_returns.values
-            Sigma_nominal = self._cov_matrix.values
-            
-            # Uncertainty sets
-            # Returns: mu in {mu_nominal ± uncertainty_radius}
-            # Covariance: Sigma in {Sigma_nominal ± uncertainty_radius}
-            
-            # Worst-case return (minimum over uncertainty set)
-            # For ellipsoidal uncertainty: min mu^T w - ||w||_2 * radius
-            worst_case_return = (
-                mu_nominal @ w
-                - uncertainty_radius_returns * cp.norm(w, 2)
+            Sigma_nominal = effective_cov.values
+            T_train = max(len(self.returns), 1)
+            Sigma_mu = Sigma_nominal / T_train
+
+            # Notebook-aligned robust parameters.
+            # Keep backward compatibility with existing uncertainty_* params.
+            kappa = (
+                float(robust_kappa)
+                if robust_kappa is not None
+                else float(uncertainty_radius_returns)
             )
-            
-            # Worst-case variance (maximum over uncertainty set)
-            # For covariance uncertainty: max w^T Sigma w
-            # Simplified: use nominal + uncertainty adjustment
-            worst_case_variance = cp.quad_form(
-                w,
-                Sigma_nominal * (1.0 + uncertainty_radius_cov),
+            lam = (
+                float(robust_lambda)
+                if robust_lambda is not None
+                else max(float(uncertainty_radius_cov) * 10.0, 1e-8)
             )
-            
-            # Objective: minimize worst-case variance
-            # Subject to worst-case return >= target
-            # For simplicity, we maximize worst-case Sharpe-like ratio
-            # Or minimize worst-case variance with return constraint
-            
-            # Use risk-adjusted return: max (return - lambda * risk)
-            # This implements maximize_sharpe for robust optimization
-            # Note: We use variance directly instead of sqrt(variance) for DCP compliance
-            # This is equivalent to maximizing (return - lambda * variance) instead of Sharpe
-            risk_aversion = 1.0
-            cp_objective = cp.Maximize(
-                worst_case_return
-                - risk_aversion * worst_case_variance
+
+            # Worst-case mean under ellipsoidal uncertainty:
+            # mu_hat'w - kappa * sqrt(w' * Sigma_mu * w)
+            Sigma_mu_chol = np.linalg.cholesky(
+                Sigma_mu + 1e-12 * np.eye(n)
             )
-            
+            worst_case_mean = (
+                mu_nominal @ w - kappa * cp.norm(Sigma_mu_chol @ w, 2)
+            )
+            risk_penalty = cp.quad_form(w, Sigma_nominal)
+            cp_objective = cp.Maximize(worst_case_mean - lam * risk_penalty)
+
             # Constraints
             constraints_list = [
-                # Weights sum to 1
                 cp.sum(w) == 1.0,
-                
-                # Weight bounds
                 w >= min_bounds,
                 w <= max_bounds,
-                
-                # Worst-case return >= minimum acceptable
-                worst_case_return >= mu_nominal.min() * 0.5,
             ]
-            
-            # Return constraint (if specified)
+
+            # Return constraint (if specified): enforce on worst-case mean
             if constraints_obj.min_return is not None:
                 constraints_list.append(
-                    worst_case_return >= constraints_obj.min_return
+                    worst_case_mean >= constraints_obj.min_return
                 )
             
             # Cash constraint (if specified)
@@ -166,11 +147,9 @@ class RobustOptimizer(BaseOptimizer):
             
             # Risk constraints
             if constraints_obj.max_volatility is not None:
-                # Use variance constraint instead of volatility for DCP compliance
-                # max_volatility^2 = max_variance
                 max_variance = constraints_obj.max_volatility ** 2
                 constraints_list.append(
-                    worst_case_variance <= max_variance
+                    risk_penalty <= max_variance
                 )
             
             # Solve
@@ -214,7 +193,6 @@ class RobustOptimizer(BaseOptimizer):
                             cp.sum(w) == 1.0,
                             w >= min_bounds,
                             w <= max_bounds,
-                            worst_case_return >= mu_nominal.min() * 0.5,
                         ]
                         if constraints_obj.max_cash_weight is not None:
                             cash_indices = [
@@ -226,7 +204,7 @@ class RobustOptimizer(BaseOptimizer):
                                 )
                         if constraints_obj.max_volatility is not None:
                             relaxed_constraints.append(
-                                cp.sqrt(worst_case_variance) <= constraints_obj.max_volatility
+                                risk_penalty <= constraints_obj.max_volatility ** 2
                             )
                         
                         relaxed_problem = cp.Problem(cp_objective, relaxed_constraints)
@@ -273,8 +251,18 @@ class RobustOptimizer(BaseOptimizer):
                     f"(uncertainty: {uncertainty_radius_returns:.0%})"
                 ),
                 metadata={
+                    "robust_kappa": kappa,
+                    "robust_lambda": lam,
+                    # Legacy fields (for API compatibility)
                     "uncertainty_radius_returns": uncertainty_radius_returns,
                     "uncertainty_radius_cov": uncertainty_radius_cov,
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
+                    "training_observations": T_train,
                     "problem_status": problem.status,
                 },
             )

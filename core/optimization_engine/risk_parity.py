@@ -28,6 +28,8 @@ class RiskParityOptimizer(BaseOptimizer):
     def optimize(
         self,
         constraints: Optional[Dict[str, any]] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio using risk parity.
@@ -45,7 +47,11 @@ class RiskParityOptimizer(BaseOptimizer):
         
         # Handle CASH: set minimum volatility to avoid division by zero
         # CASH typically has zero volatility, which breaks risk parity
-        cov_matrix = self._cov_matrix.values.copy()
+        effective_cov = self._estimate_covariance_matrix(
+            covariance_method=covariance_method,
+            shrinkage_alpha=shrinkage_alpha,
+        )
+        cov_matrix = effective_cov.values.copy()
         cash_indices = [
             i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
         ]
@@ -53,6 +59,9 @@ class RiskParityOptimizer(BaseOptimizer):
         for cash_idx in cash_indices:
             if cov_matrix[cash_idx, cash_idx] < 1e-8:
                 cov_matrix[cash_idx, cash_idx] = 1e-8
+        non_cash_indices = [
+            i for i in range(n) if i not in set(cash_indices)
+        ]
 
         # Risk parity: minimize sum of squared differences in risk
         # contributions from their mean
@@ -71,10 +80,16 @@ class RiskParityOptimizer(BaseOptimizer):
             # Risk contribution per asset: RC[i] = weight[i] * MCR[i]
             risk_contrib = weights * mcr
 
-            # Target: equal risk contribution for all assets
+            # Target: equal risk contribution for non-CASH assets.
+            # CASH can have near-zero variance and should not distort ERC target.
+            target_rc = (
+                risk_contrib[non_cash_indices]
+                if len(non_cash_indices) > 0
+                else risk_contrib
+            )
             # Minimize sum of squared differences from mean
-            mean_rc = np.mean(risk_contrib)
-            diff = risk_contrib - mean_rc
+            mean_rc = np.mean(target_rc)
+            diff = target_rc - mean_rc
 
             return float(np.sum(diff ** 2))
 
@@ -151,6 +166,17 @@ class RiskParityOptimizer(BaseOptimizer):
                 metadata={
                     "iterations": result.nit,
                     "fun": float(result.fun),
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
+                    "erc_scope": (
+                        "non_cash_assets"
+                        if len(non_cash_indices) > 0
+                        else "all_assets"
+                    ),
                 },
             )
         except Exception as e:

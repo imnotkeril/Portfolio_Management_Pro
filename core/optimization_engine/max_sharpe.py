@@ -24,6 +24,8 @@ class MaxSharpeOptimizer(BaseOptimizer):
     def optimize(
         self,
         constraints: Optional[Dict[str, any]] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio to maximize Sharpe ratio.
@@ -36,6 +38,10 @@ class MaxSharpeOptimizer(BaseOptimizer):
         """
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
+        effective_cov = self._estimate_covariance_matrix(
+            covariance_method=covariance_method,
+            shrinkage_alpha=shrinkage_alpha,
+        )
         
         n = len(self.tickers)
         
@@ -47,7 +53,7 @@ class MaxSharpeOptimizer(BaseOptimizer):
         def objective(weights: np.ndarray) -> float:
             portfolio_return = np.dot(weights, self._mean_returns)
             portfolio_variance = float(
-                weights.T @ self._cov_matrix.values @ weights
+                weights.T @ effective_cov.values @ weights
             )
             portfolio_vol = np.sqrt(portfolio_variance)
             
@@ -134,7 +140,7 @@ class MaxSharpeOptimizer(BaseOptimizer):
                         test_return = np.dot(test_weights, self._mean_returns)
                         test_variance = float(
                             test_weights.T
-                            @ self._cov_matrix.values
+                            @ effective_cov.values
                             @ test_weights
                         )
                         test_vol = np.sqrt(test_variance)
@@ -152,7 +158,7 @@ class MaxSharpeOptimizer(BaseOptimizer):
                             test_return = np.dot(test_weights, self._mean_returns)
                             test_variance = float(
                                 test_weights.T
-                                @ self._cov_matrix.values
+                                @ effective_cov.values
                                 @ test_weights
                             )
                             test_vol = np.sqrt(test_variance)
@@ -210,6 +216,12 @@ class MaxSharpeOptimizer(BaseOptimizer):
                 metadata={
                     "iterations": result.nit,
                     "fun": float(result.fun),
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:

@@ -444,56 +444,24 @@ class LSTMForecaster(BaseForecaster):
                 f"[{last_sequence.min():.4f}, {last_sequence.max():.4f}]"
             )
 
-            # For very long horizons, add some noise reduction and stability checks
-            # Track recent predictions to detect if model is stuck
-            recent_predictions = []
-            max_recent = min(10, horizon // 10)
-            
             for step in range(horizon):
                 # Reshape for prediction
                 X_pred = last_sequence.reshape((1, lookback, 1))
 
-                # Predict next value
+                # Predict next value (scaled space)
                 next_value_raw = model.predict(X_pred, verbose=0)[0, 0]
-                
-                # Log raw prediction
+
                 if step < 3 or step == horizon - 1 or step % 50 == 0:
                     logger.debug(
                         f"LSTM: Step {step}/{horizon}, raw prediction: {next_value_raw:.6f}, "
                         f"sequence range: [{last_sequence.min():.4f}, "
                         f"{last_sequence.max():.4f}]"
                     )
-                
-                # Apply stability check: if predictions are too similar, add small variation
-                # This prevents the model from getting stuck in a constant prediction
-                if len(recent_predictions) >= max_recent:
-                    recent_std = np.std(recent_predictions[-max_recent:])
-                    if recent_std < 0.01:  # Very low variation - model might be stuck
-                        # Add small random variation based on historical volatility
-                        hist_std = np.std(train_scaled[-min(60, len(train_scaled)):])
-                        noise = np.random.normal(0, hist_std * 0.1)
-                        next_value_raw = next_value_raw + noise
-                        logger.debug(
-                            f"LSTM: Step {step}, detected low variation, "
-                            f"adding stability noise: {noise:.6f}"
-                        )
-                
-                # StandardScaler doesn't have hard bounds like MinMaxScaler
-                # But we can still apply reasonable clipping to prevent extreme values
-                # For log returns, clip to reasonable range (±5% per day is extreme)
-                if use_log_returns:
-                    next_value_scaled = np.clip(next_value_raw, -0.05, 0.05)
-                else:
-                    next_value_scaled = next_value_raw
-                
-                forecast_scaled.append(next_value_scaled)
-                recent_predictions.append(next_value_scaled)
 
-                # Update sequence (shift and append)
-                # Use the predicted value directly for next prediction
-                last_sequence = np.append(
-                    last_sequence[1:], next_value_scaled
-                )
+                forecast_scaled.append(next_value_raw)
+
+                # Update sequence in scaled space (no arbitrary clip here; clip real log returns after inverse)
+                last_sequence = np.append(last_sequence[1:], next_value_raw)
             
             # Log forecast statistics
             forecast_array = np.array(forecast_scaled)
@@ -505,12 +473,14 @@ class LSTMForecaster(BaseForecaster):
                 f"unique values: {len(np.unique(forecast_array))}"
             )
 
-            # Inverse transform forecast
+            # Inverse transform forecast (clip log returns in real space, not scaled space)
             forecast_scaled_array = np.array(forecast_scaled).reshape(-1, 1)
             forecast_unscaled = scaler.inverse_transform(
                 forecast_scaled_array
             ).ravel()
-            
+            if use_log_returns:
+                forecast_unscaled = np.clip(forecast_unscaled, -0.05, 0.05)
+
             # Convert log returns or returns to prices if needed
             # According to guides: BEST APPROACH for trading - forecast log returns
             if use_log_returns:

@@ -24,6 +24,8 @@ class MinVarianceOptimizer(BaseOptimizer):
     def optimize(
         self,
         constraints: Optional[Dict[str, any]] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio to minimize variance.
@@ -36,13 +38,17 @@ class MinVarianceOptimizer(BaseOptimizer):
         """
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
+        effective_cov = self._estimate_covariance_matrix(
+            covariance_method=covariance_method,
+            shrinkage_alpha=shrinkage_alpha,
+        )
         
         n = len(self.tickers)
         
         # Objective: minimize portfolio variance = w^T * Cov * w
         def objective(weights: np.ndarray) -> float:
             return float(
-                weights.T @ self._cov_matrix.values @ weights
+                weights.T @ effective_cov.values @ weights
             )
         
         # Constraint: weights sum to 1
@@ -86,6 +92,12 @@ class MinVarianceOptimizer(BaseOptimizer):
                 metadata={
                     "iterations": result.nit,
                     "variance": float(result.fun),
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:

@@ -1,0 +1,12 @@
+.git
+.gitignore
+.cursor
+.pytest_cache
+__pycache__
+*.pyc
+htmlcov
+coverage.xml
+logs
+frontend/node_modules
+frontend/.next
+

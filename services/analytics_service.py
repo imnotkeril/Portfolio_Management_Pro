@@ -4,6 +4,7 @@ import logging
 from datetime import date
 from typing import Dict, Optional
 
+import numpy as np
 import pandas as pd
 
 from core.analytics_engine.engine import AnalyticsEngine
@@ -454,4 +455,64 @@ class AnalyticsService:
             pass
 
         return portfolio_values
+
+    def simulate_buy_and_hold_returns_from_weights(
+        self,
+        weights: Dict[str, float],
+        start_date: date,
+        end_date: date,
+    ) -> pd.Series:
+        """
+        Buy-and-hold daily simple returns with fixed share counts.
+
+        Share counts are chosen so that dollar weights match the given ``weights``
+        on the first date where all tickers have valid prices. This matches
+        ``_calculate_portfolio_returns`` for the live portfolio (fixed shares, weights
+        drift over time) — unlike a constant daily sum(w_i * r_i), which implies
+        daily rebalancing to fixed weights.
+        """
+        tickers = [t for t, w in weights.items() if abs(float(w)) > 1e-12]
+        if not tickers:
+            return pd.Series(dtype=float)
+
+        prices = self._fetch_portfolio_prices(tickers, start_date, end_date)
+        if prices.empty:
+            return pd.Series(dtype=float)
+
+        filled = prices.sort_index().ffill().bfill()
+        cols = [t for t in tickers if t in filled.columns]
+        if not cols:
+            return pd.Series(dtype=float)
+
+        sub = filled[cols]
+        valid = sub.dropna(how="any")
+        if valid.empty:
+            return pd.Series(dtype=float)
+
+        t0 = valid.index[0]
+        p0 = valid.loc[t0]
+        wvec = np.array([float(weights[t]) for t in cols], dtype=float)
+        wsum = float(wvec.sum())
+        if wsum <= 1e-14:
+            return pd.Series(dtype=float)
+        wvec = wvec / wsum
+
+        pv = p0.values.astype(float)
+        if np.any(pv <= 0) or not np.all(np.isfinite(pv)):
+            return pd.Series(dtype=float)
+
+        # Initial value = 1; n_i * P_i0 = w_i  =>  n_i = w_i / P_i0
+        n_shares = wvec / pv
+        tail = filled.loc[filled.index >= t0, cols]
+        values = (tail * n_shares).sum(axis=1).dropna()
+        if len(values) < 2:
+            return pd.Series(dtype=float)
+
+        rets = values.pct_change().dropna()
+        rets.index = pd.to_datetime(rets.index)
+        try:
+            rets.index = rets.index.tz_localize(None)
+        except Exception:
+            pass
+        return rets
 

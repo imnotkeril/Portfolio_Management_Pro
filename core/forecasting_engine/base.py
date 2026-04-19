@@ -54,6 +54,9 @@ class ForecastResult:
     message: str = ""
     """Status message"""
 
+    last_historical_price: Optional[float] = None
+    """Last price in the training series (for ensemble change_pct and UI)."""
+
     def __post_init__(self) -> None:
         """Calculate final_value and change_pct if not provided."""
         if len(self.forecast_values) > 0:
@@ -105,6 +108,12 @@ class ForecastResult:
             ),
             "success": bool(self.success),
             "message": str(self.message),
+            "last_historical_price": (
+                float(self.last_historical_price)
+                if self.last_historical_price is not None
+                and np.isfinite(self.last_historical_price)
+                else None
+            ),
         }
         return result
 

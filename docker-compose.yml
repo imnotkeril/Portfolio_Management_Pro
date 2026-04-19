@@ -1,0 +1,35 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: wmc-api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: sqlite:///./data/portfolio.db
+      CACHE_DIR: data/cache
+      LOG_LEVEL: INFO
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Must match host port mapping for api — browser runs on your machine, not inside Docker network
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: wmc-web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+

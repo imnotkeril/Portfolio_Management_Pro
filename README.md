@@ -104,6 +104,43 @@ pytest tests/performance/    # Performance tests
 
 ---
 
+## Next.js + FastAPI + Docker
+
+The project now includes:
+
+- `api/main.py` - FastAPI backend over existing `services/*` and `core/*`
+- `frontend/` - Next.js frontend with pages matching Streamlit navigation
+- `docker-compose.yml` - one-command startup for `api` and `web`
+
+### Run with Docker
+
+```bash
+docker compose up --build
+```
+
+Then open:
+
+- Frontend: `http://localhost:3000`
+- API health: `http://localhost:8000/health`
+
+### Local development
+
+Backend:
+
+```bash
+uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
 ## 📊 Performance
 
 | Operation | Target | Actual | Status |

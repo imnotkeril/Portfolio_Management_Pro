@@ -28,6 +28,8 @@ class InverseCorrelationOptimizer(BaseOptimizer):
     def optimize(
         self,
         constraints: Optional[Dict[str, any]] = None,
+        covariance_method: str = "shrink",
+        shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio using inverse correlation weighting.
@@ -46,44 +48,37 @@ class InverseCorrelationOptimizer(BaseOptimizer):
         n = len(self.tickers)
         
         try:
-            # Handle CASH: set minimum volatility to avoid division by zero
-            cov_matrix = self._cov_matrix.values.copy()
+            # Build correlation matrix directly from returns (train),
+            # consistent with notebook inverse-correlation heuristic.
+            corr_df = self.returns.corr().copy()
+            corr_df = corr_df.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+            corr_matrix = corr_df.values.astype(float)
             cash_indices = [
                 i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
             ]
-            # Set minimum volatility for CASH to avoid numerical issues
             for cash_idx in cash_indices:
-                if cov_matrix[cash_idx, cash_idx] < 1e-8:
-                    cov_matrix[cash_idx, cash_idx] = 1e-8
+                # Keep CASH neutral in correlation-based weighting.
+                corr_matrix[cash_idx, :] = 0.0
+                corr_matrix[:, cash_idx] = 0.0
+                corr_matrix[cash_idx, cash_idx] = 1.0
+            corr_matrix = 0.5 * (corr_matrix + corr_matrix.T)
+            corr_matrix = np.clip(corr_matrix, -1.0, 1.0)
             
-            # Build correlation matrix
-            std_devs = np.sqrt(np.diag(cov_matrix))
-            corr_matrix = cov_matrix / np.outer(std_devs, std_devs)
-            corr_matrix = np.nan_to_num(corr_matrix, nan=0.0)
-            
-            # Step 1: Calculate average correlation for each asset
-            avg_corrs = np.zeros(n)
-            for i in range(n):
-                # Average correlation with all other assets
-                other_corrs = [
-                    corr_matrix[i, j] for j in range(n) if j != i
-                ]
-                if len(other_corrs) > 0:
-                    avg_corrs[i] = np.mean(other_corrs)
-            
-            # Step 2: Calculate diversification score
-            # div_score = 1 - avg_corr (higher = more diversification)
-            div_scores = 1.0 - avg_corrs
-            
-            # Ensure non-negative scores
-            div_scores = np.maximum(div_scores, 0.0)
-            
-            # Step 3: Normalize to get weights
-            if div_scores.sum() == 0:
+            # Notebook-consistent inverse-correlation score:
+            # mean_row_i = sum_j rho_ij / n
+            # w_i ∝ 1 / mean_row_i
+            mean_row = corr_matrix.sum(axis=1) / max(n, 1)
+            inv_scores = 1.0 / np.maximum(mean_row, 1e-10)
+
+            # Exclude CASH from heuristic signal; allocation to CASH is handled by bounds.
+            for idx in cash_indices:
+                inv_scores[idx] = 0.0
+
+            if inv_scores.sum() <= 1e-20:
                 # Fallback to equal weights if all scores are zero
                 weights = np.ones(n) / n
             else:
-                weights = div_scores / div_scores.sum()
+                weights = inv_scores / inv_scores.sum()
             
             # Apply constraints (clip to bounds)
             weights = np.clip(weights, min_bounds, max_bounds)
@@ -93,7 +88,7 @@ class InverseCorrelationOptimizer(BaseOptimizer):
             metrics = self._calculate_portfolio_metrics(weights)
             
             # Calculate average correlation for metadata
-            avg_corr = float(np.mean(avg_corrs))
+            avg_corr = float(np.mean(mean_row))
             
             return OptimizationResult(
                 weights=weights,
@@ -106,7 +101,16 @@ class InverseCorrelationOptimizer(BaseOptimizer):
                 message="Inverse correlation weighting completed",
                 metadata={
                     "average_correlation": avg_corr,
-                    "diversification_scores": div_scores.tolist(),
+                    "mean_row_correlation": mean_row.tolist(),
+                    "inverse_correlation_scores": inv_scores.tolist(),
+                    # Legacy alias.
+                    "diversification_scores": inv_scores.tolist(),
+                    "covariance_method": covariance_method,
+                    "shrinkage_alpha": (
+                        float(shrinkage_alpha)
+                        if covariance_method == "shrink"
+                        else None
+                    ),
                 },
             )
         except Exception as e:

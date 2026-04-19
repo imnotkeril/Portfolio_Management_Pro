@@ -60,7 +60,7 @@ def calculate_volatility(
     # Calculate monthly if we have enough daily data
     if len(returns) >= 20:
         try:
-            monthly_returns = returns.resample("M").apply(
+            monthly_returns = returns.resample("ME").apply(
                 lambda x: (1 + x).prod() - 1
             )
             if len(monthly_returns) >= 2:
@@ -257,18 +257,24 @@ def calculate_recovery_time(returns: pd.Series) -> Optional[int]:
         # Find when we recovered (first date after trough where
         # value >= peak value)
         cum_returns = (1 + returns).cumprod()
-        peak_value = cum_returns.loc[peak_date] if peak_date else None
+        peak_ts = pd.Timestamp(peak_date) if peak_date else None
+        trough_ts = pd.Timestamp(trough_date) if trough_date else None
+        peak_value = cum_returns.loc[peak_ts] if peak_ts is not None else None
 
         if peak_value is None:
             return None
 
         # Find recovery point
-        after_trough = cum_returns[cum_returns.index > trough_date]
+        after_trough = (
+            cum_returns[cum_returns.index > trough_ts]
+            if trough_ts is not None
+            else cum_returns
+        )
         recovery_mask = after_trough >= peak_value
 
         if recovery_mask.any():
             recovery_date = after_trough[recovery_mask].index[0]
-            recovery_days = (recovery_date.date() - trough_date).days
+            recovery_days = (pd.Timestamp(recovery_date).date() - trough_date).days
             return int(recovery_days)
         else:
             # Not recovered yet
