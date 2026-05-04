@@ -262,6 +262,14 @@ function cumulative(pts: Pt[]): Pt[] {
   return pts.map((d) => { cum = (1 + cum) * (1 + d.y) - 1; return { x: d.x, y: cum }; });
 }
 
+/** Cumulative return from a NAV (or single-asset price) series — matches backend total_return from values. */
+function cumulativeFromNav(vals: Pt[]): Pt[] {
+  if (vals.length < 2) return [];
+  const v0 = vals[0].y;
+  if (!(v0 > 0) || !isFinite(v0)) return [];
+  return vals.map((d) => ({ x: d.x, y: d.y / v0 - 1 }));
+}
+
 function drawdownSeries(vals: Pt[]): Pt[] {
   let peak = -Infinity;
   return vals.map((d) => { if (d.y > peak) peak = d.y; return { x: d.x, y: peak > 0 ? (d.y - peak) / peak : 0 }; });
@@ -547,6 +555,7 @@ export default function AnalysisPage() {
     [benchmarkReturnsRaw],
   );
   const portfolioValues = useMemo(() => extractSeries(analytics?.portfolio_values), [analytics]);
+  const benchmarkValues = useMemo(() => extractSeries(analytics?.benchmark_values), [analytics]);
   /** Align portfolio/benchmark daily returns by calendar date (series may differ in length). */
   const portReturnByDate = useMemo(() => {
     const m = new Map<string, number>();
@@ -575,11 +584,25 @@ export default function AnalysisPage() {
   })();
   const maxDD = typeof risk?.max_drawdown === "number" ? risk.max_drawdown : (Array.isArray(risk?.max_drawdown) ? risk.max_drawdown[0] : risk?.max_drawdown);
 
-  /* ────── Pre-compute series for charts ────── */
-  const portCum = useMemo(() => cumulative(portfolioReturns), [portfolioReturns]);
-  const benchCum = useMemo(() => hasBenchmark ? cumulative(benchmarkReturns) : [], [benchmarkReturns, hasBenchmark]);
+  /* ────── Pre-compute series for charts (NAV-based cumulative matches Total Return cards; daily-return compound can diverge) ────── */
+  const portCum = useMemo(() => {
+    if (portfolioValues.length >= 2 && portfolioValues[0].y > 0 && isFinite(portfolioValues[0].y))
+      return cumulativeFromNav(portfolioValues);
+    return cumulative(portfolioReturns);
+  }, [portfolioValues, portfolioReturns]);
+  const benchCum = useMemo(() => {
+    if (!hasBenchmark) return [];
+    if (benchmarkValues.length >= 2 && benchmarkValues[0].y > 0 && isFinite(benchmarkValues[0].y))
+      return cumulativeFromNav(benchmarkValues);
+    return cumulative(benchmarkReturns);
+  }, [hasBenchmark, benchmarkValues, benchmarkReturns]);
   const portDD = useMemo(() => portfolioValues.length > 0 ? drawdownSeries(portfolioValues) : drawdownFromReturns(portfolioReturns), [portfolioValues, portfolioReturns]);
-  const benchDD = useMemo(() => hasBenchmark ? drawdownFromReturns(benchmarkReturns) : [], [benchmarkReturns, hasBenchmark]);
+  const benchDD = useMemo(() => {
+    if (!hasBenchmark) return [];
+    if (benchmarkValues.length >= 2 && benchmarkValues[0].y > 0 && isFinite(benchmarkValues[0].y))
+      return drawdownSeries(benchmarkValues);
+    return drawdownFromReturns(benchmarkReturns);
+  }, [hasBenchmark, benchmarkValues, benchmarkReturns]);
 
   const allocationData = useMemo(() => {
     if (!positions.length) return [];

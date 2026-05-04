@@ -183,6 +183,36 @@ class AnalyticsService:
                 f"Comparison fetch failed: type={comparison_type}, value={comparison_value}, error={e}"
             )
 
+        # NAV curve for comparison ticker (same window/index as benchmark_returns) — charts use
+        # value/Value0-1 so cumulative % matches comparison_metrics / prices, not client compounding.
+        benchmark_values: Optional[pd.Series] = None
+        if (
+            comparison_type == "ticker"
+            and comparison_label
+            and benchmark_returns is not None
+            and not benchmark_returns.empty
+        ):
+            try:
+                bm_prices = self._fetch_portfolio_prices(
+                    [comparison_label], start_date, end_date
+                )
+                if not bm_prices.empty and comparison_label in bm_prices.columns:
+
+                    class _BmPos:
+                        def __init__(self, t: str, s: float) -> None:
+                            self.ticker = t
+                            self.shares = float(s)
+
+                    bm_nav = self._calculate_portfolio_values(
+                        bm_prices,
+                        [_BmPos(comparison_label, 1.0)],
+                        1.0,
+                    )
+                    bm_nav = bm_nav.reindex(benchmark_returns.index).ffill().bfill()
+                    benchmark_values = bm_nav.dropna()
+            except Exception as e:
+                logger.warning("Failed to build benchmark NAV series: %s", e)
+
         # Calculate all metrics
         metrics = self._engine.calculate_all_metrics(
             portfolio_returns=portfolio_returns,
@@ -200,6 +230,7 @@ class AnalyticsService:
             "portfolio_returns": portfolio_returns,
             "benchmark_returns": benchmark_returns,
             "portfolio_values": portfolio_values,
+            "benchmark_values": benchmark_values,
             "comparison_label": comparison_label,
             "comparison_returns": comparison_returns,
             "comparison_metrics": comparison_metrics,
