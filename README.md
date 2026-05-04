@@ -13,6 +13,7 @@
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+"></a>
   <a href="https://github.com/imnotkeril/Portfolio_Management_Pro/actions/workflows/ci.yml"><img src="https://github.com/imnotkeril/Portfolio_Management_Pro/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://codecov.io/gh/imnotkeril/Portfolio_Management_Pro"><img src="https://codecov.io/gh/imnotkeril/Portfolio_Management_Pro/graph/badge.svg" alt="Codecov"></a>
   <img src="https://img.shields.io/badge/CI%20Python-3.11-3776AB?logo=python&logoColor=white" alt="CI Python 3.11">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License MIT"></a>
   <a href="https://streamlit.io/"><img src="https://img.shields.io/badge/Streamlit-UI-red?logo=streamlit&logoColor=white" alt="Streamlit"></a>
