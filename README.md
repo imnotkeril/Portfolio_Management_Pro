@@ -1,146 +1,157 @@
 # Portfolio Management Terminal
 
-## 🌐 Live Application [Streamlit APP](https://proportfolio.streamlit.app/)
+**Professional portfolio management** with analytics, optimization, risk tools, and forecasting.
 
-**Professional portfolio management system with comprehensive analytics, optimization, and risk management.**
+<p align="center">
+  <a href="https://proportfolio.streamlit.app/"><strong>Live demo (Streamlit)</strong></a>
+  &nbsp;·&nbsp;
+  <a href="#full-stack-nextjs--fastapi--docker">Full stack (Docker)</a>
+  &nbsp;·&nbsp;
+  <a href="USER_GUIDE.md">User guide</a>
+</p>
 
-[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/imnotkeril/WMC_Portfolio_Management/actions/workflows/ci.yml/badge.svg)](https://github.com/imnotkeril/WMC_Portfolio_Management/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/imnotkeril/WMC_Portfolio_Management/graph/badge.svg)](https://codecov.io/gh/imnotkeril/WMC_Portfolio_Management)
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+"></a>
+  <a href="https://github.com/imnotkeril/Portfolio_Management_Pro/actions/workflows/ci.yml"><img src="https://github.com/imnotkeril/Portfolio_Management_Pro/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/CI%20Python-3.11-3776AB?logo=python&logoColor=white" alt="CI Python 3.11">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License MIT"></a>
+  <a href="https://streamlit.io/"><img src="https://img.shields.io/badge/Streamlit-UI-red?logo=streamlit&logoColor=white" alt="Streamlit"></a>
+  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-frontend-black?logo=next.js&logoColor=white" alt="Next.js"></a>
+</p>
+
+**Two ways to use the app**
+
+| | **Streamlit** | **Next.js + FastAPI (Docker)** |
+|---|----------------|--------------------------------|
+| **Role** | Fast online preview; full feature set in the original UI | Modern web UI + API, same `core/` and `services/` |
+| **Try it** | [proportfolio.streamlit.app](https://proportfolio.streamlit.app/) | `docker compose up --build` → [http://localhost:3000](http://localhost:3000) |
+
+CI runs **Ruff, Black, isort, Mypy, Pytest** on **Python 3.11** with **`core/` coverage ≥ 70%** (see `.coveragerc`).
 
 ---
-<img width="1581" height="1190" alt="1" src="https://github.com/user-attachments/assets/4a8ebd9a-611c-4e7d-8d81-76232791b85d" />
 
-<img width="1656" height="1200" alt="Screenshot_16" src="https://github.com/user-attachments/assets/0288e9ec-88d4-41ce-8cb2-b792a156f2ce" />
+## Contents
+
+- [Screenshots](#screenshots)
+- [Key features](#key-features)
+- [Requirements](#requirements)
+- [Project structure](#project-structure)
+- [Run locally](#run-locally)
+  - [Full stack (Next.js + FastAPI + Docker)](#full-stack-nextjs--fastapi--docker)
+  - [Streamlit (local)](#streamlit-local)
+- [Testing & code quality](#testing--code-quality)
+- [Performance](#performance)
+- [Configuration](#configuration)
+- [Documentation](#documentation)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
 
 ---
 
-## ✨ Key Features
+## Screenshots
 
-### Portfolio Management
-- **4 Creation Methods**: Text Input, CSV Import, Manual Entry, Templates
-- **5-Step Creation Process**: Guided interface for all creation methods
-- **Full CRUD Operations**: Create, read, update, delete portfolios
-- **Transaction Tracking**: Record BUY/SELL/DEPOSIT/WITHDRAWAL operations
-- **Position Management**: Real-time validation, inline editing, bulk operations
+<p align="center">
+  <img width="780" alt="App screenshot 1" src="https://github.com/user-attachments/assets/4a8ebd9a-611c-4e7d-8d81-76232791b85d" />
+</p>
+<p align="center">
+  <img width="780" alt="App screenshot 2" src="https://github.com/user-attachments/assets/0288e9ec-88d4-41ce-8cb2-b792a156f2ce" />
+</p>
 
-### Analytics & Metrics
-- **70+ Financial Metrics**: Performance, Risk, Ratios, Market metrics
-- **5 Analysis Tabs**: Overview, Performance, Risk, Assets & Correlations, Export & Reports
-- **Interactive Charts**: Plotly-based visualizations with zoom, pan, hover
-- **Benchmark Comparison**: Compare portfolios against market indices
+---
+
+## Key features
+
+### Portfolio management
+
+- **4 creation methods**: text, CSV, manual entry, templates  
+- **5-step wizard** for guided creation  
+- **Full CRUD** and **transaction tracking** (BUY / SELL / DEPOSIT / WITHDRAWAL)  
+- **Positions**: validation, inline editing, bulk actions  
+
+### Analytics & metrics
+
+- **70+ metrics**: performance, risk, ratios, market  
+- **5 analysis tabs** with interactive **Plotly** charts  
+- **Benchmark** comparison vs indices  
 
 ### Optimization
-- **18 Optimization Methods**: Mean-Variance, Black-Litterman, Risk Parity, HRP, CVaR, and more
-- **Efficient Frontier**: Visual risk-return optimization
-- **Out-of-Sample Testing**: Validate optimization on unseen data
-- **Flexible Constraints**: Weight limits, group constraints, cardinality
 
-### Risk Analysis
-- **VaR Calculation**: Multiple methods (Historical, Parametric, Cornish-Fisher, Monte Carlo)
-- **Monte Carlo Simulation**: 1,000-100,000 simulation paths
-- **Stress Testing**: Historical scenarios (2008 Crisis, COVID-19, etc.) and custom scenarios
-- **Scenario Chains**: Sequential scenario testing with cumulative impact
+- **18 methods** (mean-variance, Black–Litterman, risk parity, HRP, CVaR, …)  
+- **Efficient frontier**, out-of-sample tests, flexible constraints  
+
+### Risk analysis
+
+- **VaR**: historical, parametric, Cornish–Fisher, Monte Carlo  
+- **Stress tests** and **scenario chains** (e.g. historical crisis templates)  
 
 ### Forecasting
-- **9 Forecasting Methods**: ARIMA, GARCH, LSTM, XGBoost, Prophet, Ensemble, and more
-- **Out-of-Sample Validation**: MAE, RMSE, MAPE, Directional Accuracy metrics
-- **Portfolio-Level Forecasting**: Aggregate portfolio predictions
-- **Multiple Forecast Horizons**: 1 day to 1 year
 
-### Transaction Management
-- **Transaction History**: Full audit trail with dates, prices, fees, notes
-- **CSV Import/Export**: Import transactions from files, export to CSV
-- **Position Calculation**: Automatic position calculation from transaction history
-- **Portfolio Modes**: Buy-and-Hold or With Transactions
+- **9 model families** (ARIMA, GARCH, LSTM, XGBoost, Prophet, ensemble, …)  
+- Validation metrics and portfolio-level horizons  
+
+### Transactions
+
+- History, CSV import/export, automatic positions, buy-and-hold vs with-transactions modes  
 
 ---
 
-## 📋 Requirements
+## Requirements
 
-- **Python**: 3.9 or higher
-- **Operating System**: Windows, macOS, or Linux
-- **Internet Connection**: Required for fetching market data (yfinance)
-- **Memory**: 4GB+ RAM recommended for large portfolios
+- **Python** 3.9+ locally (CI uses **3.11**)
+- **OS**: Windows, macOS, or Linux  
+- **Network** for market data ([yfinance](https://github.com/ranaroussi/yfinance))  
+- **RAM** 4GB+ recommended for large portfolios  
+- **Full stack**: Docker, Node.js 18+ (for `frontend/` when not using Docker)
 
 ---
 
-## 📁 Project Structure
+## Project structure
 
-```
+```text
 Portfolio_Management_Pro/
-├── core/                      # Core business logic (framework-agnostic)
-│   ├── analytics_engine/      # 70+ metrics calculation
-│   ├── data_manager/          # Price fetching, caching, validation
-│   ├── optimization_engine/   # 18 optimization methods
-│   ├── risk_engine/          # VaR, Monte Carlo, stress testing
-│   ├── forecasting_engine/   # 9 forecasting models
-│   └── scenario_engine/      # Historical and custom scenarios
-├── services/                  # Service layer (orchestration)
-├── streamlit_app/            # UI layer (Streamlit)
-│   ├── app.py               # Main application
-│   ├── pages/               # Page components
-│   └── components/          # Reusable UI components
-├── models/                   # SQLAlchemy ORM models
-├── database/                 # Database utilities & migrations
-├── config/                   # Configuration
-└── tests/                    # Test suite
+├── core/                 # Business logic (framework-agnostic)
+│   ├── analytics_engine/
+│   ├── data_manager/
+│   ├── optimization_engine/
+│   ├── risk_engine/
+│   ├── forecasting_engine/
+│   └── scenario_engine/
+├── services/             # Orchestration over core
+├── api/                  # FastAPI app (uses services + core)
+├── frontend/             # Next.js UI
+├── streamlit_app/        # Streamlit UI (live demo + legacy-style UI)
+│   ├── app.py
+│   ├── pages/
+│   └── components/
+├── models/               # SQLAlchemy models
+├── database/             # Session, migrations
+├── config/               # Settings
+├── tests/                # Unit, integration, performance
+└── docker-compose.yml    # API + web
 ```
 
 ---
 
-## 🧪 Testing
+## Run locally
 
-```bash
-# Run all tests
-pytest
+### Full stack (Next.js + FastAPI + Docker)
 
-# Run with coverage
-pytest --cov=core --cov=services --cov-report=html
-
-# Run specific test categories
-pytest tests/unit/           # Unit tests
-pytest tests/integration/    # Integration tests
-pytest tests/performance/    # Performance tests
-```
-
-### Code quality (local)
-
-Configuration lives in `pyproject.toml` (Ruff, Black, isort, Mypy). Mypy runs on `core/`, `services/`, `api/`, `config/`, `models/`, `database/` with **assignment and return-value checking enabled** (alongside the remaining gradual-typing relaxations in `pyproject.toml`). **Coverage** for CI and default `pytest` runs uses `.coveragerc`: **`core/` must stay ≥70%** — heavy optional paths (e.g. TensorFlow forecasters, omitted CVX optimizers, chart serialization helpers) are excluded from the denominator on purpose; run broader smoke/integration tests for those.
-
-```bash
-ruff check .
-black --check .
-isort --check-only .
-mypy core/ services/ api/ config/ models/ database/
-pytest                                    # enforces core coverage ≥70%
-pre-commit install   # optional: run hooks on every commit
-```
-
----
-
-## Next.js + FastAPI + Docker
-
-The project now includes:
-
-- `api/main.py` - FastAPI backend over existing `services/*` and `core/*`
-- `frontend/` - Next.js frontend with pages matching Streamlit navigation
-- `docker-compose.yml` - one-command startup for `api` and `web`
-
-### Run with Docker
+- `api/main.py` — FastAPI on top of `services/*` and `core/*`  
+- `frontend/` — Next.js, aligned with Streamlit navigation where applicable  
+- `docker-compose.yml` — API + web in one command  
 
 ```bash
 docker compose up --build
 ```
 
-Then open:
+Open:
 
-- Frontend: `http://localhost:3000`
-- API health: `http://localhost:8000/health`
+- **Frontend**: <http://localhost:3000>  
+- **API health**: <http://localhost:8000/health>  
 
-### Local development
+**Develop without Docker**
 
 Backend:
 
@@ -156,103 +167,128 @@ npm install
 npm run dev
 ```
 
+### Streamlit (local)
+
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app/app.py
+```
+
+Use a `.env` file if you override database or cache paths (see [Configuration](#configuration)).
+
 ---
 
-## 📊 Performance
+## Testing & code quality
+
+```bash
+pytest
+```
+
+```bash
+# Coverage (CI uses .coveragerc — core ≥ 70%)
+pytest --cov=core --cov-config=.coveragerc --cov-report=html --cov-report=term-missing
+```
+
+```bash
+pytest tests/unit/
+pytest tests/integration/
+pytest tests/performance/
+```
+
+Tooling is configured in `pyproject.toml` (**Ruff**, **Black**, **isort**, **Mypy**). Mypy targets `core/`, `services/`, `api/`, `config/`, `models/`, `database/`.
+
+```bash
+ruff check .
+black --check .
+isort --check-only .
+mypy core/ services/ api/ config/ models/ database/
+pytest
+pre-commit install   # optional: git hooks
+```
+
+---
+
+## Performance
 
 | Operation | Target | Actual | Status |
 |-----------|--------|--------|--------|
-| Portfolio creation | <100ms | ~50ms | ✅ |
-| Fetch 1-year (cached) | <10ms | <1ms | ✅ |
-| Calculate 70 metrics | <500ms | ~14ms | ✅ |
-| Bulk fetch (8 tickers) | <500ms | ~212ms | ✅ |
-| Parallel fetch speedup | - | **6.83x** | ✅ |
+| Portfolio creation | <100ms | ~50ms | OK |
+| Fetch 1y (cached) | <10ms | <1ms | OK |
+| Calculate 70 metrics | <500ms | ~14ms | OK |
+| Bulk fetch (8 tickers) | <500ms | ~212ms | OK |
+| Parallel fetch speedup | — | **6.83×** | OK |
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
-Create a `.env` file in the project root:
+Create `.env` in the project root (optional; defaults exist in `config/settings.py`):
 
 ```env
-# Database
-DATABASE_URL=sqlite:///./data/portfolio.db
+# Database (default in code: sqlite:///./data/wmc.db)
+DATABASE_URL=sqlite:///./data/wmc.db
 
-# Logging
 LOG_LEVEL=INFO
 LOG_FILE=logs/app.log
 
-# Cache
+# Cache (align with your settings / deploy)
 CACHE_DIR=data/cache
 
-# Risk-Free Rate (optional)
 RISK_FREE_RATE=0.0435
 ```
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-- **[User Guide](USER_GUIDE.md)**: Complete user manual with detailed instructions, examples, and workflows
-
-For detailed information about features, methods, and usage, see the [User Guide](USER_GUIDE.md).
+- **[USER_GUIDE.md](USER_GUIDE.md)** — manual, examples, workflows  
 
 ---
 
-## 🛣️ Roadmap
+## Roadmap
 
-### Completed ✅
-- Portfolio Management (4 creation methods, CRUD, transactions)
-- Analytics Engine (70+ metrics, 5 tabs with sub-tabs)
-- Optimization Engine (18 methods, efficient frontier)
-- Risk Analysis (VaR, Monte Carlo, 5 scenario types)
-- Forecasting (9 models, validation, ensemble)
-- Transaction Tracking (full history, import/export)
+### Done
 
-### In Progress 🚧
-- Reports & Export (PDF generation in progress)
-- Documentation & Polish
+- Portfolio management (CRUD, transactions, multiple creation flows)  
+- Analytics (70+ metrics), optimization (18 methods), risk, forecasting, scenarios  
+- **Next.js + FastAPI + Docker** stack alongside Streamlit  
+- CI: lint, format, types, tests, **core coverage gate**  
 
-### Planned 📋
-- User Authentication
-- Multi-user Support
-- Real-time Data Updates
-- Next.js Migration (Future)
+### In progress
 
----
+- Reports & export (e.g. PDF) polish  
+- Next.js **parity** and UX polish vs Streamlit where needed  
 
-## 🤝 Contributing
+### Planned
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Write tests for new features
-- Maintain >80% test coverage for core modules
-- Use type hints for all functions
-- Follow SOLID principles and DRY
-- Follow existing code structure and patterns
+- Authentication & multi-user  
+- Real-time or push-based data updates (where applicable)  
 
 ---
 
-## 📝 License
+## Contributing
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+1. Fork the repository  
+2. Branch: `git checkout -b feature/your-feature`  
+3. Commit with clear messages  
+4. Push and open a Pull Request  
+
+**Guidelines**
+
+- Add or update **tests** for new behavior  
+- Keep **`core/` coverage ≥ 70%** as enforced by CI and `.coveragerc`  
+- Prefer **type hints**; follow existing layout and **SOLID** / **DRY**  
+- Run **Ruff, Black, isort, Mypy** before pushing (or use **pre-commit**)  
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- **yfinance**: Market data fetching
-- **Streamlit**: Web framework
-- **Plotly**: Interactive charts
-- **CVXPy**: Convex optimization
-- **NumPy/Pandas**: Data manipulation and calculations
-- **scikit-learn**: Machine learning models
-- **TensorFlow**: Deep learning models
-
----
+- **yfinance**, **Streamlit**, **Next.js**, **FastAPI**, **Plotly**  
+- **CVXPy**, **NumPy**, **Pandas**, **scikit-learn**, **TensorFlow** (where used in forecasting)  
