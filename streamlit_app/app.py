@@ -207,16 +207,12 @@ elif page == "Portfolio Analysis":
     show()
 
 elif page == "Portfolio Optimization":
-    from streamlit_app.pages.portfolio_optimization import (
-        render_optimization_page,
-    )
+    from streamlit_app.pages.portfolio_optimization import render_optimization_page
 
     render_optimization_page()
 
 elif page == "Risk Analysis":
-    from streamlit_app.pages.risk_analysis import (
-        render_risk_analysis_page,
-    )
+    from streamlit_app.pages.risk_analysis import render_risk_analysis_page
 
     render_risk_analysis_page()
 

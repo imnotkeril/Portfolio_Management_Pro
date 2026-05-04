@@ -1775,9 +1775,7 @@ def _display_optimization_results(
 
     # Calculate metrics using EXACT same logic as portfolio_analysis.py
     # overview tab (_render_overview_tab function)
-    from core.analytics_engine.performance import (
-        calculate_annualized_return,
-    )
+    from core.analytics_engine.performance import calculate_annualized_return
     from core.analytics_engine.ratios import (
         calculate_sharpe_ratio,
         calculate_sortino_ratio,
@@ -1855,9 +1853,7 @@ def _display_optimization_results(
         }
 
     # Display metrics using same component as overview
-    from streamlit_app.components.metric_card_comparison import (
-        render_metric_cards_row,
-    )
+    from streamlit_app.components.metric_card_comparison import render_metric_cards_row
 
     # Row 1: Total Return, Sharpe Ratio, Volatility, Max Drawdown
     # (same format as overview, optimized vs current)

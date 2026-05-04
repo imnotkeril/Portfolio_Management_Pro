@@ -5,10 +5,7 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
-from streamlit_app.utils.formatters import (
-    format_currency,
-    format_percentage,
-)
+from streamlit_app.utils.formatters import format_currency, format_percentage
 
 
 def render_position_table(

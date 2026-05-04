@@ -89,9 +89,7 @@ def calculate_alpha(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        from core.analytics_engine.performance import (
-            calculate_annualized_return,
-        )
+        from core.analytics_engine.performance import calculate_annualized_return
 
         portfolio_return = calculate_annualized_return(portfolio_returns)
         benchmark_return = calculate_annualized_return(benchmark_returns)
@@ -262,9 +260,7 @@ def calculate_active_return(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        from core.analytics_engine.performance import (
-            calculate_annualized_return,
-        )
+        from core.analytics_engine.performance import calculate_annualized_return
 
         portfolio_return = calculate_annualized_return(portfolio_returns)
         benchmark_return = calculate_annualized_return(benchmark_returns)

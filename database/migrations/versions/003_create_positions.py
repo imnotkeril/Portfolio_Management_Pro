@@ -5,8 +5,8 @@ Revises: 002_create_portfolios
 Create Date: 2025-01-XX XX:XX:XX.XXXXXX
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "003_create_positions"
@@ -49,4 +49,3 @@ def downgrade() -> None:
     op.drop_index("idx_position_ticker", "positions")
     op.drop_index("idx_position_portfolio", "positions")
     op.drop_table("positions")
-

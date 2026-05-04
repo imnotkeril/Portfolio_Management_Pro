@@ -1,9 +1,6 @@
 """Scenario Engine module for scenario analysis."""
 
-from core.scenario_engine.custom_scenarios import (
-    CustomScenario,
-    create_custom_scenario,
-)
+from core.scenario_engine.custom_scenarios import CustomScenario, create_custom_scenario
 from core.scenario_engine.historical_scenarios import (
     HistoricalScenario,
     get_all_scenarios,

@@ -7,11 +7,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from streamlit_app.utils.chart_config import (
-    COLORS,
-    get_chart_layout,
-    get_method_color,
-)
+from streamlit_app.utils.chart_config import COLORS, get_chart_layout, get_method_color
 
 logger = logging.getLogger(__name__)
 

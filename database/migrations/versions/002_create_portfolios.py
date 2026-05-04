@@ -5,8 +5,8 @@ Revises: 001_create_price_history
 Create Date: 2025-01-XX XX:XX:XX.XXXXXX
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.sql import func
 
 # revision identifiers, used by Alembic.
@@ -25,8 +25,12 @@ def upgrade() -> None:
         sa.Column("description", sa.String(length=500), nullable=True),
         sa.Column("starting_capital", sa.Float(), nullable=False),
         sa.Column("base_currency", sa.String(length=3), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=func.now()),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=func.now()
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -40,4 +44,3 @@ def downgrade() -> None:
     op.drop_index("idx_portfolio_created", "portfolios")
     op.drop_index("idx_portfolio_name", "portfolios")
     op.drop_table("portfolios")
-

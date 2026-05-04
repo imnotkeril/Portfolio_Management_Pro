@@ -42,7 +42,8 @@ def render_create_portfolio() -> None:
 def render_creation_help() -> None:
     """Render help section for portfolio creation."""
     with st.expander("How to Create a Portfolio", expanded=False):
-        st.markdown("""
+        st.markdown(
+            """
         ### Step-by-Step Portfolio Creation
 
         This process guides you through creating a portfolio in 5 steps:
@@ -71,7 +72,8 @@ def render_creation_help() -> None:
         - Company information and prices are fetched automatically
         - All portfolios are validated before creation
         - You can allocate cash as a percentage of your portfolio
-        """)
+        """
+        )
 
 
 def render_portfolio_creation() -> None:
@@ -107,7 +109,8 @@ def render_step_1() -> None:
     st.write("### Step 1: Portfolio Information")
 
     with st.expander("What information do I need?", expanded=False):
-        st.markdown("""
+        st.markdown(
+            """
         **Portfolio Name** - A unique name to identify your portfolio (required)
         - Must be unique - cannot match existing portfolio names
         - Use descriptive names like "Tech Growth Portfolio" or "Dividend Income"
@@ -124,7 +127,8 @@ def render_step_1() -> None:
         - Used to calculate number of shares for each position
         - Can be adjusted later if needed
         - Minimum: $1.00
-        """)
+        """
+        )
 
     col1, col2 = st.columns(2)
 
@@ -209,7 +213,8 @@ def render_step_2() -> None:
     st.write("### Step 2: Choose Input Method")
 
     with st.expander("Which method should I choose?", expanded=False):
-        st.markdown("""
+        st.markdown(
+            """
         **Text Input** - Best for quick entry
         - Fastest way to create a portfolio
         - Supports multiple text formats
@@ -230,7 +235,8 @@ def render_step_2() -> None:
         - Factor-based portfolios (Value, Growth, Quality)
         - Classic strategies (60/40, All Weather)
         - Can be customized after selection
-        """)
+        """
+        )
 
     method = st.radio(
         "How would you like to add assets?",
@@ -303,7 +309,8 @@ def render_text_input() -> None:
     st.markdown("**Enter your portfolio assets** (one of these formats):")
 
     with st.expander("How does text input work?", expanded=False):
-        st.markdown("""
+        st.markdown(
+            """
         **Supported Formats:**
         - `AAPL:40%, MSFT:30%, GOOGL:30%` - Colon with percentages
         - `AAPL 0.4, MSFT 0.3, GOOGL 0.3` - Space with decimals (0.0 to 1.0)
@@ -315,7 +322,8 @@ def render_text_input() -> None:
         - Use standard ticker symbols (AAPL, MSFT, GOOGL, etc.)
         - Invalid tickers will be highlighted and excluded
         - You can mix formats in the same input
-        """)
+        """
+        )
 
     # Example tabs
     tab1, tab2, tab3, tab4 = st.tabs(
@@ -441,7 +449,8 @@ def render_file_upload() -> None:
     st.markdown("**Upload a CSV or Excel file** with your portfolio data")
 
     with st.expander("What file format do I need?", expanded=False):
-        st.markdown("""
+        st.markdown(
+            """
         **File Requirements:**
         - Supported formats: CSV, Excel (.xlsx, .xls)
         - **Required column**: `ticker` (or any column name you can map)
@@ -468,7 +477,8 @@ def render_file_upload() -> None:
         - You can select which column contains tickers
         - You can select which column contains weights (or use equal weights)
         - Invalid tickers will be automatically excluded
-        """)
+        """
+        )
 
     uploaded_file = st.file_uploader(
         "Choose file",
@@ -635,7 +645,8 @@ def render_manual_entry() -> None:
     st.markdown("**Add assets manually** for full control over your portfolio")
 
     with st.expander("How does manual entry work?", expanded=False):
-        st.markdown("""
+        st.markdown(
+            """
         **Manual Entry Process:**
         1. Enter ticker symbol (e.g., AAPL)
         2. Enter weight as percentage (e.g., 30 for 30%)
@@ -654,7 +665,8 @@ def render_manual_entry() -> None:
         - Small portfolios (5-10 assets)
         - When you want to validate each ticker individually
         - Precise control over each position
-        """)
+        """
+        )
 
     # Initialize manual assets
     if "manual_assets" not in st.session_state.creation_data:
@@ -826,7 +838,8 @@ def render_template_selection() -> None:
     st.markdown("**Start with a proven strategy** and customize as needed")
 
     with st.expander("What are portfolio templates?", expanded=False):
-        st.markdown("""
+        st.markdown(
+            """
         **Portfolio Templates** are pre-built investment strategies based on:
 
         **Factor-Based Strategies:**
@@ -845,7 +858,8 @@ def render_template_selection() -> None:
         - All templates can be customized after selection
         - You can modify weights, add/remove assets
         - Templates are starting points - make them your own!
-        """)
+        """
+        )
 
     # Template definitions
     templates = {
@@ -999,7 +1013,8 @@ def render_step_4() -> None:
     st.write("### Step 4: Portfolio Settings & Review")
 
     with st.expander("What settings should I configure?", expanded=False):
-        st.markdown("""
+        st.markdown(
+            """
         **Portfolio Options:**
         - **Fetch company information** - Automatically get company names, sectors, and market data
         - **Auto-normalize weights** - Automatically adjust weights to sum to 100%
@@ -1016,7 +1031,8 @@ def render_step_4() -> None:
         - Check all your portfolio details before creation
         - Verify asset count and total weight
         - Make sure everything looks correct
-        """)
+        """
+        )
 
     # Settings section
     st.subheader("Portfolio Options")
@@ -1106,16 +1122,20 @@ def render_step_4() -> None:
         st.session_state.creation_data["create_initial_transactions"] = (
             create_initial_transactions
         )
-        st.info("""
+        st.info(
+            """
         💡 **Tip**: Initial transactions will be created from your positions above.
         Each position will become a BUY transaction with the purchase price you specify.
         You can add more transactions later in the portfolio editor.
-        """)
+        """
+        )
     else:
-        st.info("""
+        st.info(
+            """
         💡 **Note**: You can add strategies later for backtesting, even with Buy-and-Hold mode.
         Strategies will generate simulated transactions for analysis without modifying your portfolio.
-        """)
+        """
+        )
 
     # Portfolio preview
     st.markdown("---")

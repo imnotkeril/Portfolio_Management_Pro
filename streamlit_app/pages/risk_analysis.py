@@ -874,9 +874,7 @@ def _render_var_analysis(
                 var_99_hist = None
                 cvar_99 = None
                 if portfolio_returns is not None and not portfolio_returns.empty:
-                    from core.analytics_engine.risk_metrics import (
-                        calculate_var,
-                    )
+                    from core.analytics_engine.risk_metrics import calculate_var
 
                     var_99_hist = calculate_var(portfolio_returns, 0.99, "historical")
                     cvar_99 = calculate_cvar(portfolio_returns, 0.99)
@@ -1001,9 +999,7 @@ def _render_var_analysis(
                             portfolio_returns is not None
                             and not portfolio_returns.empty
                         ):
-                            from core.analytics_engine.risk_metrics import (
-                                calculate_var,
-                            )
+                            from core.analytics_engine.risk_metrics import calculate_var
 
                             confidence_levels = [0.90, 0.95, 0.99]
                             var_sensitivity = []
@@ -1078,9 +1074,7 @@ def _render_var_analysis(
                             from core.analytics_engine.chart_data import (
                                 get_rolling_var_data,
                             )
-                            from streamlit_app.components.charts import (
-                                plot_rolling_var,
-                            )
+                            from streamlit_app.components.charts import plot_rolling_var
 
                             # Window selector
                             rolling_window = st.slider(
@@ -1939,9 +1933,7 @@ def _render_monte_carlo(
                             portfolio_returns is not None
                             and not portfolio_returns.empty
                         ):
-                            from core.analytics_engine.risk_metrics import (
-                                calculate_var,
-                            )
+                            from core.analytics_engine.risk_metrics import calculate_var
 
                             comparison_data = []
                             for cl in confidence_levels_mc:
@@ -2261,9 +2253,7 @@ def _render_monte_carlo(
                     )
 
                     # Add percentile paths
-                    from core.risk_engine.monte_carlo import (
-                        simulate_portfolio_paths,
-                    )
+                    from core.risk_engine.monte_carlo import simulate_portfolio_paths
 
                     # Get returns for percentile calculation
                     returns = risk_service._get_portfolio_returns(

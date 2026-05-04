@@ -59,9 +59,7 @@ class RobustOptimizer(BaseOptimizer):
         if not CVXPY_AVAILABLE:
             # Fallback to mean-variance if CVXPy not available
             logger.warning("CVXPy not available, using mean-variance as fallback")
-            from core.optimization_engine.mean_variance import (
-                MeanVarianceOptimizer,
-            )
+            from core.optimization_engine.mean_variance import MeanVarianceOptimizer
 
             fallback = MeanVarianceOptimizer(
                 self.returns,

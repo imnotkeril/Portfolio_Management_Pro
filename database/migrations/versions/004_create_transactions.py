@@ -5,8 +5,8 @@ Revises: 003_create_positions
 Create Date: 2025-01-XX XX:XX:XX.XXXXXX
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "004_create_transactions"
@@ -44,9 +44,7 @@ def upgrade() -> None:
     )
 
     # Create indexes
-    op.create_index(
-        "idx_transaction_portfolio", "transactions", ["portfolio_id"]
-    )
+    op.create_index("idx_transaction_portfolio", "transactions", ["portfolio_id"])
     op.create_index("idx_transaction_date", "transactions", ["transaction_date"])
     op.create_index(
         "idx_transaction_portfolio_date",
@@ -61,4 +59,3 @@ def downgrade() -> None:
     op.drop_index("idx_transaction_date", "transactions")
     op.drop_index("idx_transaction_portfolio", "transactions")
     op.drop_table("transactions")
-

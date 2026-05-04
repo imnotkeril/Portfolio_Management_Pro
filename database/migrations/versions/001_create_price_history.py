@@ -5,8 +5,8 @@ Revises:
 Create Date: 2025-01-XX XX:XX:XX.XXXXXX
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "001_create_price_history"
@@ -47,4 +47,3 @@ def downgrade() -> None:
     op.drop_index("idx_price_history_date", "price_history")
     op.drop_index("idx_price_history_ticker", "price_history")
     op.drop_table("price_history")
-

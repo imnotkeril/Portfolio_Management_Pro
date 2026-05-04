@@ -162,9 +162,7 @@ def calculate_sterling_ratio(returns: pd.Series) -> Optional[float]:
         raise InsufficientDataError("Returns series is empty")
 
     try:
-        from core.analytics_engine.risk_metrics import (
-            calculate_average_drawdown,
-        )
+        from core.analytics_engine.risk_metrics import calculate_average_drawdown
 
         annual_return = calculate_annualized_return(returns)
         avg_dd = calculate_average_drawdown(returns)
@@ -574,9 +572,7 @@ def calculate_common_sense_ratio(returns: pd.Series) -> Optional[float]:
         raise InsufficientDataError("Returns series is empty")
 
     try:
-        from core.analytics_engine.performance import (
-            calculate_profit_factor,
-        )
+        from core.analytics_engine.performance import calculate_profit_factor
 
         profit_factor = calculate_profit_factor(returns)
         tail_ratio = calculate_tail_ratio(returns)
