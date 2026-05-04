@@ -11,6 +11,19 @@ from database.session import Base
 from services.data_service import DataService
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _init_database_schema():
+    """Ensure SQLite tables exist for tests using get_db_session().
+
+    CI and fresh clones have no migrated DB file; repository/service tests
+    otherwise hit sqlite with an empty schema (no such table: portfolios).
+    """
+    from database.session import init_db
+
+    init_db()
+    yield  # session scoped teardown not needed
+
+
 @pytest.fixture
 def temp_cache_dir(tmp_path: Path) -> Path:
     """Create temporary cache directory."""
