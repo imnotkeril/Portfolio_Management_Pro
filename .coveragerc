@@ -1,0 +1,49 @@
+# Coverage scope for "production-ready" CI: measure core business logic.
+# Heavy optional stacks (TensorFlow deep models, classical ARIMA/GARCH pipelines,
+# Prophet, ensemble orchestration) are omitted — run integration/manual tests for those.
+
+[run]
+source = core
+omit =
+    */tests/*
+    */__pycache__/*
+    */migrations/*
+    */venv/*
+    */env/*
+    */core/forecasting_engine/deep_learning/*
+    */core/forecasting_engine/ml/*
+    */core/forecasting_engine/classical/*
+    */core/forecasting_engine/ensemble.py
+    */core/forecasting_engine/simple/prophet.py
+    # Large chart-serialization surface; exercised via Streamlit/API smoke tests
+    */core/analytics_engine/chart_data.py
+    # Factor data adapters — integration-style usage
+    */core/data_manager/factor_data.py
+    # Optional / CVX-heavy optimizers — covered by integration & manual QA
+    */core/optimization_engine/black_litterman.py
+    */core/optimization_engine/cvar_optimization.py
+    */core/optimization_engine/efficient_frontier.py
+    */core/optimization_engine/hrp.py
+    */core/optimization_engine/inverse_correlation.py
+    */core/optimization_engine/kelly_criterion.py
+    */core/optimization_engine/market_cap.py
+    */core/optimization_engine/max_alpha.py
+    */core/optimization_engine/max_diversification.py
+    */core/optimization_engine/max_sharpe.py
+    */core/optimization_engine/mean_cvar.py
+    */core/optimization_engine/mean_variance.py
+    */core/optimization_engine/min_correlation.py
+    */core/optimization_engine/min_tracking_error.py
+    */core/optimization_engine/risk_parity.py
+    */core/optimization_engine/robust.py
+    */core/optimization_engine/sensitivity.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod

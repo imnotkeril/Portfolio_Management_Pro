@@ -108,13 +108,14 @@ pytest tests/performance/    # Performance tests
 
 ### Code quality (local)
 
-Configuration lives in `pyproject.toml`. Install dev tools with `pip install -r requirements-dev.txt`.
+Configuration lives in `pyproject.toml` (Ruff, Black, isort, Mypy). **Coverage** for CI and default `pytest` runs uses `.coveragerc`: **`core/` must stay ≥70%** — heavy optional paths (e.g. TensorFlow forecasters, omitted CVX optimizers, chart serialization helpers) are excluded from the denominator on purpose; run broader smoke/integration tests for those.
 
 ```bash
 ruff check .
 black --check .
 isort --check-only .
 mypy core/ services/ api/ config/ models/ database/
+pytest                                    # enforces core coverage ≥70%
 pre-commit install   # optional: run hooks on every commit
 ```
 
