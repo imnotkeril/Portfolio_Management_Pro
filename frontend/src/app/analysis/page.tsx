@@ -245,6 +245,18 @@ function extractSeries(data: any): Pt[] {
   return [];
 }
 
+/**
+ * Some feeds encode daily returns as hundredths (e.g. 0.08 meaning 0.08% instead of 0.0008).
+ * Then cumulative charts show ~100x inflated %. Detect via median |daily| and rescale to decimals.
+ */
+function normalizeDailyReturnSeries(pts: Pt[]): Pt[] {
+  if (pts.length < 10) return pts;
+  const sortedAbs = [...pts].map((p) => Math.abs(p.y)).sort((a, b) => a - b);
+  const med = sortedAbs[Math.floor(sortedAbs.length / 2)] ?? 0;
+  if (med > 0.025) return pts.map((p) => ({ x: p.x, y: p.y / 100 }));
+  return pts;
+}
+
 function cumulative(pts: Pt[]): Pt[] {
   let cum = 0;
   return pts.map((d) => { cum = (1 + cum) * (1 + d.y) - 1; return { x: d.x, y: cum }; });
@@ -521,8 +533,19 @@ export default function AnalysisPage() {
   const market = analytics?.market ?? {};
   const cmpMetrics = analytics?.comparison_metrics ?? {};
   const cmpLabel = analytics?.comparison_label ?? (cmpType === "Index ETF" ? cmpValue : "Benchmark");
-  const portfolioReturns = useMemo(() => extractSeries(analytics?.portfolio_returns), [analytics]);
-  const benchmarkReturns = useMemo(() => extractSeries(analytics?.comparison_returns ?? analytics?.benchmark_returns), [analytics]);
+  const portfolioReturnsRaw = useMemo(() => extractSeries(analytics?.portfolio_returns), [analytics]);
+  const benchmarkReturnsRaw = useMemo(
+    () => extractSeries(analytics?.comparison_returns ?? analytics?.benchmark_returns),
+    [analytics],
+  );
+  const portfolioReturns = useMemo(
+    () => normalizeDailyReturnSeries(portfolioReturnsRaw),
+    [portfolioReturnsRaw],
+  );
+  const benchmarkReturns = useMemo(
+    () => normalizeDailyReturnSeries(benchmarkReturnsRaw),
+    [benchmarkReturnsRaw],
+  );
   const portfolioValues = useMemo(() => extractSeries(analytics?.portfolio_values), [analytics]);
   /** Align portfolio/benchmark daily returns by calendar date (series may differ in length). */
   const portReturnByDate = useMemo(() => {
@@ -538,7 +561,18 @@ export default function AnalysisPage() {
   const positions = selected?.positions ?? [];
   const hasBenchmark = benchmarkReturns.length > 0;
 
-  const vol = typeof risk?.volatility === "object" ? risk.volatility?.annual : risk?.volatility;
+  const vol = (() => {
+    const r = risk as Record<string, unknown> | undefined;
+    if (!r) return undefined;
+    const nested = r.volatility;
+    if (nested && typeof nested === "object" && nested !== null && "annual" in nested) {
+      const a = (nested as { annual?: number }).annual;
+      if (typeof a === "number" && isFinite(a)) return a;
+    }
+    if (typeof r.annual === "number" && isFinite(r.annual)) return r.annual;
+    if (typeof r.volatility === "number" && isFinite(r.volatility)) return r.volatility as number;
+    return undefined;
+  })();
   const maxDD = typeof risk?.max_drawdown === "number" ? risk.max_drawdown : (Array.isArray(risk?.max_drawdown) ? risk.max_drawdown[0] : risk?.max_drawdown);
 
   /* ────── Pre-compute series for charts ────── */
@@ -640,7 +674,7 @@ export default function AnalysisPage() {
               <CmpMetricCard label="Total Return" portfolioValue={perf.total_return} benchmarkValue={cmpMetrics.total_return} format="percent" higherIsBetter={true} helpText="Cumulative return from start to end date." />
               <CmpMetricCard label="CAGR" portfolioValue={perf.cagr ?? perf.annualized_return} benchmarkValue={cmpMetrics.annualized_return} format="percent" higherIsBetter={true} helpText="Average annual return assuming reinvestment." />
               <CmpMetricCard label="Volatility" portfolioValue={vol} benchmarkValue={cmpMetrics.volatility} format="percent" higherIsBetter={false} helpText="Annualized standard deviation of returns." />
-              <CmpMetricCard label="Max Drawdown" portfolioValue={maxDD} benchmarkValue={cmpMetrics.max_drawdown} format="percent" higherIsBetter={false} helpText="Largest peak-to-trough decline." />
+              <CmpMetricCard label="Max Drawdown" portfolioValue={maxDD} benchmarkValue={cmpMetrics.max_drawdown} format="percent" higherIsBetter={true} helpText="Largest peak-to-trough decline (less negative is better)." />
             </div>
             <Divider />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -740,8 +774,10 @@ export default function AnalysisPage() {
                     { label: "Volatility", pv: vol, bv: cmpMetrics.volatility, fmt: "pct", higherBetter: false },
                     { label: "Sharpe Ratio", pv: ratios.sharpe_ratio, bv: cmpMetrics.sharpe_ratio, fmt: "num", higherBetter: true },
                     { label: "Sortino Ratio", pv: ratios.sortino_ratio, bv: cmpMetrics.sortino_ratio, fmt: "num", higherBetter: true },
-                    { label: "Max Drawdown", pv: maxDD, bv: cmpMetrics.max_drawdown, fmt: "pct", higherBetter: false },
-                    { label: "Calmar Ratio", pv: ratios.calmar_ratio, bv: null, fmt: "num", higherBetter: true },
+                    { label: "Max Drawdown", pv: maxDD, bv: cmpMetrics.max_drawdown, fmt: "pct", higherBetter: true },
+                    { label: "Calmar Ratio", pv: ratios.calmar_ratio, bv: cmpMetrics.calmar_ratio, fmt: "num", higherBetter: true },
+                    { label: "VaR (95%)", pv: risk.var_95 ?? risk.var_historical_95, bv: cmpMetrics.var_95, fmt: "pct", higherBetter: true },
+                    { label: "CVaR (95%)", pv: risk.cvar_95 ?? risk.cvar_historical_95, bv: cmpMetrics.cvar_95, fmt: "pct", higherBetter: true },
                     { label: "Beta", pv: market.beta, bv: hasBenchmark ? 1.0 : null, fmt: "num", higherBetter: null },
                     { label: "Alpha", pv: market.alpha, bv: hasBenchmark ? 0.0 : null, fmt: "pct", higherBetter: true },
                     { label: "Up Capture", pv: market.up_capture, bv: hasBenchmark ? 1.0 : null, fmt: "pct", higherBetter: true },
@@ -1310,13 +1346,13 @@ export default function AnalysisPage() {
             <h3 className="text-lg font-semibold text-white">Risk Metrics</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <CmpMetricCard label="Volatility" portfolioValue={vol} benchmarkValue={cmpMetrics.volatility} format="percent" higherIsBetter={false} helpText="Annualized standard deviation of returns." />
-              <CmpMetricCard label="Max Drawdown" portfolioValue={maxDD} benchmarkValue={cmpMetrics.max_drawdown} format="percent" higherIsBetter={false} helpText="Largest peak-to-trough decline." />
+              <CmpMetricCard label="Max Drawdown" portfolioValue={maxDD} benchmarkValue={cmpMetrics.max_drawdown} format="percent" higherIsBetter={true} helpText="Largest peak-to-trough decline (less negative is better)." />
               <CmpMetricCard label="Sortino Ratio" portfolioValue={ratios.sortino_ratio} benchmarkValue={cmpMetrics.sortino_ratio} format="ratio" higherIsBetter={true} helpText="Like Sharpe but only penalizes downside volatility." />
-              <CmpMetricCard label="Calmar Ratio" portfolioValue={ratios.calmar_ratio} benchmarkValue={null} format="ratio" higherIsBetter={true} helpText="Annual return / Max Drawdown." />
+              <CmpMetricCard label="Calmar Ratio" portfolioValue={ratios.calmar_ratio} benchmarkValue={cmpMetrics.calmar_ratio} format="ratio" higherIsBetter={true} helpText="Annual return / Max Drawdown." />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <CmpMetricCard label="VaR (95%)" portfolioValue={risk.var_95 ?? risk.var_historical_95} benchmarkValue={null} format="percent" higherIsBetter={false} helpText="Worst expected loss on 95% of days." />
-              <CmpMetricCard label="CVaR (95%)" portfolioValue={risk.cvar_95 ?? risk.cvar_historical_95} benchmarkValue={null} format="percent" higherIsBetter={false} helpText="Average loss on worst 5% of days." />
+              <CmpMetricCard label="VaR (95%)" portfolioValue={risk.var_95 ?? risk.var_historical_95} benchmarkValue={cmpMetrics.var_95} format="percent" higherIsBetter={true} helpText="Worst expected loss on 95% of days (values negative; closer to zero is better)." />
+              <CmpMetricCard label="CVaR (95%)" portfolioValue={risk.cvar_95 ?? risk.cvar_historical_95} benchmarkValue={cmpMetrics.cvar_95} format="percent" higherIsBetter={true} helpText="Average loss on worst 5% of days (values negative; closer to zero is better)." />
               <CmpMetricCard label="Up Capture" portfolioValue={market.up_capture} benchmarkValue={hasBenchmark ? 1.0 : null} format="percent" higherIsBetter={true} helpText="Portfolio return when benchmark is up." />
               <CmpMetricCard label="Down Capture" portfolioValue={market.down_capture} benchmarkValue={hasBenchmark ? 1.0 : null} format="percent" higherIsBetter={false} helpText="Portfolio return when benchmark is down." />
             </div>

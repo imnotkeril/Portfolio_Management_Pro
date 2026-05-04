@@ -250,11 +250,14 @@ class AnalyticsService:
     ) -> dict[str, float]:
         from core.analytics_engine.performance import calculate_annualized_return
         from core.analytics_engine.ratios import (
+            calculate_calmar_ratio,
             calculate_sharpe_ratio,
             calculate_sortino_ratio,
         )
         from core.analytics_engine.risk_metrics import (
+            calculate_cvar,
             calculate_max_drawdown,
+            calculate_var,
             calculate_volatility,
         )
 
@@ -270,6 +273,13 @@ class AnalyticsService:
             metrics["max_drawdown"] = float(dd[0] if isinstance(dd, tuple) else dd)
             metrics["sharpe_ratio"] = float(calculate_sharpe_ratio(returns) or 0)
             metrics["sortino_ratio"] = float(calculate_sortino_ratio(returns) or 0)
+        except Exception:
+            pass
+        try:
+            calmar = calculate_calmar_ratio(returns)
+            metrics["calmar_ratio"] = float(calmar) if calmar is not None else 0.0
+            metrics["var_95"] = float(calculate_var(returns, 0.95))
+            metrics["cvar_95"] = float(calculate_cvar(returns, 0.95))
         except Exception:
             pass
         return metrics
