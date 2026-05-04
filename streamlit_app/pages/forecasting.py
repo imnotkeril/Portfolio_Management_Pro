@@ -1619,7 +1619,9 @@ def render_forecasting_page() -> None:
             # Add model description
             model_desc = MODEL_DESCRIPTIONS.get("tcn", {})
             if model_desc:
-                with st.expander(f"ℹ️ {model_desc.get('short', 'TCN')}", expanded=False):
+                with st.expander(
+                    f"ℹ️ {model_desc.get('short', 'TCN')}", expanded=False
+                ):
                     st.markdown(model_desc.get("detailed", ""))
 
     # Simple tab
@@ -2337,8 +2339,7 @@ def _display_forecast_results(
         st.subheader("Individual Method Forecasts")
 
         with st.expander("What are Individual Forecasts?", expanded=False):
-            st.markdown(
-                """
+            st.markdown("""
             **Individual Forecasts** allows you to study in detail the forecast of a specific method.
 
             **What you will see:**
@@ -2349,8 +2350,7 @@ def _display_forecast_results(
               - The wider the interval, the greater the forecast uncertainty
             - **Quality metrics** (MAPE, RMSE) - show forecast accuracy
             - **Residuals Analysis** - model error analysis
-            """
-            )
+            """)
 
         # Use successful_forecasts from session_state if available, otherwise use passed parameter
         if (
@@ -2628,8 +2628,7 @@ def _display_forecast_results(
             st.subheader("Residuals Analysis")
 
             with st.expander("What is Residuals Analysis?", expanded=False):
-                st.markdown(
-                    """
+                st.markdown("""
                 **Residuals** - the difference between actual and predicted values.
 
                 **Good residuals:**
@@ -2643,8 +2642,7 @@ def _display_forecast_results(
                 - Increasing variance (heteroscedasticity)
 
                 If residuals show patterns, the model did not capture all patterns in the data.
-                """
-                )
+                """)
 
             residuals_raw = selected_forecast.get("residuals")
             logger.debug(

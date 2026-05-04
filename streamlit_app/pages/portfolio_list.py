@@ -582,14 +582,12 @@ def render_portfolio_editor() -> None:
     with tab3:
         # Strategies tab (placeholder for Phase 5)
         st.info("Strategy management - coming in Phase 5")
-        st.markdown(
-            """
+        st.markdown("""
         **Strategies can be applied to any portfolio mode:**
         - Buy-and-Hold portfolios can use strategies for backtesting
         - Transaction-based portfolios can also use strategies
         - Strategies generate simulated transactions for analysis
-        """
-        )
+        """)
 
 
 def render_portfolio_view() -> None:
@@ -653,14 +651,12 @@ def render_portfolio_view() -> None:
     with tab4:
         # Strategies tab (placeholder for Phase 5)
         st.info("Strategy management - coming in Phase 5")
-        st.markdown(
-            """
+        st.markdown("""
         **Strategies can be applied to any portfolio mode:**
         - Buy-and-Hold portfolios can use strategies for backtesting
         - Transaction-based portfolios can also use strategies
         - Strategies generate simulated transactions for analysis
-        """
-        )
+        """)
 
 
 def _render_portfolio_overview(portfolio, positions, transaction_service):

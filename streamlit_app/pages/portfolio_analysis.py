@@ -6530,8 +6530,7 @@ def _render_asset_overview(positions):
 
                     # Interpretation guide
                     with st.expander("📖 How to interpret", expanded=False):
-                        st.markdown(
-                            """
+                        st.markdown("""
                         **Factor Exposure (Beta):**
                         - Shows how the portfolio responds to each factor
                         - Example: Market exposure of 1.0 means portfolio
@@ -6557,8 +6556,7 @@ def _render_asset_overview(positions):
                         - Excess return not explained by factors
                         - Positive alpha = outperformance
                         - Negative alpha = underperformance
-                        """
-                        )
+                        """)
                 else:
                     st.warning("Insufficient aligned data for regression")
             else:
@@ -7150,8 +7148,7 @@ def _render_correlations(positions, portfolio_returns, benchmark_returns):
                 with st.expander(
                     "📖 How to Interpret Cluster Analysis", expanded=False
                 ):
-                    st.markdown(
-                        f"""
+                    st.markdown(f"""
                     **Understanding the Dendrogram:**
 
                     1. **Distance Axis (X-axis):** Shows how dissimilar assets are.
@@ -7184,8 +7181,7 @@ def _render_correlations(positions, portfolio_returns, benchmark_returns):
                     **Note:** The number of clusters ({cluster_data["n_clusters"]}) is a starting point.
                     Use the slider above to explore different groupings and find the most
                     meaningful clusters for your portfolio.
-                    """
-                    )
+                    """)
             else:
                 st.info("Unable to perform cluster analysis")
         else:
@@ -7762,8 +7758,7 @@ def _render_export_tab(
 
     # Info section
     with st.expander("ℹ️ About PDF Reports"):
-        st.markdown(
-            """
+        st.markdown("""
         **Streamlit Tab Screenshot PDF Generation**
 
         This feature generates PDF reports by:
@@ -7791,5 +7786,4 @@ def _render_export_tab(
         - Make sure you're on the Portfolio Analysis page when generating
 
         **Note:** The first generation may take longer as the browser needs to load and navigate through tabs.
-        """
-        )
+        """)
