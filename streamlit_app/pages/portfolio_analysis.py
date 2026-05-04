@@ -4339,7 +4339,9 @@ def _render_risk_key_metrics(
         calculate_downside_deviation,
     )
     from core.analytics_engine.risk_metrics import calculate_max_drawdown as calc_dd
-    from core.analytics_engine.risk_metrics import calculate_var
+    from core.analytics_engine.risk_metrics import (
+        calculate_var,
+    )
     from core.analytics_engine.risk_metrics import calculate_volatility as calc_vol
 
     # Portfolio metrics

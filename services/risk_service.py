@@ -16,11 +16,15 @@ from core.risk_engine.monte_carlo import simulate_portfolio_paths
 from core.risk_engine.stress_testing import StressTester, apply_stress_scenario
 from core.risk_engine.var_calculator import calculate_var_all_methods
 from core.scenario_engine.custom_scenarios import CustomScenario, validate_scenario
-from core.scenario_engine.historical_scenarios import HistoricalScenario
+from core.scenario_engine.historical_scenarios import (
+    HistoricalScenario,
+)
 from core.scenario_engine.historical_scenarios import (
     get_all_scenarios as get_all_historical_scenarios,
 )
-from core.scenario_engine.historical_scenarios import get_scenario_by_name
+from core.scenario_engine.historical_scenarios import (
+    get_scenario_by_name,
+)
 from core.scenario_engine.scenario_chain import ScenarioChain, apply_scenario_chain
 from services.analytics_service import AnalyticsService
 from services.data_service import DataService
