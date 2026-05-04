@@ -1,4 +1,9 @@
-"""Pydantic validation schemas for portfolio operations."""
+"""
+Pydantic validation schemas for portfolio operations.
+
+These models are shared by the FastAPI layer and Streamlit flows where payloads
+must match domain constraints (tickers, weights summing to one, etc.).
+"""
 
 from datetime import date
 from typing import Optional

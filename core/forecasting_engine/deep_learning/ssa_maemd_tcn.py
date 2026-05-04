@@ -18,14 +18,7 @@ try:
     from sklearn.preprocessing import MinMaxScaler
     from tensorflow import keras
     from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-    from tensorflow.keras.layers import (
-        Activation,
-        Add,
-        Conv1D,
-        Dense,
-        Dropout,
-        Input,
-    )
+    from tensorflow.keras.layers import Activation, Add, Conv1D, Dense, Dropout, Input
     from tensorflow.keras.models import Model
 except ImportError:
     tf = None
@@ -521,16 +514,16 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
                         )
 
                         # Forecast iteratively
-                        forecast_scaled = []
+                        forecast_scaled_list: list[float] = []
                         last_sequence = comp_scaled[-tcn_lookback:].copy()
 
                         for _ in range(horizon):
                             X_pred = last_sequence.reshape((1, tcn_lookback, 1))
                             next_val = model.predict(X_pred, verbose=0)[0, 0]
-                            forecast_scaled.append(next_val)
+                            forecast_scaled_list.append(float(next_val))
                             last_sequence = np.append(last_sequence[1:], next_val)
 
-                        forecast_scaled = np.array(forecast_scaled)
+                        forecast_scaled = np.array(forecast_scaled_list)
 
                     # Inverse transform
                     forecast_scaled_2d = forecast_scaled.reshape(-1, 1)

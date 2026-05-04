@@ -25,7 +25,7 @@ class OptimizationConstraints:
         self.min_weight: Optional[float] = None
         self.max_weight: Optional[float] = None
         self.long_only: bool = True
-        self.weight_bounds: dict[str, tuple[float, float]] = {}
+        self.weight_bounds: dict[str, tuple[Optional[float], Optional[float]]] = {}
 
         # Group constraints (sector, asset class, etc.)
         self.group_constraints: dict[str, dict[str, float]] = {}

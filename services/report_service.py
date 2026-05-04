@@ -682,9 +682,7 @@ except Exception as e:
                 from core.analytics_engine.performance import (
                     calculate_annualized_return,
                 )
-                from core.analytics_engine.ratios import (
-                    calculate_sharpe_ratio,
-                )
+                from core.analytics_engine.ratios import calculate_sharpe_ratio
                 from core.analytics_engine.risk_metrics import (
                     calculate_max_drawdown,
                     calculate_volatility,
@@ -1468,15 +1466,18 @@ except Exception as e:
 
                         for screenshot_file in screenshot_files:
                             try:
-                                img = Image.open(screenshot_file)
-                                # Convert to RGB if needed
-                                if img.mode != "RGB":
-                                    img = img.convert("RGB")
+                                pil_img = Image.open(screenshot_file)
+                                # Convert to RGB if needed (separate name for typing)
+                                rgb_img = (
+                                    pil_img.convert("RGB")
+                                    if pil_img.mode != "RGB"
+                                    else pil_img
+                                )
 
                                 # Find the bottom of actual content
                                 # Look for the last row with non-white pixels
-                                width, height = img.size
-                                pixels = img.load()
+                                width, height = rgb_img.size
+                                pixels = rgb_img.load()
 
                                 # Start from bottom and find last row with content
                                 last_content_row = 0
@@ -1507,7 +1508,9 @@ except Exception as e:
 
                                 if crop_height < height:
                                     # Crop the image
-                                    cropped_img = img.crop((0, 0, width, crop_height))
+                                    cropped_img = rgb_img.crop(
+                                        (0, 0, width, crop_height)
+                                    )
                                     # Save cropped version temporarily
                                     cropped_path = screenshot_file.replace(
                                         ".png", "_cropped.png"

@@ -492,7 +492,7 @@ class TCNForecaster(BaseForecaster):
             # Get best epoch
             best_epoch = len(history.history["loss"])
             if "val_loss" in history.history:
-                best_epoch = np.argmin(history.history["val_loss"]) + 1
+                best_epoch = int(np.argmin(history.history["val_loss"])) + 1
             logger.debug(f"TCN: Best epoch: {best_epoch}/{epochs}")
 
             # Calculate training metrics

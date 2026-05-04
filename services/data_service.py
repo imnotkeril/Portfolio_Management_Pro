@@ -279,9 +279,10 @@ class DataService:
             }
 
             for future in as_completed(future_to_ticker):
-                ticker, price = future.result()
-                if price is not None:
-                    prices[ticker] = price
+                t_result: tuple[str, Optional[float]] = future.result()
+                tkr, px = t_result
+                if px is not None:
+                    prices[tkr] = float(px)
 
         return prices
 

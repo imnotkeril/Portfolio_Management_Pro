@@ -108,7 +108,7 @@ pytest tests/performance/    # Performance tests
 
 ### Code quality (local)
 
-Configuration lives in `pyproject.toml` (Ruff, Black, isort, Mypy). **Coverage** for CI and default `pytest` runs uses `.coveragerc`: **`core/` must stay ≥70%** — heavy optional paths (e.g. TensorFlow forecasters, omitted CVX optimizers, chart serialization helpers) are excluded from the denominator on purpose; run broader smoke/integration tests for those.
+Configuration lives in `pyproject.toml` (Ruff, Black, isort, Mypy). Mypy runs on `core/`, `services/`, `api/`, `config/`, `models/`, `database/` with **assignment and return-value checking enabled** (alongside the remaining gradual-typing relaxations in `pyproject.toml`). **Coverage** for CI and default `pytest` runs uses `.coveragerc`: **`core/` must stay ≥70%** — heavy optional paths (e.g. TensorFlow forecasters, omitted CVX optimizers, chart serialization helpers) are excluded from the denominator on purpose; run broader smoke/integration tests for those.
 
 ```bash
 ruff check .

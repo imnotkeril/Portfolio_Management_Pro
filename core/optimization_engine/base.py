@@ -3,7 +3,7 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -49,7 +49,7 @@ class OptimizationResult:
     message: str = ""
     """Optimization status message"""
 
-    metadata: dict[str, any] = None
+    metadata: Optional[dict[str, Any]] = None
     """Additional metadata (iterations, solve time, etc.)"""
 
     def __post_init__(self) -> None:

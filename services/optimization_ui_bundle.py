@@ -253,9 +253,10 @@ def portfolio_snapshot_rows(
             price = 1.0
             pos_value = pos.shares
         else:
-            price = prices.get(pos.ticker)
-            if not price:
+            px = prices.get(pos.ticker)
+            if px is None:
                 continue
+            price = float(px)
             pos_value = price * pos.shares
         w = (pos_value / current_value) if current_value > 0 else 0.0
         rows.append(

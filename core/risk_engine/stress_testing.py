@@ -5,9 +5,9 @@ This module provides historical and custom stress scenario testing
 capabilities to assess portfolio performance under adverse conditions.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -34,7 +34,7 @@ class StressTestResult:
     worst_position_impact: tuple[str, float]  # (ticker, impact %)
     best_position_impact: tuple[str, float]  # (ticker, impact %)
     recovery_time_days: Optional[int] = None  # Estimated recovery time
-    details: dict = None  # Additional details
+    details: Optional[dict[str, Any]] = field(default=None)  # Additional details
 
 
 class StressTester:

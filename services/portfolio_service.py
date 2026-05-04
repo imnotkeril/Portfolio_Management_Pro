@@ -1,4 +1,9 @@
-"""Portfolio service for orchestrating portfolio operations."""
+"""
+Portfolio service — orchestrates persistence and validation for portfolios.
+
+Coordinates ``PortfolioRepository``, ``DataService`` (tickers/prices), and
+domain ``Portfolio`` logic for create/update/delete and position management.
+"""
 
 import logging
 from typing import Optional
@@ -24,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class PortfolioService:
-    """Service for orchestrating portfolio operations."""
+    """Facade over portfolio CRUD, ticker validation, and position updates."""
 
     def __init__(
         self,

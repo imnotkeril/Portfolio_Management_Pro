@@ -113,17 +113,17 @@ def calculate_var_monte_carlo(
 
     # Simulate returns for time horizon
     # For multi-day horizon, we simulate cumulative returns
-    simulated_returns = []
+    simulated_returns_list: list[float] = []
 
     for _ in range(num_simulations):
         # Generate random returns for each day in horizon
         daily_returns = np.random.normal(mean_return, std_return, size=time_horizon)
         # Calculate cumulative return over horizon
-        cumulative_return = np.prod(1 + daily_returns) - 1
-        simulated_returns.append(cumulative_return)
+        cumulative_return = float(np.prod(1 + daily_returns) - 1)
+        simulated_returns_list.append(cumulative_return)
 
     # Convert to numpy array for percentile calculation
-    simulated_returns = np.array(simulated_returns)
+    simulated_returns = np.array(simulated_returns_list)
 
     # Calculate VaR as percentile
     alpha = 1.0 - confidence_level
@@ -156,7 +156,7 @@ def calculate_var_all_methods(
             'monte_carlo': float
         }
     """
-    results = {}
+    results: dict[str, float | None] = {}
 
     try:
         results["historical"] = calculate_var(returns, confidence_level, "historical")

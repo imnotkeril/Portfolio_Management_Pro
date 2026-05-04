@@ -102,7 +102,7 @@ class EnsembleForecaster(BaseForecaster):
 
         # Collect forecast values and align lengths
         forecast_values_list = []
-        weights = []
+        w_list: list[float] = []
         methods_used = []
 
         for forecast_result in successful_forecasts:
@@ -131,9 +131,9 @@ class EnsembleForecaster(BaseForecaster):
                         if not np.isnan(metric_value) and metric_value > 0:
                             # Inverse metric: lower error = higher weight
                             weight = 1.0 / metric_value
-                    weights.append(weight)
+                    w_list.append(weight)
                 else:
-                    weights.append(1.0)
+                    w_list.append(1.0)
 
         if len(forecast_values_list) == 0:
             raise CalculationError("No valid forecasts to combine")
@@ -141,16 +141,20 @@ class EnsembleForecaster(BaseForecaster):
         # Convert to numpy array for easier manipulation
         forecast_values_array = np.array(forecast_values_list)
 
+        # Normalized weights (only for weighted_average); used for CI combination + model_info
+        weights_norm: np.ndarray | None = None
+
         # Combine forecasts based on method
         if method == "weighted_average":
             # Normalize weights
-            weights = np.array(weights)
-            if weights.sum() > 0:
-                weights = weights / weights.sum()
+            w_arr = np.array(w_list)
+            if w_arr.sum() > 0:
+                w_arr = w_arr / w_arr.sum()
             else:
                 # Fallback to equal weights if all weights are zero
-                weights = np.ones(len(weights)) / len(weights)
-            ensemble_values = np.average(forecast_values_array, axis=0, weights=weights)
+                w_arr = np.ones(len(w_list)) / len(w_list)
+            weights_norm = w_arr
+            ensemble_values = np.average(forecast_values_array, axis=0, weights=w_arr)
         elif method == "median":
             # Median is robust to outliers
             ensemble_values = np.median(forecast_values_array, axis=0)
@@ -159,7 +163,7 @@ class EnsembleForecaster(BaseForecaster):
             trim_count = int(len(forecast_values_list) * trim_percent)
             if trim_count > 0:
                 # Sort each timestep and trim
-                ensemble_values = []
+                trimmed_means: list[float] = []
                 for t in range(forecast_values_array.shape[1]):
                     values_at_t = forecast_values_array[:, t]
                     sorted_values = np.sort(values_at_t)
@@ -168,8 +172,8 @@ class EnsembleForecaster(BaseForecaster):
                         if trim_count > 0
                         else sorted_values
                     )
-                    ensemble_values.append(np.mean(trimmed))
-                ensemble_values = np.array(ensemble_values)
+                    trimmed_means.append(float(np.mean(trimmed)))
+                ensemble_values = np.array(trimmed_means)
             else:
                 ensemble_values = np.mean(forecast_values_array, axis=0)
         else:  # simple_average
@@ -222,12 +226,16 @@ class EnsembleForecaster(BaseForecaster):
 
         if ci_upper_list and ci_lower_list:
             # Combine confidence intervals (use weighted average if weights available)
-            if method == "weighted_average" and len(weights) == len(ci_upper_list):
+            if (
+                method == "weighted_average"
+                and weights_norm is not None
+                and len(weights_norm) == len(ci_upper_list)
+            ):
                 upper_95_ensemble = np.average(
-                    np.array(ci_upper_list), axis=0, weights=weights
+                    np.array(ci_upper_list), axis=0, weights=weights_norm
                 )
                 lower_95_ensemble = np.average(
-                    np.array(ci_lower_list), axis=0, weights=weights
+                    np.array(ci_lower_list), axis=0, weights=weights_norm
                 )
             else:
                 # Simple average or median
@@ -268,9 +276,10 @@ class EnsembleForecaster(BaseForecaster):
             ensemble_residuals = np.median(np.array(aligned_residuals), axis=0)
 
         # Calculate weights for info (normalize if needed)
-        weights_info = weights
-        if isinstance(weights, np.ndarray) and method == "weighted_average":
-            weights_info = weights.tolist()
+        if weights_norm is not None and method == "weighted_average":
+            weights_info = weights_norm.tolist()
+        else:
+            weights_info = w_list
 
         return ForecastResult(
             method="Ensemble",

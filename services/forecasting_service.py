@@ -2,16 +2,12 @@
 
 import logging
 from datetime import date, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
 
-from core.exceptions import (
-    CalculationError,
-    InsufficientDataError,
-    ValidationError,
-)
+from core.exceptions import CalculationError, InsufficientDataError, ValidationError
 from services.data_service import DataService
 from services.portfolio_service import PortfolioService
 
@@ -869,8 +865,8 @@ class ForecastingService:
         forecast_dates = pd.to_datetime(first_forecast["forecast_dates"])
 
         # Collect forecast values
-        forecast_values_list = []
-        weights = []
+        forecast_values_list: list[np.ndarray] = []
+        weight_list: list[float] = []
 
         for method_name, forecast_data in successful_forecasts.items():
             values = np.array(forecast_data["forecast_values"])
@@ -882,24 +878,24 @@ class ForecastingService:
                     if "validation_metrics" in forecast_data:
                         mape = forecast_data["validation_metrics"].get("mape", np.nan)
                         if not np.isnan(mape) and mape > 0:
-                            weights.append(1.0 / mape)
+                            weight_list.append(1.0 / mape)
                         else:
-                            weights.append(1.0)
+                            weight_list.append(1.0)
                     else:
-                        weights.append(1.0)
+                        weight_list.append(1.0)
                 else:
-                    weights.append(1.0)
+                    weight_list.append(1.0)
 
         if len(forecast_values_list) == 0:
             raise ValueError("No valid forecasts to combine")
 
         # Normalize weights
-        weights = np.array(weights)
-        weights = weights / weights.sum()
+        w_arr = np.array(weight_list)
+        w_arr = w_arr / w_arr.sum()
 
         # Combine forecasts
         if method == "weighted_average":
-            ensemble_values = np.average(forecast_values_list, axis=0, weights=weights)
+            ensemble_values = np.average(forecast_values_list, axis=0, weights=w_arr)
         else:  # simple_average
             ensemble_values = np.mean(forecast_values_list, axis=0)
 
@@ -968,7 +964,7 @@ class ForecastingService:
             "model_info": {
                 "ensemble_method": method,
                 "methods_used": list(successful_forecasts.keys()),
-                "weights": weights.tolist(),
+                "weights": w_arr.tolist(),
             },
             "residuals": None,
             "success": True,
@@ -1171,7 +1167,7 @@ class ForecastingService:
 
     def _get_forecaster_class(self, method: str):
         """Get forecaster class by method name."""
-        method_map = {}
+        method_map: dict[str, type[Any]] = {}
 
         # Simple models
         try:

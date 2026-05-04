@@ -1,7 +1,7 @@
 """Black-Litterman optimization."""
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -267,7 +267,7 @@ class BlackLittermanOptimizer(BaseOptimizer):
 
             # Optimize with BL posterior returns on the selected covariance.
             # Notebook 02 default is max Sharpe on posterior mu.
-            optimize_kwargs = {"constraints": constraints}
+            optimize_kwargs: dict[str, Any] = {"constraints": constraints}
             optimize_kwargs["covariance_method"] = covariance_method
             optimize_kwargs["shrinkage_alpha"] = shrinkage_alpha
             optimize_kwargs["objective"] = objective or "maximize_sharpe"

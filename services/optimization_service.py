@@ -6,35 +6,24 @@ from typing import Optional
 
 import pandas as pd
 
-from core.exceptions import (
-    CalculationError,
-    InsufficientDataError,
-)
+from core.exceptions import CalculationError, InsufficientDataError
 from core.optimization_engine.base import OptimizationResult
-from core.optimization_engine.black_litterman import (
-    BlackLittermanOptimizer,
-)
+from core.optimization_engine.black_litterman import BlackLittermanOptimizer
 from core.optimization_engine.cvar_optimization import CVaROptimizer
 from core.optimization_engine.efficient_frontier import EfficientFrontier
 from core.optimization_engine.equal_weight import EqualWeightOptimizer
 from core.optimization_engine.hrp import HRPOptimizer
-from core.optimization_engine.inverse_correlation import (
-    InverseCorrelationOptimizer,
-)
+from core.optimization_engine.inverse_correlation import InverseCorrelationOptimizer
 from core.optimization_engine.kelly_criterion import KellyCriterionOptimizer
 from core.optimization_engine.market_cap import MarketCapOptimizer
 from core.optimization_engine.max_alpha import MaxAlphaOptimizer
-from core.optimization_engine.max_diversification import (
-    MaxDiversificationOptimizer,
-)
+from core.optimization_engine.max_diversification import MaxDiversificationOptimizer
 from core.optimization_engine.max_return import MaxReturnOptimizer
 from core.optimization_engine.max_sharpe import MaxSharpeOptimizer
 from core.optimization_engine.mean_cvar import MeanCVaROptimizer
 from core.optimization_engine.mean_variance import MeanVarianceOptimizer
 from core.optimization_engine.min_correlation import MinCorrelationOptimizer
-from core.optimization_engine.min_tracking_error import (
-    MinTrackingErrorOptimizer,
-)
+from core.optimization_engine.min_tracking_error import MinTrackingErrorOptimizer
 from core.optimization_engine.min_variance import MinVarianceOptimizer
 from core.optimization_engine.risk_parity import RiskParityOptimizer
 from core.optimization_engine.robust import RobustOptimizer
@@ -625,7 +614,7 @@ class OptimizationService:
             )
 
         # Sort by absolute value (largest trades first)
-        trades.sort(key=lambda x: x["value"], reverse=True)
+        trades.sort(key=lambda x: float(x["value"]), reverse=True)
 
         return trades
 

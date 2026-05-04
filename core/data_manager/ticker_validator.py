@@ -97,18 +97,20 @@ class TickerValidator:
 
         # Check in-memory cache with TTL
         if ticker in self._validation_cache:
-            is_valid, cached_time = self._validation_cache[ticker]
+            cached_valid, cached_time = self._validation_cache[ticker]
             if cached_time and datetime.now() - cached_time < timedelta(
                 seconds=CACHE_TTL_TICKER_VALIDATION
             ):
                 logger.debug(f"In-memory cache hit for ticker validation: {ticker}")
-                return is_valid
+                return cached_valid
 
         # Validate via API with retry logic
         # On Streamlit Cloud, use more retries and longer delays
         max_retries = 3  # Increased from 2
         retry_delay = 1.0  # Increased from 0.5s
-        is_valid = False  # Default to False
+        validation_state: bool | None = (
+            False  # tri-state: False / True / None = undecided
+        )
 
         for attempt in range(max_retries):
             try:
@@ -125,13 +127,13 @@ class TickerValidator:
                             or "longName" in info
                             or "shortName" in info
                         ):
-                            is_valid = True
+                            validation_state = True
                             break  # Success, exit retry loop
                         else:
                             # If info exists but no symbol, try method 2
-                            is_valid = None
+                            validation_state = None
                     else:
-                        is_valid = None
+                        validation_state = None
                 except Exception as e:
                     error_str = str(e).lower()
                     # If rate limited or unauthorized, wait and retry
@@ -147,10 +149,10 @@ class TickerValidator:
                             time.sleep(retry_delay)
                             retry_delay *= 2  # Exponential backoff
                             continue
-                    is_valid = None
+                    validation_state = None
 
                 # Method 2: Check historical data (more reliable, but slower)
-                if is_valid is None:
+                if validation_state is None:
                     try:
                         # Try to get recent history (last 30 days for better reliability)
                         end_date = date.today()
@@ -158,8 +160,8 @@ class TickerValidator:
                         history = ticker_obj.history(
                             start=start_date, end=end_date, period="1mo"
                         )
-                        is_valid = not history.empty and len(history) > 0
-                        if is_valid:
+                        validation_state = not history.empty and len(history) > 0
+                        if validation_state:
                             break  # Success, exit retry loop
                     except Exception as e:
                         error_str = str(e).lower()
@@ -175,24 +177,24 @@ class TickerValidator:
                                 time.sleep(retry_delay)
                                 retry_delay *= 2
                                 continue
-                        is_valid = False
+                        validation_state = False
 
                 # Method 3: If still not determined, check if ticker has any data
-                if is_valid is None or is_valid is False:
+                if validation_state is None or validation_state is False:
                     try:
                         # Try getting fast_info as last resort (lightweight)
                         fast_info = ticker_obj.fast_info
                         if fast_info and hasattr(fast_info, "lastPrice"):
-                            is_valid = True
+                            validation_state = True
                             break  # Success, exit retry loop
                         else:
-                            is_valid = False
+                            validation_state = False
                     except Exception:
-                        is_valid = False
+                        validation_state = False
 
-                # If we got here and is_valid is still None, set to False
-                if is_valid is None:
-                    is_valid = False
+                # If we got here and validation_state is still None, set to False
+                if validation_state is None:
+                    validation_state = False
 
                 break  # Exit retry loop if we got here
 
@@ -214,20 +216,21 @@ class TickerValidator:
                     logger.error(
                         f"Error validating ticker {ticker}: {e}", exc_info=True
                     )
-                    is_valid = False
+                    validation_state = False
                     break
 
         # Cache results (after retry loop completes)
         cache_until = datetime.now() + timedelta(seconds=CACHE_TTL_TICKER_VALIDATION)
-        self._validation_cache[ticker] = (is_valid, cache_until)
-        self._cache.set(cache_key, is_valid, ttl=CACHE_TTL_TICKER_VALIDATION)
+        final_ok = bool(validation_state) if validation_state is not None else False
+        self._validation_cache[ticker] = (final_ok, cache_until)
+        self._cache.set(cache_key, final_ok, ttl=CACHE_TTL_TICKER_VALIDATION)
 
-        if is_valid:
+        if final_ok:
             logger.info(f"Ticker validated: {ticker}")
         else:
             logger.warning(f"Ticker not found or invalid: {ticker}")
 
-        return is_valid
+        return final_ok
 
     def validate_tickers(self, tickers: list[str]) -> dict[str, bool]:
         """

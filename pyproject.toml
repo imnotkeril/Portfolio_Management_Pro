@@ -41,8 +41,6 @@ disable_error_code = [
     "attr-defined",
     "arg-type",
     "call-arg",
-    "assignment",
-    "return-value",
     "var-annotated",
     "index",
     "operator",

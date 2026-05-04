@@ -170,7 +170,7 @@ class RandomForestForecaster(BaseForecaster):
                 )
 
             # Generate forecast iteratively
-            forecast_values = []
+            forecast_price_list: list[float] = []
 
             # Get last lookback elements from both arrays
             # Take exactly lookback elements, padding if necessary
@@ -226,7 +226,7 @@ class RandomForestForecaster(BaseForecaster):
                 last_price = last_prices[-1]
                 next_price = last_price * (1 + next_return)
 
-                forecast_values.append(next_price)
+                forecast_price_list.append(float(next_price))
 
                 # Update feature vector - maintain lookback length
                 last_prices = np.concatenate([last_prices[1:], [next_price]])
@@ -245,23 +245,19 @@ class RandomForestForecaster(BaseForecaster):
                     use_technical_features,
                 )
 
-            forecast_values = np.array(forecast_values)
+            fv_arr = np.asarray(forecast_price_list, dtype=float)
 
             # Create forecast dates
             last_date = self.prices.index[-1]
             forecast_dates = self._create_forecast_dates(horizon, last_date)
 
             # Calculate returns
-            forecast_returns = np.diff(forecast_values) / forecast_values[:-1]
-            first_return = (
-                forecast_values[0] - self.prices.iloc[-1]
-            ) / self.prices.iloc[-1]
+            forecast_returns = np.diff(fv_arr) / fv_arr[:-1]
+            first_return = (fv_arr[0] - self.prices.iloc[-1]) / self.prices.iloc[-1]
             forecast_returns = np.insert(forecast_returns, 0, first_return)
 
             # Calculate change percentage
-            change_pct = self._calculate_change_pct(
-                forecast_values, self.prices.iloc[-1]
-            )
+            change_pct = self._calculate_change_pct(fv_arr, self.prices.iloc[-1])
 
             # Get residuals (use validation if available for better uncertainty estimation)
             if len(X_val) > 0:
@@ -281,7 +277,7 @@ class RandomForestForecaster(BaseForecaster):
 
             # Calculate confidence intervals
             confidence_intervals = calculate_confidence_intervals(
-                forecast_values,
+                fv_arr,
                 residuals=valid_residuals,
                 confidence_level=0.95,
             )
@@ -296,10 +292,10 @@ class RandomForestForecaster(BaseForecaster):
             return ForecastResult(
                 method="Random Forest",
                 forecast_dates=forecast_dates,
-                forecast_values=forecast_values,
+                forecast_values=fv_arr,
                 forecast_returns=forecast_returns,
                 confidence_intervals=confidence_intervals,
-                final_value=float(forecast_values[-1]),
+                final_value=float(fv_arr[-1]),
                 change_pct=change_pct,
                 model_info={
                     "n_estimators": n_estimators,

@@ -2,18 +2,21 @@
 
 import logging
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
 
+arch_model: Any
 try:
-    from arch import arch_model
+    from arch import arch_model as _arch_model
+
+    arch_model = _arch_model
 except ImportError:
     arch_model = None
 
-from core.exceptions import CalculationError
-from core.forecasting_engine.base import BaseForecaster, ForecastResult
+from core.exceptions import CalculationError  # noqa: E402
+from core.forecasting_engine.base import BaseForecaster, ForecastResult  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
