@@ -1,12 +1,12 @@
 """Custom exception hierarchy for WMC application."""
 
-from typing import Dict, Optional
+from typing import Optional
 
 
 class WMCBaseException(Exception):
     """Base exception for all WMC exceptions."""
 
-    def __init__(self, message: str, details: Optional[Dict] = None) -> None:
+    def __init__(self, message: str, details: Optional[dict] = None) -> None:
         """
         Initialize base exception.
 
@@ -93,4 +93,3 @@ class PositionNotFoundError(PortfolioError):
     """Position not found in portfolio."""
 
     pass
-

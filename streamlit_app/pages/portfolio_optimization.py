@@ -2,19 +2,17 @@
 
 import logging
 from datetime import date, timedelta
-from typing import Dict
 
-import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
+import streamlit as st
 
-from services.portfolio_service import PortfolioService
-from services.optimization_service import OptimizationService
-from services.analytics_service import AnalyticsService
 from core.exceptions import CalculationError, InsufficientDataError
+from services.analytics_service import AnalyticsService
+from services.optimization_service import OptimizationService
+from services.portfolio_service import PortfolioService
 from streamlit_app.utils.chart_config import COLORS
-
 
 logger = logging.getLogger(__name__)
 
@@ -99,17 +97,17 @@ def validate_weight_constraints(
 ) -> list:
     """
     Validate weight constraints against number of assets.
-    
+
     Args:
         min_weight: Minimum weight per asset (0.0 to 1.0)
         max_weight: Maximum weight per asset (0.0 to 1.0)
         num_assets: Number of assets in portfolio
-    
+
     Returns:
         List of warning messages (empty if no warnings)
     """
     warnings = []
-    
+
     if min_weight is not None:
         if min_weight * num_assets > 1.0:
             max_allowed = 1.0 / num_assets
@@ -119,123 +117,163 @@ def validate_weight_constraints(
                 f"{min_weight * num_assets:.1%} (>100%). "
                 f"Recommended: min_weight ≤ {max_allowed:.2%}"
             )
-    
+
     if max_weight is not None and min_weight is not None:
         if max_weight < min_weight:
             warnings.append(
                 f"**Error:** Maximum weight ({max_weight:.1%}) is less than "
                 f"minimum weight ({min_weight:.1%})"
             )
-    
+
     return warnings
 
 
 def get_available_objectives(method: str) -> list:
     """
     Get list of available objectives for a given method.
-    
+
     Args:
         method: Optimization method name
-    
+
     Returns:
         List of objective keys available for this method
     """
     if method in FIXED_OBJECTIVE_METHODS:
         return []
-    
+
     available = []
     for obj_key, obj_data in OBJECTIVE_METHOD_MAPPING.items():
         if method in obj_data["methods"]:
             available.append(obj_key)
-    
+
     return available
 
 
 def get_default_objective(method: str) -> str:
     """
     Get default objective for a method.
-    
+
     Args:
         method: Optimization method name
-    
+
     Returns:
         Default objective key, or None if method has fixed objective
     """
     if method in FIXED_OBJECTIVE_METHODS:
         return None
-    
+
     for obj_key, obj_data in OBJECTIVE_METHOD_MAPPING.items():
         if method in obj_data.get("default_for", []):
             return obj_key
-    
+
     # If no default specified, use first available
     available = get_available_objectives(method)
     return available[0] if available else None
 
 
-def _interpret_optimization_comparison(optimized_metrics: dict, current_metrics: dict) -> str:
+def _interpret_optimization_comparison(
+    optimized_metrics: dict, current_metrics: dict
+) -> str:
     """Interpret comparison between optimized and current portfolio metrics."""
     if not optimized_metrics or not current_metrics:
         return ""
-    
+
     parts = []
     parts.append("**Optimization Results Analysis:**")
-    
+
     # Calculate improvements
-    sharpe_diff = optimized_metrics.get("sharpe_ratio", 0) - current_metrics.get("sharpe_ratio", 0)
-    return_diff = optimized_metrics.get("annualized_return", 0) - current_metrics.get("annualized_return", 0)
-    vol_diff = optimized_metrics.get("volatility", 0) - current_metrics.get("volatility", 0)
-    dd_diff = optimized_metrics.get("max_drawdown", 0) - current_metrics.get("max_drawdown", 0)
-    
+    sharpe_diff = optimized_metrics.get("sharpe_ratio", 0) - current_metrics.get(
+        "sharpe_ratio", 0
+    )
+    return_diff = optimized_metrics.get("annualized_return", 0) - current_metrics.get(
+        "annualized_return", 0
+    )
+    vol_diff = optimized_metrics.get("volatility", 0) - current_metrics.get(
+        "volatility", 0
+    )
+    dd_diff = optimized_metrics.get("max_drawdown", 0) - current_metrics.get(
+        "max_drawdown", 0
+    )
+
     # Sharpe ratio analysis
     if abs(sharpe_diff) < 0.1:
-        parts.append(f"Sharpe ratio: Similar ({optimized_metrics.get('sharpe_ratio', 0):.2f} vs {current_metrics.get('sharpe_ratio', 0):.2f})")
+        parts.append(
+            f"Sharpe ratio: Similar ({optimized_metrics.get('sharpe_ratio', 0):.2f} vs {current_metrics.get('sharpe_ratio', 0):.2f})"
+        )
     elif sharpe_diff > 0:
-        parts.append(f"✓ Sharpe ratio improved by {sharpe_diff:.2f} ({optimized_metrics.get('sharpe_ratio', 0):.2f} vs {current_metrics.get('sharpe_ratio', 0):.2f})")
+        parts.append(
+            f"✓ Sharpe ratio improved by {sharpe_diff:.2f} ({optimized_metrics.get('sharpe_ratio', 0):.2f} vs {current_metrics.get('sharpe_ratio', 0):.2f})"
+        )
     else:
-        parts.append(f"⚠ Sharpe ratio decreased by {abs(sharpe_diff):.2f} ({optimized_metrics.get('sharpe_ratio', 0):.2f} vs {current_metrics.get('sharpe_ratio', 0):.2f})")
-    
+        parts.append(
+            f"⚠ Sharpe ratio decreased by {abs(sharpe_diff):.2f} ({optimized_metrics.get('sharpe_ratio', 0):.2f} vs {current_metrics.get('sharpe_ratio', 0):.2f})"
+        )
+
     # Return analysis
     if abs(return_diff) < 0.01:
-        parts.append(f"Annual return: Similar ({optimized_metrics.get('annualized_return', 0)*100:.2f}% vs {current_metrics.get('annualized_return', 0)*100:.2f}%)")
+        parts.append(
+            f"Annual return: Similar ({optimized_metrics.get('annualized_return', 0)*100:.2f}% vs {current_metrics.get('annualized_return', 0)*100:.2f}%)"
+        )
     elif return_diff > 0:
-        parts.append(f"✓ Annual return increased by {return_diff*100:.2f}% ({optimized_metrics.get('annualized_return', 0)*100:.2f}% vs {current_metrics.get('annualized_return', 0)*100:.2f}%)")
+        parts.append(
+            f"✓ Annual return increased by {return_diff*100:.2f}% ({optimized_metrics.get('annualized_return', 0)*100:.2f}% vs {current_metrics.get('annualized_return', 0)*100:.2f}%)"
+        )
     else:
-        parts.append(f"Annual return decreased by {abs(return_diff)*100:.2f}% ({optimized_metrics.get('annualized_return', 0)*100:.2f}% vs {current_metrics.get('annualized_return', 0)*100:.2f}%)")
-    
+        parts.append(
+            f"Annual return decreased by {abs(return_diff)*100:.2f}% ({optimized_metrics.get('annualized_return', 0)*100:.2f}% vs {current_metrics.get('annualized_return', 0)*100:.2f}%)"
+        )
+
     # Volatility analysis
     if abs(vol_diff) < 0.01:
-        parts.append(f"Volatility: Similar ({optimized_metrics.get('volatility', 0)*100:.2f}% vs {current_metrics.get('volatility', 0)*100:.2f}%)")
+        parts.append(
+            f"Volatility: Similar ({optimized_metrics.get('volatility', 0)*100:.2f}% vs {current_metrics.get('volatility', 0)*100:.2f}%)"
+        )
     elif vol_diff < 0:
-        parts.append(f"✓ Volatility reduced by {abs(vol_diff)*100:.2f}% ({optimized_metrics.get('volatility', 0)*100:.2f}% vs {current_metrics.get('volatility', 0)*100:.2f}%)")
+        parts.append(
+            f"✓ Volatility reduced by {abs(vol_diff)*100:.2f}% ({optimized_metrics.get('volatility', 0)*100:.2f}% vs {current_metrics.get('volatility', 0)*100:.2f}%)"
+        )
     else:
-        parts.append(f"⚠ Volatility increased by {vol_diff*100:.2f}% ({optimized_metrics.get('volatility', 0)*100:.2f}% vs {current_metrics.get('volatility', 0)*100:.2f}%)")
-    
+        parts.append(
+            f"⚠ Volatility increased by {vol_diff*100:.2f}% ({optimized_metrics.get('volatility', 0)*100:.2f}% vs {current_metrics.get('volatility', 0)*100:.2f}%)"
+        )
+
     # Drawdown analysis
     if abs(dd_diff) < 0.01:
-        parts.append(f"Max drawdown: Similar ({optimized_metrics.get('max_drawdown', 0)*100:.2f}% vs {current_metrics.get('max_drawdown', 0)*100:.2f}%)")
+        parts.append(
+            f"Max drawdown: Similar ({optimized_metrics.get('max_drawdown', 0)*100:.2f}% vs {current_metrics.get('max_drawdown', 0)*100:.2f}%)"
+        )
     elif dd_diff < 0:
-        parts.append(f"✓ Max drawdown reduced by {abs(dd_diff)*100:.2f}% ({optimized_metrics.get('max_drawdown', 0)*100:.2f}% vs {current_metrics.get('max_drawdown', 0)*100:.2f}%)")
+        parts.append(
+            f"✓ Max drawdown reduced by {abs(dd_diff)*100:.2f}% ({optimized_metrics.get('max_drawdown', 0)*100:.2f}% vs {current_metrics.get('max_drawdown', 0)*100:.2f}%)"
+        )
     else:
-        parts.append(f"⚠ Max drawdown increased by {abs(dd_diff)*100:.2f}% ({optimized_metrics.get('max_drawdown', 0)*100:.2f}% vs {current_metrics.get('max_drawdown', 0)*100:.2f}%)")
-    
+        parts.append(
+            f"⚠ Max drawdown increased by {abs(dd_diff)*100:.2f}% ({optimized_metrics.get('max_drawdown', 0)*100:.2f}% vs {current_metrics.get('max_drawdown', 0)*100:.2f}%)"
+        )
+
     # Overall assessment
-    improvements = sum([
-        1 if sharpe_diff > 0.1 else 0,
-        1 if return_diff > 0.01 else 0,
-        1 if vol_diff < -0.01 else 0,
-        1 if dd_diff < -0.01 else 0,
-    ])
-    
+    improvements = sum(
+        [
+            1 if sharpe_diff > 0.1 else 0,
+            1 if return_diff > 0.01 else 0,
+            1 if vol_diff < -0.01 else 0,
+            1 if dd_diff < -0.01 else 0,
+        ]
+    )
+
     if improvements >= 3:
-        parts.append(f"\n✓ Optimization shows significant improvements across multiple metrics")
+        parts.append(
+            "\n✓ Optimization shows significant improvements across multiple metrics"
+        )
     elif improvements >= 2:
-        parts.append(f"\nOptimization shows moderate improvements")
+        parts.append("\nOptimization shows moderate improvements")
     elif improvements >= 1:
-        parts.append(f"\nOptimization shows limited improvements")
+        parts.append("\nOptimization shows limited improvements")
     else:
-        parts.append(f"\n⚠ Optimization did not improve metrics - consider adjusting constraints or method")
-    
+        parts.append(
+            "\n⚠ Optimization did not improve metrics - consider adjusting constraints or method"
+        )
+
     return "\n".join(parts)
 
 
@@ -243,10 +281,10 @@ def _interpret_allocation_changes(current_weights: dict, optimal_weights: dict) 
     """Interpret changes in portfolio allocation."""
     if not current_weights or not optimal_weights:
         return ""
-    
+
     parts = []
     parts.append("**Allocation Changes Analysis:**")
-    
+
     # Calculate differences
     changes = []
     for ticker in optimal_weights.keys():
@@ -255,48 +293,60 @@ def _interpret_allocation_changes(current_weights: dict, optimal_weights: dict) 
         diff = optimal_w - current_w
         if abs(diff) > 0.01:  # Only significant changes (>1%)
             changes.append((ticker, current_w, optimal_w, diff))
-    
+
     if not changes:
-        parts.append("No significant weight changes required - portfolio is already close to optimal")
+        parts.append(
+            "No significant weight changes required - portfolio is already close to optimal"
+        )
         return "\n".join(parts)
-    
+
     # Sort by absolute difference
     changes.sort(key=lambda x: abs(x[3]), reverse=True)
-    
+
     # Largest increases
     increases = [c for c in changes if c[3] > 0.01]
     if increases:
         top_increase = increases[0]
-        parts.append(f"Largest increase: {top_increase[0]} ({top_increase[1]:.1%} → {top_increase[2]:.1%}, +{top_increase[3]:.1%})")
+        parts.append(
+            f"Largest increase: {top_increase[0]} ({top_increase[1]:.1%} → {top_increase[2]:.1%}, +{top_increase[3]:.1%})"
+        )
         if len(increases) > 1:
             parts.append(f"{len(increases)} asset(s) need weight increases")
-    
+
     # Largest decreases
     decreases = [c for c in changes if c[3] < -0.01]
     if decreases:
         top_decrease = decreases[0]
-        parts.append(f"Largest decrease: {top_decrease[0]} ({top_decrease[1]:.1%} → {top_decrease[2]:.1%}, {top_decrease[3]:.1%})")
+        parts.append(
+            f"Largest decrease: {top_decrease[0]} ({top_decrease[1]:.1%} → {top_decrease[2]:.1%}, {top_decrease[3]:.1%})"
+        )
         if len(decreases) > 1:
             parts.append(f"{len(decreases)} asset(s) need weight decreases")
-    
+
     # Concentration analysis
     max_optimal_weight = max(optimal_weights.values()) if optimal_weights else 0
     if max_optimal_weight > 0.5:
-        parts.append(f"⚠ High concentration: Max weight is {max_optimal_weight:.1%} - Consider diversification")
+        parts.append(
+            f"⚠ High concentration: Max weight is {max_optimal_weight:.1%} - Consider diversification"
+        )
     elif max_optimal_weight > 0.3:
         parts.append(f"Moderate concentration: Max weight is {max_optimal_weight:.1%}")
     else:
         parts.append(f"✓ Well-diversified: Max weight is {max_optimal_weight:.1%}")
-    
+
     # Total rebalancing needed
     total_change = sum(abs(c[3]) for c in changes)
     if total_change > 0.5:
-        parts.append(f"⚠ Large rebalancing required: Total weight changes = {total_change:.1%}")
+        parts.append(
+            f"⚠ Large rebalancing required: Total weight changes = {total_change:.1%}"
+        )
     elif total_change > 0.2:
-        parts.append(f"Moderate rebalancing needed: Total weight changes = {total_change:.1%}")
+        parts.append(
+            f"Moderate rebalancing needed: Total weight changes = {total_change:.1%}"
+        )
     else:
         parts.append(f"✓ Small rebalancing: Total weight changes = {total_change:.1%}")
-    
+
     return "\n".join(parts)
 
 
@@ -304,75 +354,97 @@ def _interpret_trade_list(trades: list) -> str:
     """Interpret trade list."""
     if not trades:
         return ""
-    
+
     parts = []
     parts.append("**Trade List Analysis:**")
-    
+
     # Count trades by type
     buys = [t for t in trades if t.get("action") == "BUY"]
     sells = [t for t in trades if t.get("action") == "SELL"]
     total_value = sum(t.get("value", 0) for t in trades)
-    
+
     parts.append(f"Total trades: {len(trades)} ({len(buys)} buys, {len(sells)} sells)")
     parts.append(f"Total trade value: ${total_value:,.2f}")
-    
+
     # Largest trades
     if trades:
-        sorted_trades = sorted(trades, key=lambda x: abs(x.get("value", 0)), reverse=True)
+        sorted_trades = sorted(
+            trades, key=lambda x: abs(x.get("value", 0)), reverse=True
+        )
         top_trade = sorted_trades[0]
-        parts.append(f"Largest trade: {top_trade.get('ticker')} - {top_trade.get('action')} ${abs(top_trade.get('value', 0)):,.2f}")
-    
+        parts.append(
+            f"Largest trade: {top_trade.get('ticker')} - {top_trade.get('action')} ${abs(top_trade.get('value', 0)):,.2f}"
+        )
+
     # Assessment
     if total_value < 1000:
-        parts.append(f"✓ Small rebalancing - Low transaction costs expected")
+        parts.append("✓ Small rebalancing - Low transaction costs expected")
     elif total_value < 10000:
-        parts.append(f"Moderate rebalancing - Consider transaction costs")
+        parts.append("Moderate rebalancing - Consider transaction costs")
     else:
-        parts.append(f"⚠ Large rebalancing - Significant transaction costs may apply")
-    
+        parts.append("⚠ Large rebalancing - Significant transaction costs may apply")
+
     # Weight changes
     if trades:
-        avg_weight_change = np.mean([abs(t.get("optimal_weight", 0) - t.get("current_weight", 0)) for t in trades])
+        avg_weight_change = np.mean(
+            [
+                abs(t.get("optimal_weight", 0) - t.get("current_weight", 0))
+                for t in trades
+            ]
+        )
         if avg_weight_change < 0.05:
-            parts.append(f"Average weight change: {avg_weight_change:.1%} - Minor adjustments")
+            parts.append(
+                f"Average weight change: {avg_weight_change:.1%} - Minor adjustments"
+            )
         elif avg_weight_change < 0.15:
-            parts.append(f"Average weight change: {avg_weight_change:.1%} - Moderate adjustments")
+            parts.append(
+                f"Average weight change: {avg_weight_change:.1%} - Moderate adjustments"
+            )
         else:
-            parts.append(f"Average weight change: {avg_weight_change:.1%} - Major rebalancing")
-    
+            parts.append(
+                f"Average weight change: {avg_weight_change:.1%} - Major rebalancing"
+            )
+
     return "\n".join(parts)
 
 
-def _interpret_returns_comparison(current_returns: pd.Series, optimized_returns: pd.Series) -> str:
+def _interpret_returns_comparison(
+    current_returns: pd.Series, optimized_returns: pd.Series
+) -> str:
     """Interpret returns comparison chart."""
-    if current_returns is None or current_returns.empty or optimized_returns is None or optimized_returns.empty:
+    if (
+        current_returns is None
+        or current_returns.empty
+        or optimized_returns is None
+        or optimized_returns.empty
+    ):
         return ""
-    
+
     parts = []
     parts.append("**Returns Comparison Analysis:**")
-    
+
     # Calculate cumulative returns
     current_cum = (1 + current_returns).cumprod() - 1
     optimized_cum = (1 + optimized_returns).cumprod() - 1
-    
+
     if current_cum.empty or optimized_cum.empty:
         return ""
-    
+
     current_final = current_cum.iloc[-1] if len(current_cum) > 0 else 0
     optimized_final = optimized_cum.iloc[-1] if len(optimized_cum) > 0 else 0
-    
+
     diff = optimized_final - current_final
-    
+
     parts.append(f"Current portfolio: {current_final*100:+.2f}% total return")
     parts.append(f"Optimized portfolio: {optimized_final*100:+.2f}% total return")
-    
+
     if abs(diff) < 0.01:
         parts.append(f"Performance is similar ({diff*100:+.2f}% difference)")
     elif diff > 0:
         parts.append(f"✓ Optimized portfolio outperforms by {diff*100:.2f}%")
     else:
         parts.append(f"⚠ Optimized portfolio underperforms by {abs(diff)*100:.2f}%")
-    
+
     # Period analysis (if we have enough data)
     if len(current_returns) > 20 and len(optimized_returns) > 20:
         # Check if optimized consistently outperforms
@@ -380,174 +452,225 @@ def _interpret_returns_comparison(current_returns: pd.Series, optimized_returns:
         if len(aligned_idx) > 20:
             current_aligned = current_returns.loc[aligned_idx]
             optimized_aligned = optimized_returns.loc[aligned_idx]
-            
+
             outperformance_days = (optimized_aligned > current_aligned).sum()
             total_days = len(aligned_idx)
             outperformance_pct = outperformance_days / total_days * 100
-            
+
             if outperformance_pct > 60:
-                parts.append(f"Optimized portfolio outperforms on {outperformance_pct:.1f}% of days")
+                parts.append(
+                    f"Optimized portfolio outperforms on {outperformance_pct:.1f}% of days"
+                )
             elif outperformance_pct < 40:
-                parts.append(f"Optimized portfolio underperforms on {100-outperformance_pct:.1f}% of days")
+                parts.append(
+                    f"Optimized portfolio underperforms on {100-outperformance_pct:.1f}% of days"
+                )
             else:
-                parts.append(f"Mixed performance: Optimized outperforms on {outperformance_pct:.1f}% of days")
-    
+                parts.append(
+                    f"Mixed performance: Optimized outperforms on {outperformance_pct:.1f}% of days"
+                )
+
     return "\n".join(parts)
 
 
-def _interpret_drawdown_comparison(current_values: pd.Series, optimized_values: pd.Series) -> str:
+def _interpret_drawdown_comparison(
+    current_values: pd.Series, optimized_values: pd.Series
+) -> str:
     """Interpret drawdown comparison chart."""
-    if current_values is None or current_values.empty or optimized_values is None or optimized_values.empty:
+    if (
+        current_values is None
+        or current_values.empty
+        or optimized_values is None
+        or optimized_values.empty
+    ):
         return ""
-    
+
     parts = []
     parts.append("**Drawdown Comparison Analysis:**")
-    
+
     # Calculate drawdowns
     current_peak = current_values.expanding().max()
     current_dd = (current_values - current_peak) / current_peak * 100
-    
+
     optimized_peak = optimized_values.expanding().max()
     optimized_dd = (optimized_values - optimized_peak) / optimized_peak * 100
-    
+
     if current_dd.empty or optimized_dd.empty:
         return ""
-    
+
     current_max_dd = current_dd.min()
     optimized_max_dd = optimized_dd.min()
-    
+
     parts.append(f"Current portfolio max drawdown: {current_max_dd:.2f}%")
     parts.append(f"Optimized portfolio max drawdown: {optimized_max_dd:.2f}%")
-    
+
     dd_diff = optimized_max_dd - current_max_dd
-    
+
     if abs(dd_diff) < 1:
         parts.append(f"Drawdown levels are similar ({dd_diff:+.2f}% difference)")
     elif dd_diff < 0:
-        parts.append(f"✓ Optimized portfolio has lower max drawdown by {abs(dd_diff):.2f}% - Better risk control")
+        parts.append(
+            f"✓ Optimized portfolio has lower max drawdown by {abs(dd_diff):.2f}% - Better risk control"
+        )
     else:
-        parts.append(f"⚠ Optimized portfolio has higher max drawdown by {dd_diff:.2f}% - Higher risk")
-    
+        parts.append(
+            f"⚠ Optimized portfolio has higher max drawdown by {dd_diff:.2f}% - Higher risk"
+        )
+
     # Recovery analysis
     if len(current_dd) > 0 and len(optimized_dd) > 0:
         # Count days in drawdown
         current_dd_days = (current_dd < -1).sum()  # More than 1% drawdown
         optimized_dd_days = (optimized_dd < -1).sum()
-        
+
         if current_dd_days > 0 or optimized_dd_days > 0:
             if optimized_dd_days < current_dd_days:
-                parts.append(f"Optimized portfolio spent fewer days in drawdown ({optimized_dd_days} vs {current_dd_days} days)")
+                parts.append(
+                    f"Optimized portfolio spent fewer days in drawdown ({optimized_dd_days} vs {current_dd_days} days)"
+                )
             elif optimized_dd_days > current_dd_days:
-                parts.append(f"Optimized portfolio spent more days in drawdown ({optimized_dd_days} vs {current_dd_days} days)")
+                parts.append(
+                    f"Optimized portfolio spent more days in drawdown ({optimized_dd_days} vs {current_dd_days} days)"
+                )
             else:
                 parts.append(f"Similar time in drawdown ({optimized_dd_days} days)")
-    
+
     return "\n".join(parts)
 
 
-def _interpret_efficient_frontier(frontier_data: dict, result, current_metrics: dict) -> str:
+def _interpret_efficient_frontier(
+    frontier_data: dict, result, current_metrics: dict
+) -> str:
     """Interpret efficient frontier chart."""
     if not frontier_data or not result:
         return ""
-    
+
     parts = []
     parts.append("**Efficient Frontier Analysis:**")
-    
+
     # Get portfolio positions
     opt_vol = result.volatility
     opt_ret = result.expected_return
     opt_sharpe = result.sharpe_ratio
-    
+
     tangency = frontier_data.get("tangency_portfolio")
     min_var = frontier_data.get("min_variance_portfolio")
-    
+
     if opt_vol is None or opt_ret is None:
         return ""
-    
+
     # Compare with tangency (max Sharpe)
     if tangency:
         tang_vol = tangency.get("volatility")
         tang_ret = tangency.get("expected_return")
-        
+
         if tang_vol and tang_ret:
             # Distance from tangency
             vol_dist = abs(opt_vol - tang_vol) / tang_vol if tang_vol > 0 else 0
             ret_dist = abs(opt_ret - tang_ret) / abs(tang_ret) if tang_ret != 0 else 0
-            
+
             if vol_dist < 0.05 and ret_dist < 0.05:
-                parts.append(f"✓ Optimized portfolio is very close to Max Sharpe point (optimal)")
+                parts.append(
+                    "✓ Optimized portfolio is very close to Max Sharpe point (optimal)"
+                )
             elif vol_dist < 0.1 and ret_dist < 0.1:
-                parts.append(f"Optimized portfolio is close to Max Sharpe point")
+                parts.append("Optimized portfolio is close to Max Sharpe point")
             else:
-                parts.append(f"Optimized portfolio differs from Max Sharpe point - Consider adjusting constraints")
-    
+                parts.append(
+                    "Optimized portfolio differs from Max Sharpe point - Consider adjusting constraints"
+                )
+
     # Compare with current portfolio
     if current_metrics:
         curr_vol = current_metrics.get("volatility", 0)
         curr_ret = current_metrics.get("annualized_return", 0)
-        
+
         if curr_vol > 0:
             # Check if current is on frontier
-            parts.append(f"Current portfolio: {curr_ret*100:.2f}% return, {curr_vol*100:.2f}% volatility")
-            
+            parts.append(
+                f"Current portfolio: {curr_ret*100:.2f}% return, {curr_vol*100:.2f}% volatility"
+            )
+
             # Check if optimized is better positioned
             if opt_sharpe and opt_sharpe > 0:
                 curr_sharpe = current_metrics.get("sharpe_ratio", 0)
                 if opt_sharpe > curr_sharpe + 0.1:
-                    parts.append(f"✓ Optimized portfolio has significantly better risk-adjusted return (Sharpe: {opt_sharpe:.2f} vs {curr_sharpe:.2f})")
+                    parts.append(
+                        f"✓ Optimized portfolio has significantly better risk-adjusted return (Sharpe: {opt_sharpe:.2f} vs {curr_sharpe:.2f})"
+                    )
                 elif opt_sharpe > curr_sharpe:
-                    parts.append(f"Optimized portfolio has better risk-adjusted return (Sharpe: {opt_sharpe:.2f} vs {curr_sharpe:.2f})")
-    
+                    parts.append(
+                        f"Optimized portfolio has better risk-adjusted return (Sharpe: {opt_sharpe:.2f} vs {curr_sharpe:.2f})"
+                    )
+
     # Min variance comparison
     if min_var:
         min_var_vol = min_var.get("volatility")
         if min_var_vol and opt_vol:
             if opt_vol < min_var_vol * 1.1:
-                parts.append(f"Optimized portfolio is close to minimum volatility ({opt_vol*100:.2f}% vs {min_var_vol*100:.2f}%)")
-    
+                parts.append(
+                    f"Optimized portfolio is close to minimum volatility ({opt_vol*100:.2f}% vs {min_var_vol*100:.2f}%)"
+                )
+
     return "\n".join(parts)
 
 
-def _interpret_correlation_diversification(corr_matrix: pd.DataFrame, optimal_weights: dict, num_assets: int) -> str:
+def _interpret_correlation_diversification(
+    corr_matrix: pd.DataFrame, optimal_weights: dict, num_assets: int
+) -> str:
     """Interpret correlation and diversification analysis."""
     if corr_matrix is None or corr_matrix.empty or not optimal_weights:
         return ""
-    
+
     parts = []
     parts.append("**Diversification Assessment:**")
-    
+
     # Calculate average correlation
     mask = ~np.eye(len(corr_matrix), dtype=bool)
     values = corr_matrix.values[mask]
     values = values[~np.isnan(values)]
-    
+
     if len(values) > 0:
         avg_corr = np.mean(values)
-        
+
         if avg_corr < 0.3:
-            parts.append(f"✓ Low average correlation ({avg_corr:.2f}) - Excellent diversification")
+            parts.append(
+                f"✓ Low average correlation ({avg_corr:.2f}) - Excellent diversification"
+            )
         elif avg_corr < 0.5:
-            parts.append(f"Moderate average correlation ({avg_corr:.2f}) - Good diversification")
+            parts.append(
+                f"Moderate average correlation ({avg_corr:.2f}) - Good diversification"
+            )
         else:
-            parts.append(f"⚠ High average correlation ({avg_corr:.2f}) - Limited diversification")
-    
+            parts.append(
+                f"⚠ High average correlation ({avg_corr:.2f}) - Limited diversification"
+            )
+
     # Weight concentration
     max_weight = max(optimal_weights.values()) if optimal_weights else 0
     if max_weight > 0.5:
-        parts.append(f"⚠ High concentration: Max weight is {max_weight:.1%} - Portfolio is concentrated")
+        parts.append(
+            f"⚠ High concentration: Max weight is {max_weight:.1%} - Portfolio is concentrated"
+        )
     elif max_weight > 0.3:
         parts.append(f"Moderate concentration: Max weight is {max_weight:.1%}")
     else:
         parts.append(f"✓ Well-diversified weights: Max weight is {max_weight:.1%}")
-    
+
     # Number of assets
     if num_assets >= 10:
-        parts.append(f"✓ Sufficient number of assets ({num_assets}) for diversification")
+        parts.append(
+            f"✓ Sufficient number of assets ({num_assets}) for diversification"
+        )
     elif num_assets >= 5:
-        parts.append(f"Moderate number of assets ({num_assets}) - Consider adding more for better diversification")
+        parts.append(
+            f"Moderate number of assets ({num_assets}) - Consider adding more for better diversification"
+        )
     else:
-        parts.append(f"⚠ Low number of assets ({num_assets}) - Limited diversification potential")
-    
+        parts.append(
+            f"⚠ Low number of assets ({num_assets}) - Limited diversification potential"
+        )
+
     return "\n".join(parts)
 
 
@@ -555,80 +678,90 @@ def _interpret_sensitivity_analysis(sensitivity_results: dict) -> str:
     """Interpret sensitivity analysis results."""
     if not sensitivity_results or not sensitivity_results.get("results"):
         return ""
-    
+
     parts = []
     results = sensitivity_results.get("results", [])
-    
+
     if not results:
         return ""
-    
+
     # Convert to DataFrame for analysis
     sens_df = pd.DataFrame(results)
     variation_col = "variation"
     ticker_cols = [col for col in sens_df.columns if col != variation_col]
-    
+
     if sens_df.empty or not ticker_cols:
         return ""
-    
+
     parts.append("**Sensitivity Analysis:**")
-    
+
     # Calculate sensitivity for each asset
     sensitivities = []
     for ticker in ticker_cols:
         weights = sens_df[ticker].values
         weight_range = weights.max() - weights.min()
         weight_std = weights.std()
-        sensitivities.append({
-            "ticker": ticker,
-            "range": weight_range,
-            "std": weight_std,
-        })
-    
+        sensitivities.append(
+            {
+                "ticker": ticker,
+                "range": weight_range,
+                "std": weight_std,
+            }
+        )
+
     # Sort by sensitivity
     sensitivities.sort(key=lambda x: x["range"], reverse=True)
-    
+
     # Most sensitive
     if sensitivities:
         most_sensitive = sensitivities[0]
-        parts.append(f"Most sensitive asset: {most_sensitive['ticker']} (weight range: {most_sensitive['range']:.1%})")
-        
+        parts.append(
+            f"Most sensitive asset: {most_sensitive['ticker']} (weight range: {most_sensitive['range']:.1%})"
+        )
+
         if most_sensitive["range"] > 0.2:
-            parts.append(f"⚠ High sensitivity - Weight changes significantly with parameter variations")
+            parts.append(
+                "⚠ High sensitivity - Weight changes significantly with parameter variations"
+            )
         elif most_sensitive["range"] > 0.1:
-            parts.append(f"Moderate sensitivity - Weight changes moderately")
+            parts.append("Moderate sensitivity - Weight changes moderately")
         else:
-            parts.append(f"✓ Low sensitivity - Weight is relatively stable")
-    
+            parts.append("✓ Low sensitivity - Weight is relatively stable")
+
     # Overall stability
     avg_range = np.mean([s["range"] for s in sensitivities])
     if avg_range < 0.05:
-        parts.append(f"✓ Portfolio weights are stable (avg range: {avg_range:.1%}) - Optimization is robust")
+        parts.append(
+            f"✓ Portfolio weights are stable (avg range: {avg_range:.1%}) - Optimization is robust"
+        )
     elif avg_range < 0.15:
-        parts.append(f"Moderate stability (avg range: {avg_range:.1%}) - Some sensitivity to parameters")
+        parts.append(
+            f"Moderate stability (avg range: {avg_range:.1%}) - Some sensitivity to parameters"
+        )
     else:
-        parts.append(f"⚠ High sensitivity (avg range: {avg_range:.1%}) - Weights change significantly with parameters")
-    
+        parts.append(
+            f"⚠ High sensitivity (avg range: {avg_range:.1%}) - Weights change significantly with parameters"
+        )
+
     return "\n".join(parts)
 
 
 def render_optimization_page() -> None:
     """Render portfolio optimization page."""
     st.title("Portfolio Optimization")
-    st.markdown(
-        "Optimize your portfolio weights using various optimization methods."
-    )
-    
+    st.markdown("Optimize your portfolio weights using various optimization methods.")
+
     # Initialize services
     portfolio_service = PortfolioService()
     optimization_service = OptimizationService()
-    
+
     # Get portfolios
     portfolios = portfolio_service.list_portfolios()
-    
+
     if not portfolios:
         st.warning("No portfolios found. Please create a portfolio first.")
         return
-    
+
     # Portfolio selection
     portfolio_names = [p.name for p in portfolios]
     selected_name = st.selectbox(
@@ -636,23 +769,22 @@ def render_optimization_page() -> None:
         portfolio_names,
         key="optimization_portfolio",
     )
-    
-    selected_portfolio = next(
-        p for p in portfolios if p.name == selected_name
-    )
-    
+
+    selected_portfolio = next(p for p in portfolios if p.name == selected_name)
+
     # Display current portfolio info
     with st.expander("Current Portfolio Information", expanded=False):
         positions = selected_portfolio.get_all_positions()
-        
+
         if not positions:
             st.error("Portfolio has no positions.")
             return
-        
+
         # Get current weights
         from services.data_service import DataService
+
         data_service = DataService()
-        
+
         # Fetch current prices for all positions
         tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
         prices = {}
@@ -660,14 +792,14 @@ def render_optimization_page() -> None:
             current_price = data_service.fetch_current_price(ticker)
             if current_price:
                 prices[ticker] = current_price
-        
+
         # Add CASH price (always 1.0) if CASH position exists
         if any(pos.ticker == "CASH" for pos in positions):
             prices["CASH"] = 1.0
-        
+
         # Calculate portfolio value
         current_value = selected_portfolio.calculate_current_value(prices)
-        
+
         current_weights_data = []
         for pos in positions:
             if pos.ticker == "CASH":
@@ -679,48 +811,50 @@ def render_optimization_page() -> None:
                 if not current_price:
                     continue
                 pos_value = current_price * pos.shares
-            
+
             weight = (pos_value / current_value) if current_value > 0 else 0.0
-            current_weights_data.append({
-                "Ticker": pos.ticker,
-                "Shares": f"{pos.shares:,.2f}",
-                "Price": f"${current_price:.2f}",
-                "Value": f"${pos_value:,.2f}",
-                "Weight": f"{weight:.2%}",
-            })
-        
+            current_weights_data.append(
+                {
+                    "Ticker": pos.ticker,
+                    "Shares": f"{pos.shares:,.2f}",
+                    "Price": f"${current_price:.2f}",
+                    "Value": f"${pos_value:,.2f}",
+                    "Weight": f"{weight:.2%}",
+                }
+            )
+
         if current_weights_data:
             st.dataframe(
                 pd.DataFrame(current_weights_data),
                 use_container_width=True,
             )
-    
+
     # Optimization parameters
     st.header("Optimization Parameters")
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         # Date range
         default_end = date.today()
         default_start = default_end - timedelta(days=365)
-        
+
         # Get saved dates if available, otherwise use defaults
         saved_start = st.session_state.get("optimization_start_date")
         saved_end = st.session_state.get("optimization_end_date")
-        
+
         # Use saved dates as default if optimization was run,
         # otherwise use defaults
         start_date_value = saved_start if saved_start else default_start
         end_date_value = saved_end if saved_end else default_end
-        
+
         start_date = st.date_input(
             "Start Date",
             value=start_date_value,
             max_value=date.today(),
             key="opt_start_date",
         )
-    
+
     with col2:
         end_date = st.date_input(
             "End Date",
@@ -729,14 +863,14 @@ def render_optimization_page() -> None:
             max_value=date.today(),
             key="opt_end_date",
         )
-    
+
     if start_date >= end_date:
         st.error("Start date must be before end date.")
         return
-    
+
     # Out-of-Sample Testing section (before benchmark)
     st.subheader("Out-of-Sample Testing")
-    
+
     use_out_of_sample = st.checkbox(
         "Use Out-of-Sample Testing",
         value=False,
@@ -747,10 +881,10 @@ def render_optimization_page() -> None:
             "overfitting and improves model reliability."
         ),
     )
-    
+
     training_ratio = 0.3  # Default
     training_start = None
-    
+
     if use_out_of_sample:
         training_window_options = {
             "30% (Recommended)": {
@@ -775,22 +909,22 @@ def render_optimization_page() -> None:
                 ),
             },
         }
-        
+
         selected_window = st.selectbox(
             "Training Window Size",
             options=list(training_window_options.keys()),
             index=0,  # 30% by default
             key="opt_training_window",
         )
-        
+
         training_ratio = training_window_options[selected_window]["ratio"]
         st.info(training_window_options[selected_window]["description"])
-        
+
         # Calculate periods
         analysis_days = (end_date - start_date).days
         training_days = int(analysis_days * training_ratio)
         training_start = start_date - timedelta(days=training_days)
-        
+
         # Show period information
         st.markdown("**Periods:**")
         st.write(
@@ -810,9 +944,9 @@ def render_optimization_page() -> None:
             "Optimization will be performed on the specified period "
             f"({start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')})"
         )
-    
+
     st.divider()
-    
+
     # Benchmark selection (always visible)
     st.markdown("**Benchmark (Optional, for visualization)**")
     presets = ["None", "SPY", "QQQ", "VTI", "DIA", "IWM"]
@@ -827,38 +961,35 @@ def render_optimization_page() -> None:
     benchmark_for_viz = None
     if benchmark_choice != "None":
         benchmark_for_viz = benchmark_choice
-    
+
     # Method selection - only show available optimization methods
     all_methods = optimization_service.get_available_methods()
     # Filter to only show methods from AVAILABLE_OPTIMIZATION_METHODS
-    available_methods = [
-        m for m in all_methods if m in AVAILABLE_OPTIMIZATION_METHODS
-    ]
-    
+    available_methods = [m for m in all_methods if m in AVAILABLE_OPTIMIZATION_METHODS]
+
     if not available_methods:
         st.error("No optimization methods available.")
         return
-    
+
     method_display = [
-        METHOD_NAMES.get(m, m.replace("_", " ").title())
-        for m in available_methods
+        METHOD_NAMES.get(m, m.replace("_", " ").title()) for m in available_methods
     ]
-    
+
     # Add "Not selected" option at the beginning
     method_options = ["-- Select Method --"] + available_methods
     method_display_options = ["-- Select Method --"] + method_display
-    
+
     selected_method_choice = st.selectbox(
         "Optimization Method",
         range(len(method_options)),
         format_func=lambda x: method_display_options[x],
         key="opt_method",
     )
-    
+
     selected_method = None
     if selected_method_choice > 0:  # 0 is "-- Select Method --"
         selected_method = method_options[selected_method_choice]
-    
+
     # Method description - only show if method selected
     if selected_method:
         method_descriptions = {
@@ -890,7 +1021,7 @@ This is the foundational portfolio optimization method developed by Harry Markow
 - Assumes normal distribution (may underestimate tail risk)
 - Sensitive to estimation errors in expected returns
 - May produce extreme weights if not constrained
-"""
+""",
             },
             "black_litterman": {
                 "short": "Black-Litterman model - combines market equilibrium with investor views",
@@ -920,7 +1051,7 @@ An advanced optimization method that combines market equilibrium returns with yo
 - Requires defining views and confidence levels
 - More complex to implement and understand
 - Still assumes normal distribution
-"""
+""",
             },
             "risk_parity": {
                 "short": "Equal risk contribution from each asset",
@@ -951,7 +1082,7 @@ Allocates portfolio weights so that each asset contributes equally to portfolio 
 - May underweight high-return assets
 - Doesn't explicitly maximize returns
 - Can be conservative for return-seeking investors
-"""
+""",
             },
             "hrp": {
                 "short": "Hierarchical Risk Parity using clustering - more stable, less sensitive to estimation error",
@@ -982,7 +1113,7 @@ A modern optimization method that uses machine learning clustering to build port
 - More computationally intensive
 - Less intuitive than traditional methods
 - May not maximize returns explicitly
-"""
+""",
             },
             "cvar_optimization": {
                 "short": "Minimize Conditional Value at Risk (tail risk) - focuses on extreme losses",
@@ -1013,7 +1144,7 @@ Focuses on minimizing tail risk rather than overall volatility, protecting again
 - May sacrifice return for tail risk protection
 - Requires defining confidence level (e.g., 95%, 99%)
 - Can be more conservative than variance-based methods
-"""
+""",
             },
             "mean_cvar": {
                 "short": "Maximize Return / CVaR ratio - optimal trade-off between return and tail risk",
@@ -1044,7 +1175,7 @@ Maximizes the ratio of expected return to Conditional Value at Risk, optimizing 
 - More complex than traditional Sharpe optimization
 - Requires confidence level parameter
 - May still be sensitive to return estimates
-"""
+""",
             },
             "robust": {
                 "short": "Robust optimization with uncertainty sets - accounts for parameter uncertainty",
@@ -1076,7 +1207,7 @@ Handles uncertainty in input parameters by optimizing over a range of possible s
 - Requires defining uncertainty sets
 - More computationally complex
 - May sacrifice return for robustness
-"""
+""",
             },
             "max_diversification": {
                 "short": "Maximize diversification ratio - maximum benefit from diversification",
@@ -1107,7 +1238,7 @@ Maximizes the diversification ratio, which measures how much diversification red
 - Doesn't explicitly consider returns
 - May underweight high-return assets
 - Focuses on risk reduction, not return maximization
-"""
+""",
             },
             "min_correlation": {
                 "short": "Minimize average pairwise correlation - assets that move independently",
@@ -1138,7 +1269,7 @@ Selects and weights assets to minimize the average pairwise correlation in the p
 - Doesn't consider returns explicitly
 - May ignore return potential
 - Simple approach may miss optimization opportunities
-"""
+""",
             },
             "inverse_correlation": {
                 "short": "Inverse correlation weighting - analytical method based on correlation structure",
@@ -1169,36 +1300,36 @@ An analytical method that weights assets inversely proportional to their correla
 - Doesn't consider returns
 - May not be optimal for return maximization
 - Simple approach may miss opportunities
-"""
+""",
             },
         }
-        
+
         method_info = method_descriptions.get(selected_method, {})
         if method_info:
             short_desc = method_info.get("short", "")
             detailed_desc = method_info.get("detailed", "")
-            
+
             with st.expander(f"ℹ️ {short_desc}", expanded=False):
                 st.markdown(detailed_desc)
-    
+
     # Initialize variables (needed outside conditional block)
     constraints = {}
     method_params = {}
     selected_objective = None
-    
+
     # Conditional sections: only show after method selection
     if selected_method:
         st.divider()
-        
+
         # Get number of assets for validation
         positions = selected_portfolio.get_all_positions()
         num_assets = len([p for p in positions if p.ticker != "CASH"])
-        
+
         # Constraints section
         st.subheader("Constraints")
-        
+
         constraints = {}
-        
+
         # Row 1: Long Only (left) + Max Cash Weight (right)
         col1, col2 = st.columns(2)
         with col1:
@@ -1207,40 +1338,48 @@ An analytical method that weights assets inversely proportional to their correla
                 value=True,
                 key="opt_long_only",
                 help="If enabled, all weights must be >= 0 (no short positions). "
-                     "Default: min_weight=0, max_weight=1",
+                "Default: min_weight=0, max_weight=1",
             )
             constraints["long_only"] = long_only
-        
+
         with col2:
-            max_cash = st.slider(
-                "Max Cash Weight %",
-                min_value=0.0,
-                max_value=100.0,
-                value=10.0,  # Default 10%
-                step=1.0,
-                key="opt_max_cash",
-                help="Maximum cash allocation to prevent 100% cash optimization. Default: 10%",
-            ) / 100.0
+            max_cash = (
+                st.slider(
+                    "Max Cash Weight %",
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=10.0,  # Default 10%
+                    step=1.0,
+                    key="opt_max_cash",
+                    help="Maximum cash allocation to prevent 100% cash optimization. Default: 10%",
+                )
+                / 100.0
+            )
             constraints["max_cash_weight"] = max_cash
-        
+
         # Row 2: Min Weight (left) + Max Weight (right)
         col1, col2 = st.columns(2)
         with col1:
             use_min_weight = st.checkbox("Minimum Weight", key="opt_min_weight")
             if use_min_weight:
                 # Calculate max allowed value based on number of assets
-                max_allowed_pct = min(50.0, (1.0 / num_assets) * 100) if num_assets > 0 else 50.0
-                min_weight = st.slider(
-                    "Min Weight %",
-                    min_value=0.0,
-                    max_value=max_allowed_pct,
-                    value=0.0,
-                    step=0.5,
-                    key="opt_min_weight_val",
-                    help=f"Maximum allowed value: {max_allowed_pct:.1f}% (for {num_assets} assets)",
-                ) / 100.0
+                max_allowed_pct = (
+                    min(50.0, (1.0 / num_assets) * 100) if num_assets > 0 else 50.0
+                )
+                min_weight = (
+                    st.slider(
+                        "Min Weight %",
+                        min_value=0.0,
+                        max_value=max_allowed_pct,
+                        value=0.0,
+                        step=0.5,
+                        key="opt_min_weight_val",
+                        help=f"Maximum allowed value: {max_allowed_pct:.1f}% (for {num_assets} assets)",
+                    )
+                    / 100.0
+                )
                 constraints["min_weight"] = min_weight
-                
+
                 # Validate
                 warnings = validate_weight_constraints(
                     min_weight=min_weight,
@@ -1248,20 +1387,23 @@ An analytical method that weights assets inversely proportional to their correla
                 )
                 for warning in warnings:
                     st.warning(warning)
-        
+
         with col2:
             use_max_weight = st.checkbox("Maximum Weight", key="opt_max_weight")
             if use_max_weight:
-                max_weight = st.slider(
-                    "Max Weight %",
-                    min_value=0.0,
-                    max_value=100.0,
-                    value=100.0,
-                    step=1.0,
-                    key="opt_max_weight_val",
-                ) / 100.0
+                max_weight = (
+                    st.slider(
+                        "Max Weight %",
+                        min_value=0.0,
+                        max_value=100.0,
+                        value=100.0,
+                        step=1.0,
+                        key="opt_max_weight_val",
+                    )
+                    / 100.0
+                )
                 constraints["max_weight"] = max_weight
-                
+
                 # Validate if min_weight is also set
                 if use_min_weight and "min_weight" in constraints:
                     warnings = validate_weight_constraints(
@@ -1271,7 +1413,7 @@ An analytical method that weights assets inversely proportional to their correla
                     )
                     for warning in warnings:
                         st.warning(warning)
-        
+
         # Set default values if not specified
         if not use_min_weight:
             # Default: min_weight = 0 for long_only, -1 for short allowed
@@ -1279,11 +1421,11 @@ An analytical method that weights assets inversely proportional to their correla
                 constraints["min_weight"] = 0.0
             else:
                 constraints["min_weight"] = -1.0
-        
+
         if not use_max_weight:
             # Default: max_weight = 1.0
             constraints["max_weight"] = 1.0
-        
+
         # Row 3: Min Expected Return (left) + Diversification (right)
         col1, col2 = st.columns(2)
         with col1:
@@ -1293,19 +1435,22 @@ An analytical method that weights assets inversely proportional to their correla
                 key="opt_min_return",
                 help="Require minimum expected return to prevent 100% cash allocation",
             )
-            
+
             if use_min_return:
-                min_return = st.slider(
-                    "Min Return % (annualized)",
-                    min_value=0.0,
-                    max_value=20.0,
-                    value=3.0,
-                    step=0.5,
-                    key="opt_min_return_val",
-                    help="Minimum expected return constraint (annualized)",
-                ) / 100.0
+                min_return = (
+                    st.slider(
+                        "Min Return % (annualized)",
+                        min_value=0.0,
+                        max_value=20.0,
+                        value=3.0,
+                        step=0.5,
+                        key="opt_min_return_val",
+                        help="Minimum expected return constraint (annualized)",
+                    )
+                    / 100.0
+                )
                 constraints["min_return"] = min_return
-        
+
         with col2:
             use_div_reg = st.checkbox(
                 "Enable Diversification Penalty",
@@ -1316,7 +1461,7 @@ An analytical method that weights assets inversely proportional to their correla
                     "Higher values = more diversification, lower = allow concentration"
                 ),
             )
-            
+
             if use_div_reg:
                 lambda_div = st.slider(
                     "Diversification Strength",
@@ -1332,15 +1477,15 @@ An analytical method that weights assets inversely proportional to their correla
                     ),
                 )
                 constraints["diversification_lambda"] = lambda_div
-        
+
         st.divider()
-        
+
         # Objective Function section
         st.subheader("Objective Function")
-        
+
         available_objectives = get_available_objectives(selected_method)
         default_objective = get_default_objective(selected_method)
-        
+
         if not available_objectives:
             # Method has fixed objective
             st.info(
@@ -1353,12 +1498,12 @@ An analytical method that weights assets inversely proportional to their correla
             objective_display = [
                 OBJECTIVE_METHOD_MAPPING[obj]["display"] for obj in available_objectives
             ]
-            
+
             # Find default index
             default_idx = 0
             if default_objective and default_objective in available_objectives:
                 default_idx = available_objectives.index(default_objective)
-            
+
             selected_obj_idx = st.selectbox(
                 "Select optimization objective",
                 range(len(available_objectives)),
@@ -1368,20 +1513,20 @@ An analytical method that weights assets inversely proportional to their correla
                 help="Determines what the selected method optimizes",
             )
             selected_objective = available_objectives[selected_obj_idx]
-            
+
             # Show default objective info if using default
             if selected_objective == default_objective:
                 st.caption(
                     f"Using default objective for method "
                     f"{METHOD_NAMES.get(selected_method, selected_method)}"
                 )
-        
+
         st.divider()
-        
+
         # Method-specific parameters
         if selected_objective:
             method_params["objective"] = selected_objective
-        
+
         if selected_method == "kelly_criterion":
             kelly_fraction = st.slider(
                 "Kelly Fraction",
@@ -1393,7 +1538,7 @@ An analytical method that weights assets inversely proportional to their correla
                 help="1.0 = Full Kelly, 0.5 = Half Kelly, 0.25 = Quarter Kelly",
             )
             constraints["kelly_fraction"] = kelly_fraction
-        
+
         if selected_method in ["cvar_optimization", "mean_cvar"]:
             confidence_level = st.selectbox(
                 "Confidence Level",
@@ -1404,7 +1549,7 @@ An analytical method that weights assets inversely proportional to their correla
                 help="Confidence level for CVaR calculation",
             )
             method_params["confidence_level"] = confidence_level
-        
+
         if selected_method == "robust":
             uncertainty_returns = st.slider(
                 "Uncertainty Radius (Returns)",
@@ -1428,7 +1573,7 @@ An analytical method that weights assets inversely proportional to their correla
             )
             method_params["uncertainty_radius_returns"] = uncertainty_returns
             method_params["uncertainty_radius_cov"] = uncertainty_cov
-        
+
         if selected_method == "black_litterman":
             st.markdown("**Black-Litterman Parameters**")
             st.info(
@@ -1438,11 +1583,11 @@ An analytical method that weights assets inversely proportional to their correla
             # Note: Full Black-Litterman UI would require views input,
             # which is complex. For now, use default market weights.
             # Views can be added in future enhancement.
-    
+
     # Run optimization - only show if method selected
     if selected_method:
         st.header("Run Optimization")
-        
+
         if st.button("Optimize Portfolio", type="primary", use_container_width=True):
             with st.spinner("Running optimization... This may take a moment."):
                 try:
@@ -1455,18 +1600,18 @@ An analytical method that weights assets inversely proportional to their correla
                         "constraints": constraints if constraints else None,
                         "benchmark_ticker": benchmark_ticker,
                     }
-                    
+
                     # Add method-specific parameters
                     if method_params:
                         optimize_kwargs["method_params"] = method_params
-                    
+
                     # Add out-of-sample parameters if enabled
                     if use_out_of_sample:
                         optimize_kwargs["out_of_sample"] = True
                         optimize_kwargs["training_ratio"] = training_ratio
-                    
+
                     result = optimization_service.optimize_portfolio(**optimize_kwargs)
-                    
+
                     # Store result in session state
                     st.session_state["optimization_result"] = result
                     st.session_state["optimization_portfolio_id"] = (
@@ -1484,15 +1629,17 @@ An analytical method that weights assets inversely proportional to their correla
                         training_days = int(analysis_days * training_ratio)
                         optimization_start = start_date - timedelta(days=training_days)
                         optimization_end = start_date
-                        st.session_state["optimization_period_start"] = optimization_start
+                        st.session_state["optimization_period_start"] = (
+                            optimization_start
+                        )
                         st.session_state["optimization_period_end"] = optimization_end
                     else:
                         st.session_state["optimization_period_start"] = start_date
                         st.session_state["optimization_period_end"] = end_date
-                    
+
                     st.success("Optimization completed successfully!")
                     st.rerun()
-                
+
                 except InsufficientDataError as e:
                     st.error(f"Insufficient data: {str(e)}")
                 except CalculationError as e:
@@ -1500,7 +1647,7 @@ An analytical method that weights assets inversely proportional to their correla
                 except Exception as e:
                     logger.exception("Optimization failed")
                     st.error(f"Optimization failed: {str(e)}")
-    
+
     # Display results if available
     if "optimization_result" in st.session_state:
         result = st.session_state["optimization_result"]
@@ -1508,27 +1655,25 @@ An analytical method that weights assets inversely proportional to their correla
         # CRITICAL: Use CURRENT dates from date_input, not saved ones!
         # This ensures metrics are calculated for the period user selected
         saved_benchmark = st.session_state.get("optimization_benchmark")
-        
+
         if result.success:
             # Get optimization period (training period if out-of-sample was used)
             opt_period_start = st.session_state.get(
                 "optimization_period_start", start_date
             )
-            opt_period_end = st.session_state.get(
-                "optimization_period_end", end_date
-            )
-            
+            opt_period_end = st.session_state.get("optimization_period_end", end_date)
+
             _display_optimization_results(
                 result,
                 portfolio_id,
                 portfolio_service,
                 optimization_service,
                 start_date,  # Use CURRENT start_date from date_input (for validation display)
-                end_date,    # Use CURRENT end_date from date_input (for validation display)
+                end_date,  # Use CURRENT end_date from date_input (for validation display)
                 constraints,
                 saved_benchmark,
                 optimization_period_start=opt_period_start,  # Actual optimization period
-                optimization_period_end=opt_period_end,      # Actual optimization period
+                optimization_period_end=opt_period_end,  # Actual optimization period
             )
         else:
             st.error(f"Optimization failed: {result.message}")
@@ -1541,13 +1686,13 @@ def _display_optimization_results(
     optimization_service: OptimizationService,
     start_date: date,
     end_date: date,
-    constraints: Dict,
+    constraints: dict,
     benchmark_for_viz: str = None,
     optimization_period_start: date = None,
     optimization_period_end: date = None,
 ) -> None:
     """Display optimization results."""
-    
+
     # Check if min_return constraint is violated
     min_return = constraints.get("min_return")
     if min_return is not None and result.expected_return is not None:
@@ -1567,14 +1712,14 @@ def _display_optimization_results(
                 f"Actual return may differ due to market volatility."
             )
     st.header("Optimization Results")
-    
+
     # Show date range info
     st.caption(
         f"Analysis Period: {start_date.strftime('%Y-%m-%d')} to "
         f"{end_date.strftime('%Y-%m-%d')} "
         f"({(end_date - start_date).days} days)"
     )
-    
+
     # Check if dates differ from optimization dates (if stored)
     saved_opt_start = st.session_state.get("optimization_start_date")
     saved_opt_end = st.session_state.get("optimization_end_date")
@@ -1586,13 +1731,13 @@ def _display_optimization_results(
                 f"which may differ from the optimization period "
                 f"({saved_opt_start.strftime('%Y-%m-%d')} to {saved_opt_end.strftime('%Y-%m-%d')})."
             )
-    
+
     # Comparison: Optimized vs Current Portfolio
     # Use EXACT same logic as portfolio_analysis.py overview tab
     st.subheader("Comparison: Optimized vs Current Portfolio")
-    
+
     risk_free_rate = 0.0435
-    
+
     # Get current portfolio returns for the SELECTED period
     current_returns = None
     try:
@@ -1604,17 +1749,17 @@ def _display_optimization_results(
         )
         current_returns = current_analytics.get("portfolio_returns")
     except Exception as e:
-        logger.warning(
-            f"Could not calculate current portfolio returns: {e}"
-        )
-    
+        logger.warning(f"Could not calculate current portfolio returns: {e}")
+
     # Optimized path: buy-and-hold with initial weights = optimal (matches live BH)
     optimized_returns = None
     try:
-        optimized_returns = analytics_service.simulate_buy_and_hold_returns_from_weights(
-            result.get_weights_dict(),
-            start_date,
-            end_date,
+        optimized_returns = (
+            analytics_service.simulate_buy_and_hold_returns_from_weights(
+                result.get_weights_dict(),
+                start_date,
+                end_date,
+            )
         )
         if (
             current_returns is not None
@@ -1622,55 +1767,45 @@ def _display_optimization_results(
             and optimized_returns is not None
             and not optimized_returns.empty
         ):
-            aligned_index = current_returns.index.intersection(
-                optimized_returns.index
-            )
+            aligned_index = current_returns.index.intersection(optimized_returns.index)
             optimized_returns = optimized_returns.reindex(aligned_index).dropna()
             current_returns = current_returns.reindex(optimized_returns.index)
     except Exception as e:
-        logger.warning(
-            f"Could not calculate optimized portfolio returns: {e}"
-        )
-    
+        logger.warning(f"Could not calculate optimized portfolio returns: {e}")
+
     # Calculate metrics using EXACT same logic as portfolio_analysis.py
     # overview tab (_render_overview_tab function)
     from core.analytics_engine.performance import (
         calculate_annualized_return,
     )
-    from core.analytics_engine.risk_metrics import (
-        calculate_volatility,
-        calculate_max_drawdown,
-    )
     from core.analytics_engine.ratios import (
         calculate_sharpe_ratio,
         calculate_sortino_ratio,
     )
-    
+    from core.analytics_engine.risk_metrics import (
+        calculate_max_drawdown,
+        calculate_volatility,
+    )
+
     # Calculate optimized portfolio metrics
     optimized_metrics = {}
     if optimized_returns is not None and not optimized_returns.empty:
-        optimized_metrics["total_return"] = float(
-            (1 + optimized_returns).prod() - 1
-        )
+        optimized_metrics["total_return"] = float((1 + optimized_returns).prod() - 1)
         optimized_metrics["annualized_return"] = float(
             calculate_annualized_return(optimized_returns)
         )
         vol_result = calculate_volatility(optimized_returns)
         if isinstance(vol_result, dict):
-            optimized_metrics["volatility"] = float(
-                vol_result.get("annual", 0.0)
-            )
+            optimized_metrics["volatility"] = float(vol_result.get("annual", 0.0))
         else:
             optimized_metrics["volatility"] = float(vol_result)
         optimized_metrics["sharpe_ratio"] = float(
-            calculate_sharpe_ratio(
-                optimized_returns, risk_free_rate=risk_free_rate
-            ) or 0
+            calculate_sharpe_ratio(optimized_returns, risk_free_rate=risk_free_rate)
+            or 0
         )
         optimized_metrics["sortino_ratio"] = float(
-            calculate_sortino_ratio(
-                optimized_returns, risk_free_rate=risk_free_rate
-            ) or 0
+            calculate_sortino_ratio(optimized_returns, risk_free_rate=risk_free_rate)
+            or 0
         )
         dd_result = calculate_max_drawdown(optimized_returns)
         optimized_metrics["max_drawdown"] = float(
@@ -1686,32 +1821,24 @@ def _display_optimization_results(
             "sortino_ratio": 0.0,
             "max_drawdown": 0.0,
         }
-    
+
     # Calculate current portfolio metrics (same logic)
     current_metrics = {}
     if current_returns is not None and not current_returns.empty:
-        current_metrics["total_return"] = float(
-            (1 + current_returns).prod() - 1
-        )
+        current_metrics["total_return"] = float((1 + current_returns).prod() - 1)
         current_metrics["annualized_return"] = float(
             calculate_annualized_return(current_returns)
         )
         vol_result = calculate_volatility(current_returns)
         if isinstance(vol_result, dict):
-            current_metrics["volatility"] = float(
-                vol_result.get("annual", 0.0)
-            )
+            current_metrics["volatility"] = float(vol_result.get("annual", 0.0))
         else:
             current_metrics["volatility"] = float(vol_result)
         current_metrics["sharpe_ratio"] = float(
-            calculate_sharpe_ratio(
-                current_returns, risk_free_rate=risk_free_rate
-            ) or 0
+            calculate_sharpe_ratio(current_returns, risk_free_rate=risk_free_rate) or 0
         )
         current_metrics["sortino_ratio"] = float(
-            calculate_sortino_ratio(
-                current_returns, risk_free_rate=risk_free_rate
-            ) or 0
+            calculate_sortino_ratio(current_returns, risk_free_rate=risk_free_rate) or 0
         )
         dd_result = calculate_max_drawdown(current_returns)
         current_metrics["max_drawdown"] = float(
@@ -1726,12 +1853,12 @@ def _display_optimization_results(
             "sortino_ratio": 0.0,
             "max_drawdown": 0.0,
         }
-    
+
     # Display metrics using same component as overview
     from streamlit_app.components.metric_card_comparison import (
         render_metric_cards_row,
     )
-    
+
     # Row 1: Total Return, Sharpe Ratio, Volatility, Max Drawdown
     # (same format as overview, optimized vs current)
     metrics_row1 = [
@@ -1765,21 +1892,24 @@ def _display_optimization_results(
         },
     ]
     render_metric_cards_row(metrics_row1, columns_per_row=4)
-    
+
     # Interpretation: Optimization comparison
-    interpretation = _interpret_optimization_comparison(optimized_metrics, current_metrics)
+    interpretation = _interpret_optimization_comparison(
+        optimized_metrics, current_metrics
+    )
     if interpretation:
         st.info(interpretation)
-    
+
     # Current vs Optimal weights comparison
     st.subheader("Current vs Optimal Allocation")
-    
+
     # Get current weights
     portfolio = portfolio_service.get_portfolio(portfolio_id)
-    
+
     from services.data_service import DataService
+
     data_service = DataService()
-    
+
     # Fetch current prices
     positions = portfolio.get_all_positions()
     tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
@@ -1788,14 +1918,14 @@ def _display_optimization_results(
         current_price = data_service.fetch_current_price(ticker)
         if current_price:
             prices[ticker] = current_price
-    
+
     # Add CASH price (always 1.0) if CASH position exists
     if any(pos.ticker == "CASH" for pos in positions):
         prices["CASH"] = 1.0
-    
+
     # Calculate portfolio value
     current_value = portfolio.calculate_current_value(prices)
-    
+
     current_weights = {}
     for pos in positions:
         if pos.ticker in result.tickers:
@@ -1806,40 +1936,40 @@ def _display_optimization_results(
                 if not current_price:
                     continue
                 pos_value = current_price * pos.shares
-            
+
             current_weights[pos.ticker] = (
                 pos_value / current_value if current_value > 0 else 0.0
             )
-    
+
     # Create comparison DataFrame
     comparison_data = []
     for ticker in result.tickers:
         current_w = current_weights.get(ticker, 0.0)
         optimal_w = result.get_weights_dict().get(ticker, 0.0)
         diff = optimal_w - current_w
-        
-        comparison_data.append({
-            "Ticker": ticker,
-            "Current Weight": f"{current_w:.2%}",
-            "Optimal Weight": f"{optimal_w:.2%}",
-            "Difference": f"{diff:+.2%}",
-        })
-    
+
+        comparison_data.append(
+            {
+                "Ticker": ticker,
+                "Current Weight": f"{current_w:.2%}",
+                "Optimal Weight": f"{optimal_w:.2%}",
+                "Difference": f"{diff:+.2%}",
+            }
+        )
+
     st.dataframe(
         pd.DataFrame(comparison_data),
         use_container_width=True,
         hide_index=True,
     )
-    
+
     # Visual comparison
     fig = go.Figure()
-    
+
     tickers = result.tickers
-    current_weights_array = [
-        current_weights.get(t, 0.0) for t in tickers
-    ]
+    current_weights_array = [current_weights.get(t, 0.0) for t in tickers]
     optimal_weights_array = [result.get_weights_dict()[t] for t in tickers]
-    
+
     fig.add_trace(
         go.Bar(
             name="Current",
@@ -1848,7 +1978,7 @@ def _display_optimization_results(
             marker_color=COLORS["primary"],  # Purple - current portfolio
         )
     )
-    
+
     fig.add_trace(
         go.Bar(
             name="Optimal",
@@ -1857,7 +1987,7 @@ def _display_optimization_results(
             marker_color=COLORS["secondary"],  # Blue - optimal portfolio
         )
     )
-    
+
     fig.update_layout(
         title="Current vs Optimal Weights",
         xaxis_title="Ticker",
@@ -1866,39 +1996,34 @@ def _display_optimization_results(
         height=400,
         template="plotly_dark",
     )
-    
+
     st.plotly_chart(fig, use_container_width=True)
-    
+
     # Interpretation: Allocation changes
     optimal_weights_dict = result.get_weights_dict()
-    interpretation = _interpret_allocation_changes(current_weights, optimal_weights_dict)
+    interpretation = _interpret_allocation_changes(
+        current_weights, optimal_weights_dict
+    )
     if interpretation:
         st.info(interpretation)
-    
+
     # Trade list
     st.subheader("Trade List")
-    
+
     try:
-        trades = optimization_service.generate_trade_list(
-            portfolio_id, result
-        )
-        
+        trades = optimization_service.generate_trade_list(portfolio_id, result)
+
         if trades:
             trades_df = pd.DataFrame(trades)
-            
+
             # Format columns
             trades_df["Weight Change"] = (
-                trades_df["optimal_weight"]
-                - trades_df["current_weight"]
+                trades_df["optimal_weight"] - trades_df["current_weight"]
             ).apply(lambda x: f"{x:+.2%}")
-            
-            trades_df["Shares"] = trades_df["shares"].apply(
-                lambda x: f"{x:,.2f}"
-            )
-            trades_df["Value"] = trades_df["value"].apply(
-                lambda x: f"${x:,.2f}"
-            )
-            
+
+            trades_df["Shares"] = trades_df["shares"].apply(lambda x: f"{x:,.2f}")
+            trades_df["Value"] = trades_df["value"].apply(lambda x: f"${x:,.2f}")
+
             display_df = trades_df[
                 ["ticker", "action", "Shares", "Value", "Weight Change"]
             ].rename(
@@ -1907,34 +2032,34 @@ def _display_optimization_results(
                     "action": "Action",
                 }
             )
-            
+
             st.dataframe(display_df, use_container_width=True, hide_index=True)
-            
+
             total_trade_value = trades_df["value"].sum()
             st.info(f"Total Trade Value: ${total_trade_value:,.2f}")
-            
+
             # Interpretation: Trade list
             interpretation = _interpret_trade_list(trades)
             if interpretation:
                 st.info(interpretation)
         else:
             st.info("No trades required - portfolio is already optimal.")
-    
+
     except Exception as e:
         logger.exception("Error generating trade list")
         st.warning(f"Could not generate trade list: {str(e)}")
-    
+
     # Performance Charts Section
     st.subheader("Performance Charts")
-    
+
     # Initialize variables for Efficient Frontier
     current_analytics = None
     benchmark_returns = None
-    
+
     # Get historical data for charts
     try:
         analytics_service = AnalyticsService()
-        
+
         # Get current portfolio returns (with optional benchmark)
         current_analytics = analytics_service.calculate_portfolio_metrics(
             portfolio_id,
@@ -1945,17 +2070,19 @@ def _display_optimization_results(
         current_returns = current_analytics.get("portfolio_returns")
         current_values = current_analytics.get("portfolio_values")
         benchmark_returns = current_analytics.get("benchmark_returns")
-        
-        optimized_returns = analytics_service.simulate_buy_and_hold_returns_from_weights(
-            result.get_weights_dict(),
-            start_date,
-            end_date,
+
+        optimized_returns = (
+            analytics_service.simulate_buy_and_hold_returns_from_weights(
+                result.get_weights_dict(),
+                start_date,
+                end_date,
+            )
         )
         if optimized_returns is None:
             optimized_returns = pd.Series(dtype=float)
 
         if not optimized_returns.empty:
-            
+
             # Calculate optimized portfolio values (cumulative)
             optimized_values = (1 + optimized_returns).cumprod()
             if current_values is not None and not current_values.empty:
@@ -1963,7 +2090,7 @@ def _display_optimization_results(
                 optimized_values = optimized_values * initial_value
             else:
                 optimized_values = optimized_values * 10000  # Default $10k
-            
+
             # Align current and optimized returns
             if current_returns is not None and not current_returns.empty:
                 aligned_index = current_returns.index.intersection(
@@ -1977,12 +2104,16 @@ def _display_optimization_results(
             else:
                 current_aligned = None
                 optimized_aligned = optimized_returns
-                benchmark_aligned = benchmark_returns if benchmark_returns is not None and not benchmark_returns.empty else None
-            
+                benchmark_aligned = (
+                    benchmark_returns
+                    if benchmark_returns is not None and not benchmark_returns.empty
+                    else None
+                )
+
             # 1. Returns Chart
             st.markdown("**Portfolio Returns Comparison**")
             fig_returns = go.Figure()
-            
+
             if current_aligned is not None and not current_aligned.empty:
                 current_cumulative = (1 + current_aligned).cumprod() - 1
                 fig_returns.add_trace(
@@ -1991,12 +2122,10 @@ def _display_optimization_results(
                         y=current_cumulative * 100,
                         mode="lines",
                         name="Current Portfolio",
-                        line=dict(
-                            color=COLORS["primary"], width=2
-                        ),  # Purple
+                        line=dict(color=COLORS["primary"], width=2),  # Purple
                     )
                 )
-            
+
             if optimized_aligned is not None and not optimized_aligned.empty:
                 optimized_cumulative = (1 + optimized_aligned).cumprod() - 1
                 fig_returns.add_trace(
@@ -2005,12 +2134,10 @@ def _display_optimization_results(
                         y=optimized_cumulative * 100,
                         mode="lines",
                         name="Optimized Portfolio",
-                        line=dict(
-                            color=COLORS["success"], width=2
-                        ),  # Green
+                        line=dict(color=COLORS["success"], width=2),  # Green
                     )
                 )
-            
+
             if (
                 benchmark_aligned is not None
                 and not benchmark_aligned.empty
@@ -2023,12 +2150,10 @@ def _display_optimization_results(
                         y=benchmark_cumulative * 100,
                         mode="lines",
                         name=f"Benchmark ({benchmark_for_viz})",
-                        line=dict(
-                            color=COLORS["secondary"], width=2
-                        ),  # Blue
+                        line=dict(color=COLORS["secondary"], width=2),  # Blue
                     )
                 )
-            
+
             fig_returns.update_layout(
                 title="Cumulative Returns",
                 xaxis_title="Date",
@@ -2038,17 +2163,24 @@ def _display_optimization_results(
                 hovermode="x unified",
             )
             st.plotly_chart(fig_returns, use_container_width=True)
-            
+
             # Interpretation: Returns comparison
-            if current_aligned is not None and not current_aligned.empty and optimized_aligned is not None and not optimized_aligned.empty:
-                interpretation = _interpret_returns_comparison(current_aligned, optimized_aligned)
+            if (
+                current_aligned is not None
+                and not current_aligned.empty
+                and optimized_aligned is not None
+                and not optimized_aligned.empty
+            ):
+                interpretation = _interpret_returns_comparison(
+                    current_aligned, optimized_aligned
+                )
                 if interpretation:
                     st.info(interpretation)
-            
+
             # 2. Drawdown Chart
             st.markdown("**Drawdown Comparison**")
             fig_drawdown = go.Figure()
-            
+
             # Drawdown: optimized - red fill
             if optimized_values is not None and not optimized_values.empty:
                 optimized_peak = optimized_values.expanding().max()
@@ -2061,14 +2193,12 @@ def _display_optimization_results(
                         y=optimized_dd,
                         mode="lines",
                         name="Optimized Portfolio",
-                        line=dict(
-                            color=COLORS["danger"], width=2
-                        ),  # Red
+                        line=dict(color=COLORS["danger"], width=2),  # Red
                         fill="tozeroy",
                         fillcolor="rgba(239, 85, 59, 0.3)",  # Red fill
                     )
                 )
-            
+
             # Drawdown: current - orange line (#FFCC80)
             if current_values is not None and not current_values.empty:
                 current_peak = current_values.expanding().max()
@@ -2079,12 +2209,10 @@ def _display_optimization_results(
                         y=current_dd,
                         mode="lines",
                         name="Current Portfolio",
-                        line=dict(
-                            color="#FFCC80", width=2  # Orange #FFCC80
-                        ),
+                        line=dict(color="#FFCC80", width=2),  # Orange #FFCC80
                     )
                 )
-            
+
             # Drawdown: benchmark - yellow line (#FFF59D)
             if (
                 benchmark_returns is not None
@@ -2098,7 +2226,7 @@ def _display_optimization_results(
                         benchmark_values = benchmark_values * initial_value
                     else:
                         benchmark_values = benchmark_values * 10000
-                    
+
                     benchmark_peak = benchmark_values.expanding().max()
                     benchmark_dd = (
                         (benchmark_values - benchmark_peak) / benchmark_peak * 100
@@ -2109,12 +2237,10 @@ def _display_optimization_results(
                             y=benchmark_dd,
                             mode="lines",
                             name=f"Benchmark ({benchmark_for_viz})",
-                            line=dict(
-                                color="#FFF59D", width=2  # Yellow #FFF59D
-                            ),
+                            line=dict(color="#FFF59D", width=2),  # Yellow #FFF59D
                         )
                     )
-            
+
             fig_drawdown.update_layout(
                 title="Drawdown",
                 xaxis_title="Date",
@@ -2124,29 +2250,37 @@ def _display_optimization_results(
                 hovermode="x unified",
             )
             st.plotly_chart(fig_drawdown, use_container_width=True)
-            
+
             # Interpretation: Drawdown comparison
-            if current_values is not None and not current_values.empty and optimized_values is not None and not optimized_values.empty:
-                interpretation = _interpret_drawdown_comparison(current_values, optimized_values)
+            if (
+                current_values is not None
+                and not current_values.empty
+                and optimized_values is not None
+                and not optimized_values.empty
+            ):
+                interpretation = _interpret_drawdown_comparison(
+                    current_values, optimized_values
+                )
                 if interpretation:
                     st.info(interpretation)
-            
+
     except Exception as e:
         logger.exception("Error generating performance charts")
         st.warning(f"Could not generate performance charts: {str(e)}")
-    
+
     # Efficient Frontier
     st.subheader("Efficient Frontier")
-    
+
     # Create a hash of constraints to detect changes and auto-update
     import hashlib
+
     constraints_str = str(sorted(constraints.items())) if constraints else "None"
     constraints_hash = hashlib.md5(constraints_str.encode()).hexdigest()[:8]
-    
+
     # Store current constraints hash in session state
     last_constraints_hash = st.session_state.get("last_frontier_constraints_hash")
     constraints_changed = last_constraints_hash != constraints_hash
-    
+
     # Auto-update frontier when constraints change
     if constraints_changed and last_constraints_hash is not None:
         # Clear any cached frontier data when constraints change
@@ -2154,14 +2288,18 @@ def _display_optimization_results(
             del st.session_state["frontier_data_cache"]
         st.session_state["last_frontier_constraints_hash"] = constraints_hash
         # Show info message that frontier will be recalculated
-        st.info("Constraints changed. Efficient Frontier will be recalculated with new constraints.")
-    
+        st.info(
+            "Constraints changed. Efficient Frontier will be recalculated with new constraints."
+        )
+
     # Update hash in session state
     if last_constraints_hash is None:
         st.session_state["last_frontier_constraints_hash"] = constraints_hash
-    
-    show_frontier = st.checkbox("Show Efficient Frontier", value=True, key="show_frontier")
-    
+
+    show_frontier = st.checkbox(
+        "Show Efficient Frontier", value=True, key="show_frontier"
+    )
+
     if show_frontier:
         with st.spinner("Generating efficient frontier..."):
             try:
@@ -2173,18 +2311,15 @@ def _display_optimization_results(
                     else start_date
                 )
                 frontier_end = (
-                    optimization_period_end
-                    if optimization_period_end
-                    else end_date
+                    optimization_period_end if optimization_period_end else end_date
                 )
-                
+
                 # Check if we're using out-of-sample testing
                 # If so, show info about which period is used
                 using_training_period = (
-                    optimization_period_start 
-                    and optimization_period_start < start_date
+                    optimization_period_start and optimization_period_start < start_date
                 )
-                
+
                 if using_training_period:
                     st.info(
                         f"**Efficient Frontier Period**: Training period "
@@ -2197,7 +2332,7 @@ def _display_optimization_results(
                         f"- Actual returns reflect real market performance over the validation period\n"
                         f"- Market conditions may have changed between training and validation periods"
                     )
-                
+
                 # IMPORTANT: Always use CURRENT constraints for Efficient Frontier
                 # This ensures the frontier line and all points (Max Sharpe, Min Volatility)
                 # are calculated with the same constraints that the user has set
@@ -2222,17 +2357,19 @@ def _display_optimization_results(
                             f"({start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')})..."
                         )
                         try:
-                            frontier_data = optimization_service.generate_efficient_frontier(
-                                portfolio_id=portfolio_id,
-                                start_date=start_date,  # Use validation period
-                                end_date=end_date,
-                                n_points=150,
-                                constraints=constraints if constraints else None,
+                            frontier_data = (
+                                optimization_service.generate_efficient_frontier(
+                                    portfolio_id=portfolio_id,
+                                    start_date=start_date,  # Use validation period
+                                    end_date=end_date,
+                                    n_points=150,
+                                    constraints=constraints if constraints else None,
+                                )
                             )
                             st.info(
-                                f"Using **validation period** for Efficient Frontier. "
-                                f"Note: Max Sharpe point may not align with optimized portfolio "
-                                f"(which was optimized on training period)."
+                                "Using **validation period** for Efficient Frontier. "
+                                "Note: Max Sharpe point may not align with optimized portfolio "
+                                "(which was optimized on training period)."
                             )
                         except InsufficientDataError as e2:
                             st.warning(
@@ -2246,7 +2383,9 @@ def _display_optimization_results(
                             )
                             return
                         except Exception as e2:
-                            logger.exception("Error generating efficient frontier with validation period")
+                            logger.exception(
+                                "Error generating efficient frontier with validation period"
+                            )
                             st.error(f"Error generating efficient frontier: {str(e2)}")
                             return
                     else:
@@ -2263,17 +2402,17 @@ def _display_optimization_results(
                     logger.exception("Error generating efficient frontier")
                     st.error(f"Error generating efficient frontier: {str(e)}")
                     return
-                
+
                 if not frontier_data:
                     return
-                
+
                 # Plot frontier
                 fig = go.Figure()
-                
+
                 # Get frontier points
                 volatilities_list = frontier_data.get("volatilities", [])
                 returns_list = frontier_data.get("returns", [])
-                
+
                 if not volatilities_list or not returns_list:
                     st.warning(
                         f"**No frontier data available** for period "
@@ -2284,18 +2423,18 @@ def _display_optimization_results(
                         f"- Try adjusting constraints or date range"
                     )
                     return
-                
+
                 # Convert to numpy arrays for easier manipulation
                 vols = np.array(volatilities_list)
                 rets = np.array(returns_list)
-                
+
                 # Filter only efficient part (upper part of curve)
                 # Efficient frontier: for each volatility, take max return
                 # Sort by volatility
                 sorted_indices = np.argsort(vols)
                 sorted_vols = vols[sorted_indices]
                 sorted_rets = rets[sorted_indices]
-                
+
                 # Filter to keep only efficient part (non-decreasing returns)
                 # Start from min volatility, keep points where return >= previous
                 efficient_indices = [0]
@@ -2308,14 +2447,14 @@ def _display_optimization_results(
                         prev_idx = efficient_indices[-1]
                         if sorted_rets[i] > sorted_rets[prev_idx]:
                             efficient_indices.append(i)
-                
+
                 efficient_vols = sorted_vols[efficient_indices]
                 efficient_rets = sorted_rets[efficient_indices]
-                
+
                 # Convert to percentages for display
                 x_plot = efficient_vols * 100
                 y_plot = efficient_rets * 100
-                
+
                 # Add efficient frontier line with smooth interpolation
                 fig.add_trace(
                     go.Scatter(
@@ -2335,11 +2474,11 @@ def _display_optimization_results(
                         ),
                     )
                 )
-                
+
                 # Get tangency (max Sharpe) and min variance portfolios
                 tangency_portfolio = frontier_data.get("tangency_portfolio")
                 min_var_portfolio = frontier_data.get("min_variance_portfolio")
-                
+
                 # Max Sharpe Ratio point (tangency portfolio)
                 if tangency_portfolio:
                     tang_vol = tangency_portfolio.get("volatility")
@@ -2364,7 +2503,7 @@ def _display_optimization_results(
                                 ),
                             )
                         )
-                
+
                 # Min Variance point
                 if min_var_portfolio:
                     min_var_vol = min_var_portfolio.get("volatility")
@@ -2389,7 +2528,7 @@ def _display_optimization_results(
                                 ),
                             )
                         )
-                
+
                 # Optimized portfolio - recalculate metrics for the SAME period as Efficient Frontier
                 # This ensures consistency: Efficient Frontier shows expected returns for training period,
                 # and Optimized Portfolio should also show expected returns for the same period
@@ -2398,10 +2537,10 @@ def _display_optimization_results(
                     # These are calculated for the training period (same as Efficient Frontier)
                     opt_vol = result.volatility
                     opt_ret = result.expected_return
-                    
+
                     # Also get Sharpe ratio from result (calculated for training period)
                     opt_sharpe = result.sharpe_ratio
-                    
+
                     if opt_vol is not None and opt_ret is not None and opt_vol > 0:
                         fig.add_trace(
                             go.Scatter(
@@ -2427,7 +2566,7 @@ def _display_optimization_results(
                                 ),
                             )
                         )
-                
+
                 # Current portfolio - use metrics from current_returns
                 if current_returns is not None and not current_returns.empty:
                     curr_vol = current_metrics.get("volatility", 0.0)
@@ -2452,7 +2591,7 @@ def _display_optimization_results(
                                 ),
                             )
                         )
-                
+
                 # Benchmark
                 if (
                     benchmark_returns is not None
@@ -2466,7 +2605,7 @@ def _display_optimization_results(
                         from core.analytics_engine.risk_metrics import (
                             calculate_volatility,
                         )
-                        
+
                         bench_ret = calculate_annualized_return(benchmark_returns)
                         bench_vol_dict = calculate_volatility(benchmark_returns)
                         bench_vol = (
@@ -2474,7 +2613,7 @@ def _display_optimization_results(
                             if isinstance(bench_vol_dict, dict)
                             else bench_vol_dict
                         )
-                        
+
                         if bench_vol > 0 and bench_ret is not None:
                             fig.add_trace(
                                 go.Scatter(
@@ -2496,10 +2635,8 @@ def _display_optimization_results(
                                 )
                             )
                     except Exception as e:
-                        logger.warning(
-                            f"Could not add benchmark to frontier: {e}"
-                        )
-                
+                        logger.warning(f"Could not add benchmark to frontier: {e}")
+
                 # Update layout with better styling
                 fig.update_layout(
                     title=dict(
@@ -2537,24 +2674,27 @@ def _display_optimization_results(
                     ),
                     margin=dict(l=60, r=20, t=60, b=60),
                 )
-                
+
                 st.plotly_chart(fig, use_container_width=True)
-                
+
                 # Interpretation: Efficient frontier
-                interpretation = _interpret_efficient_frontier(frontier_data, result, current_metrics)
+                interpretation = _interpret_efficient_frontier(
+                    frontier_data, result, current_metrics
+                )
                 if interpretation:
                     st.info(interpretation)
-            
+
             except Exception as e:
                 logger.exception("Error generating efficient frontier")
                 st.warning(f"Could not generate efficient frontier: {str(e)}")
-    
+
     # Correlation Analysis & Diversification
     st.markdown("---")
     st.subheader("Correlation Analysis & Diversification")
     try:
         # Get price data for correlation calculation
         from services.data_service import DataService
+
         data_service = DataService()
 
         # Fetch historical prices
@@ -2564,8 +2704,7 @@ def _display_optimization_results(
                 continue
             try:
                 prices = data_service.fetch_historical_prices(
-                    ticker, start_date, end_date,
-                    use_cache=True, save_to_db=False
+                    ticker, start_date, end_date, use_cache=True, save_to_db=False
                 )
                 # Ensure prices is a DataFrame - check immediately
                 if not isinstance(prices, pd.DataFrame):
@@ -2576,22 +2715,20 @@ def _display_optimization_results(
                         f"Value repr: {repr(prices)[:200]}"
                     )
                     continue  # Skip this ticker
-                
+
                 # Now safe to check .empty
                 if prices.empty:
-                    logger.warning(
-                        f"Empty DataFrame returned for {ticker}"
-                    )
+                    logger.warning(f"Empty DataFrame returned for {ticker}")
                     continue  # Skip this ticker
-                
+
                 # Ensure required columns exist
-                if not hasattr(prices, 'columns'):
+                if not hasattr(prices, "columns"):
                     logger.error(
                         f"prices object has no 'columns' attribute for {ticker}: "
                         f"{type(prices)}"
                     )
                     continue  # Skip this ticker
-                    
+
                 required_cols = ["Date", "Adjusted_Close"]
                 if not all(col in prices.columns for col in required_cols):
                     logger.warning(
@@ -2599,13 +2736,11 @@ def _display_optimization_results(
                         f"{required_cols}. Got: {list(prices.columns)}"
                     )
                     continue  # Skip this ticker
-                    
+
                 prices["Ticker"] = ticker
                 all_prices.append(prices)
             except Exception as e:
-                logger.warning(
-                    f"Failed to fetch {ticker}: {e}", exc_info=True
-                )
+                logger.warning(f"Failed to fetch {ticker}: {e}", exc_info=True)
 
         if not all_prices:
             st.warning(
@@ -2636,16 +2771,14 @@ def _display_optimization_results(
                                 f"Data format error: expected DataFrame, "
                                 f"got {type(df)}"
                             )
-                            raise ValueError(
-                                "Invalid data format in all_prices"
-                            )
+                            raise ValueError("Invalid data format in all_prices")
 
                     # Log all_prices before concatenation
                     logger.debug(
                         f"Concatenating {len(all_prices)} DataFrames. "
                         f"Types: {[type(df) for df in all_prices]}"
                     )
-                    
+
                     combined = pd.concat(all_prices, ignore_index=True)
 
                     # Verify combined is a DataFrame
@@ -2655,36 +2788,30 @@ def _display_optimization_results(
                             f"{type(combined)}, value: {combined}"
                         )
                         st.warning(
-                            "Combined data is not a DataFrame. "
-                            f"Got {type(combined)}"
+                            "Combined data is not a DataFrame. " f"Got {type(combined)}"
                         )
                         raise ValueError(
-                            f"Combined data must be DataFrame, got "
-                            f"{type(combined)}"
+                            f"Combined data must be DataFrame, got " f"{type(combined)}"
                         )
-                    
+
                     # Check required columns before pivoting
                     required_cols = ["Date", "Ticker", "Adjusted_Close"]
                     missing_cols = [
-                        col for col in required_cols
-                        if col not in combined.columns
+                        col for col in required_cols if col not in combined.columns
                     ]
                     if missing_cols:
                         st.warning(
-                            f"Missing required columns for pivoting: "
-                            f"{missing_cols}"
+                            f"Missing required columns for pivoting: " f"{missing_cols}"
                         )
-                        raise ValueError(
-                            f"Missing columns: {missing_cols}"
-                        )
-                    
+                        raise ValueError(f"Missing columns: {missing_cols}")
+
                     # Log combined data info before pivoting
                     logger.debug(
                         f"Combined data type: {type(combined)}, "
                         f"shape: {combined.shape if hasattr(combined, 'shape') else 'N/A'}, "
                         f"columns: {list(combined.columns) if hasattr(combined, 'columns') else 'N/A'}"
                     )
-                    
+
                     # Initialize price_data to None to ensure it's defined
                     price_data = None
                     try:
@@ -2694,21 +2821,18 @@ def _display_optimization_results(
                             values="Adjusted_Close",
                             aggfunc="first",
                         )
-                        
+
                         # Log result type immediately after pivot
                         logger.debug(
                             f"pivot_table result type: {type(price_data)}, "
                             f"is DataFrame: {isinstance(price_data, pd.DataFrame)}"
                         )
-                        
+
                     except Exception as pivot_err:
                         logger.error(
-                            f"Error in pivot_table: {pivot_err}",
-                            exc_info=True
+                            f"Error in pivot_table: {pivot_err}", exc_info=True
                         )
-                        st.warning(
-                            f"Error creating pivot table: {pivot_err}"
-                        )
+                        st.warning(f"Error creating pivot table: {pivot_err}")
                         raise
 
                     # Check if price_data is defined and is a DataFrame
@@ -2716,7 +2840,7 @@ def _display_optimization_results(
                         logger.error("price_data is None after pivot_table")
                         st.warning("Price data is None after pivoting.")
                         raise ValueError("price_data is None after pivot_table")
-                    
+
                     if not isinstance(price_data, pd.DataFrame):
                         logger.error(
                             f"pivot_table returned non-DataFrame: "
@@ -2730,7 +2854,7 @@ def _display_optimization_results(
                             f"pivot_table returned {type(price_data)}, "
                             f"expected DataFrame"
                         )
-                    
+
                     # Now safe to check .empty
                     if price_data.empty:
                         st.warning(
@@ -2762,31 +2886,29 @@ def _display_optimization_results(
                             # Check for high correlations
                             high_corr_pairs = []
                             for i, ticker1 in enumerate(corr_matrix.columns):
-                                for ticker2 in corr_matrix.columns[i+1:]:
+                                for ticker2 in corr_matrix.columns[i + 1 :]:
                                     corr_val = corr_matrix.loc[ticker1, ticker2]
-                                    if (
-                                        not np.isnan(corr_val)
-                                        and abs(corr_val) > 0.8
-                                    ):
+                                    if not np.isnan(corr_val) and abs(corr_val) > 0.8:
                                         high_corr_pairs.append(
                                             (ticker1, ticker2, corr_val)
                                         )
 
                             if high_corr_pairs:
-                                warnings.append({
-                                    "type": "warning",
-                                    "message": (
-                                        f"Found {len(high_corr_pairs)} "
-                                        f"pair(s) with correlation > 0.8. "
-                                        f"High correlation reduces "
-                                        f"diversification."
-                                    ),
-                                })
+                                warnings.append(
+                                    {
+                                        "type": "warning",
+                                        "message": (
+                                            f"Found {len(high_corr_pairs)} "
+                                            f"pair(s) with correlation > 0.8. "
+                                            f"High correlation reduces "
+                                            f"diversification."
+                                        ),
+                                    }
+                                )
 
                                 # Show pairs
                                 with st.expander(
-                                    "High Correlation Pairs",
-                                    expanded=False
+                                    "High Correlation Pairs", expanded=False
                                 ):
                                     for (
                                         ticker1,
@@ -2798,42 +2920,46 @@ def _display_optimization_results(
                                             f"{corr_val:.3f}"
                                         )
                             else:
-                                warnings.append({
-                                    "type": "success",
-                                    "message": (
-                                        "✓ No pairs with correlation > 0.8 "
-                                        "found. Good diversification "
-                                        "potential."
-                                    ),
-                                })
+                                warnings.append(
+                                    {
+                                        "type": "success",
+                                        "message": (
+                                            "✓ No pairs with correlation > 0.8 "
+                                            "found. Good diversification "
+                                            "potential."
+                                        ),
+                                    }
+                                )
 
                             # Check average correlation
                             upper_triangle = corr_matrix.where(
-                                np.triu(
-                                    np.ones(corr_matrix.shape), k=1
-                                ).astype(bool)
+                                np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
                             ).stack()
                             avg_corr = float(upper_triangle.mean())
 
                             if avg_corr > 0.5:
-                                warnings.append({
-                                    "type": "warning",
-                                    "message": (
-                                        f"Average correlation "
-                                        f"({avg_corr:.2f}) is high. "
-                                        f"Consider adding assets with "
-                                        f"lower correlation."
-                                    ),
-                                })
+                                warnings.append(
+                                    {
+                                        "type": "warning",
+                                        "message": (
+                                            f"Average correlation "
+                                            f"({avg_corr:.2f}) is high. "
+                                            f"Consider adding assets with "
+                                            f"lower correlation."
+                                        ),
+                                    }
+                                )
                             elif avg_corr < 0.3:
-                                warnings.append({
-                                    "type": "success",
-                                    "message": (
-                                        f"✓ Low average correlation "
-                                        f"({avg_corr:.2f}). Excellent "
-                                        f"diversification."
-                                    ),
-                                })
+                                warnings.append(
+                                    {
+                                        "type": "success",
+                                        "message": (
+                                            f"✓ Low average correlation "
+                                            f"({avg_corr:.2f}). Excellent "
+                                            f"diversification."
+                                        ),
+                                    }
+                                )
 
                             # Display warnings
                             for warning in warnings:
@@ -2851,144 +2977,166 @@ def _display_optimization_results(
                             # Check 1: Number of assets
                             num_assets = len(result.tickers)
                             if num_assets >= 10:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Portfolio has {num_assets} assets "
-                                        f"(≥10)"
-                                    ),
-                                    "status": "✓",
-                                    "color": "green",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Portfolio has {num_assets} assets "
+                                            f"(≥10)"
+                                        ),
+                                        "status": "✓",
+                                        "color": "green",
+                                    }
+                                )
                             elif num_assets >= 5:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Portfolio has {num_assets} assets "
-                                        f"(5-9)"
-                                    ),
-                                    "status": "⚠",
-                                    "color": "orange",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Portfolio has {num_assets} assets "
+                                            f"(5-9)"
+                                        ),
+                                        "status": "⚠",
+                                        "color": "orange",
+                                    }
+                                )
                             else:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Portfolio has {num_assets} assets "
-                                        f"(<5)"
-                                    ),
-                                    "status": "✗",
-                                    "color": "red",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Portfolio has {num_assets} assets "
+                                            f"(<5)"
+                                        ),
+                                        "status": "✗",
+                                        "color": "red",
+                                    }
+                                )
 
                             # Check 2: Average correlation
                             if avg_corr < 0.3:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Average correlation < 0.3 "
-                                        f"({avg_corr:.2f})"
-                                    ),
-                                    "status": "✓",
-                                    "color": "green",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Average correlation < 0.3 "
+                                            f"({avg_corr:.2f})"
+                                        ),
+                                        "status": "✓",
+                                        "color": "green",
+                                    }
+                                )
                             elif avg_corr < 0.5:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Average correlation 0.3-0.5 "
-                                        f"({avg_corr:.2f})"
-                                    ),
-                                    "status": "⚠",
-                                    "color": "orange",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Average correlation 0.3-0.5 "
+                                            f"({avg_corr:.2f})"
+                                        ),
+                                        "status": "⚠",
+                                        "color": "orange",
+                                    }
+                                )
                             else:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Average correlation > 0.5 "
-                                        f"({avg_corr:.2f})"
-                                    ),
-                                    "status": "✗",
-                                    "color": "red",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Average correlation > 0.5 "
+                                            f"({avg_corr:.2f})"
+                                        ),
+                                        "status": "✗",
+                                        "color": "red",
+                                    }
+                                )
 
                             # Check 3: High correlation pairs
                             if len(high_corr_pairs) == 0:
-                                checklist_items.append({
-                                    "item": (
-                                        "No pairs with correlation > 0.8"
-                                    ),
-                                    "status": "✓",
-                                    "color": "green",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": ("No pairs with correlation > 0.8"),
+                                        "status": "✓",
+                                        "color": "green",
+                                    }
+                                )
                             elif len(high_corr_pairs) <= 2:
-                                checklist_items.append({
-                                    "item": (
-                                        f"{len(high_corr_pairs)} pair(s) "
-                                        f"with correlation > 0.8"
-                                    ),
-                                    "status": "⚠",
-                                    "color": "orange",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"{len(high_corr_pairs)} pair(s) "
+                                            f"with correlation > 0.8"
+                                        ),
+                                        "status": "⚠",
+                                        "color": "orange",
+                                    }
+                                )
                             else:
-                                checklist_items.append({
-                                    "item": (
-                                        f"{len(high_corr_pairs)} pairs "
-                                        f"with correlation > 0.8"
-                                    ),
-                                    "status": "✗",
-                                    "color": "red",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"{len(high_corr_pairs)} pairs "
+                                            f"with correlation > 0.8"
+                                        ),
+                                        "status": "✗",
+                                        "color": "red",
+                                    }
+                                )
 
                             # Check 4: Weight concentration
                             optimal_weights_dict = result.get_weights_dict()
                             max_weight = max(optimal_weights_dict.values())
                             if max_weight < 0.3:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Max weight < 30% "
-                                        f"({max_weight:.1%})"
-                                    ),
-                                    "status": "✓",
-                                    "color": "green",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Max weight < 30% " f"({max_weight:.1%})"
+                                        ),
+                                        "status": "✓",
+                                        "color": "green",
+                                    }
+                                )
                             elif max_weight < 0.5:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Max weight 30-50% "
-                                        f"({max_weight:.1%})"
-                                    ),
-                                    "status": "⚠",
-                                    "color": "orange",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Max weight 30-50% " f"({max_weight:.1%})"
+                                        ),
+                                        "status": "⚠",
+                                        "color": "orange",
+                                    }
+                                )
                             else:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Max weight > 50% "
-                                        f"({max_weight:.1%})"
-                                    ),
-                                    "status": "✗",
-                                    "color": "red",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Max weight > 50% " f"({max_weight:.1%})"
+                                        ),
+                                        "status": "✗",
+                                        "color": "red",
+                                    }
+                                )
 
                             # Check 5: Negative correlations (hedging)
                             negative_corrs = [
-                                corr for corr in upper_triangle.values
-                                if corr < 0
+                                corr for corr in upper_triangle.values if corr < 0
                             ]
                             if len(negative_corrs) > 0:
-                                checklist_items.append({
-                                    "item": (
-                                        f"Found {len(negative_corrs)} "
-                                        f"negative correlation(s) (hedging)"
-                                    ),
-                                    "status": "✓",
-                                    "color": "green",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            f"Found {len(negative_corrs)} "
+                                            f"negative correlation(s) (hedging)"
+                                        ),
+                                        "status": "✓",
+                                        "color": "green",
+                                    }
+                                )
                             else:
-                                checklist_items.append({
-                                    "item": (
-                                        "No negative correlations "
-                                        "(no natural hedging)"
-                                    ),
-                                    "status": "⚠",
-                                    "color": "orange",
-                                })
+                                checklist_items.append(
+                                    {
+                                        "item": (
+                                            "No negative correlations "
+                                            "(no natural hedging)"
+                                        ),
+                                        "status": "⚠",
+                                        "color": "orange",
+                                    }
+                                )
 
                             # Display checklist
                             for item in checklist_items:
@@ -3014,7 +3162,7 @@ def _display_optimization_results(
                                     "considering both individual volatility "
                                     "and correlations with other assets."
                                 )
-                            
+
                             # Interpretation: Correlation and diversification
                             optimal_weights_dict = result.get_weights_dict()
                             num_assets = len(result.tickers)
@@ -3024,12 +3172,9 @@ def _display_optimization_results(
                             if interpretation:
                                 st.info(interpretation)
             except Exception as pivot_error:
-                logger.warning(
-                    f"Error processing price data: {pivot_error}"
-                )
+                logger.warning(f"Error processing price data: {pivot_error}")
                 st.warning(
-                    f"Error processing price data for correlation: "
-                    f"{pivot_error}"
+                    f"Error processing price data for correlation: " f"{pivot_error}"
                 )
     except Exception as e:
         logger.exception("Error in correlation analysis")
@@ -3038,17 +3183,17 @@ def _display_optimization_results(
     # Sensitivity Analysis
     st.markdown("---")
     st.subheader("Sensitivity Analysis")
-    
+
     perform_sensitivity = st.checkbox(
         "Perform Sensitivity Analysis",
         value=False,
         key="opt_sensitivity",
         help="Analyze how optimal weights change with parameter variations",
     )
-    
+
     if perform_sensitivity:
         sensitivity_col1, sensitivity_col2 = st.columns(2)
-        
+
         with sensitivity_col1:
             analysis_type = st.selectbox(
                 "Analysis Type",
@@ -3057,7 +3202,7 @@ def _display_optimization_results(
                 key="opt_sensitivity_type",
                 help="Parameter to vary for sensitivity analysis",
             )
-        
+
         with sensitivity_col2:
             variation_range = st.slider(
                 "Variation Range",
@@ -3069,7 +3214,7 @@ def _display_optimization_results(
                 key="opt_sensitivity_range",
                 help="Range of variation to test (as decimal, e.g., 0.10 = 10%)",
             )
-        
+
         num_points = st.slider(
             "Number of Points",
             min_value=5,
@@ -3079,21 +3224,19 @@ def _display_optimization_results(
             key="opt_sensitivity_points",
             help="Number of variation points to test",
         )
-        
+
         if st.button("Run Sensitivity Analysis", key="opt_run_sensitivity"):
             with st.spinner("Running sensitivity analysis..."):
                 try:
                     # Get method name from session state (original method used)
-                    original_method = st.session_state.get(
-                        "optimization_method_used"
-                    )
+                    original_method = st.session_state.get("optimization_method_used")
                     if not original_method:
                         st.error(
                             "Cannot determine optimization method. "
                             "Please run optimization first."
                         )
                         return
-                    
+
                     sensitivity_results = (
                         optimization_service.perform_sensitivity_analysis(
                             portfolio_id=portfolio_id,
@@ -3106,46 +3249,44 @@ def _display_optimization_results(
                             num_points=num_points,
                         )
                     )
-                    
-                    st.session_state["sensitivity_results"] = (
-                        sensitivity_results
-                    )
+
+                    st.session_state["sensitivity_results"] = sensitivity_results
                     st.success("Sensitivity analysis completed!")
                     st.rerun()
                 except Exception as e:
                     logger.exception("Sensitivity analysis failed")
                     st.error(f"Sensitivity analysis failed: {str(e)}")
-        
+
         # Display sensitivity results if available
         if "sensitivity_results" in st.session_state:
             sens_results = st.session_state["sensitivity_results"]
-            
+
             # Convert to DataFrame for visualization
             sens_df = pd.DataFrame(sens_results["results"])
-            
+
             if not sens_df.empty:
                 st.markdown("**Sensitivity Analysis Results**")
-                
+
                 # Prepare data for heatmap
                 variation_col = "variation"
-                ticker_cols = [
-                    col for col in sens_df.columns if col != variation_col
-                ]
-                
+                ticker_cols = [col for col in sens_df.columns if col != variation_col]
+
                 # Calculate sensitivity metrics
                 sensitivity_info = []
                 for ticker in ticker_cols:
                     weights = sens_df[ticker].values
                     weight_range = weights.max() - weights.min()
                     weight_std = weights.std()
-                    sensitivity_info.append({
-                        "ticker": ticker,
-                        "range": weight_range,
-                        "std": weight_std,
-                        "min": weights.min(),
-                        "max": weights.max(),
-                    })
-                
+                    sensitivity_info.append(
+                        {
+                            "ticker": ticker,
+                            "range": weight_range,
+                            "std": weight_std,
+                            "min": weights.min(),
+                            "max": weights.max(),
+                        }
+                    )
+
                 # Check if weights are changing
                 total_range = sum(info["range"] for info in sensitivity_info)
                 if total_range < 0.01:  # Less than 1% total variation
@@ -3158,18 +3299,18 @@ def _display_optimization_results(
                         "**Recommendation:** Try increasing the variation range "
                         "or relaxing constraints for more detailed analysis."
                     )
-                
+
                 # Create heatmap of weight changes
                 fig = go.Figure()
-                
+
                 # Create heatmap with custom colorscale from palette
                 # Custom colorscale: red (low) -> white -> green (high)
                 custom_colorscale = [
-                    [0.0, COLORS["danger"]],   # Red (low weight)
-                    [0.5, "#FFFFFF"],          # White (middle)
-                    [1.0, COLORS["success"]], # Green (high weight)
+                    [0.0, COLORS["danger"]],  # Red (low weight)
+                    [0.5, "#FFFFFF"],  # White (middle)
+                    [1.0, COLORS["success"]],  # Green (high weight)
                 ]
-                
+
                 z_data = sens_df[ticker_cols].T.values
                 fig.add_trace(
                     go.Heatmap(
@@ -3187,7 +3328,7 @@ def _display_optimization_results(
                         ),
                     )
                 )
-                
+
                 fig.update_layout(
                     title="Weight Sensitivity Heatmap",
                     xaxis_title="Parameter Variation (%)",
@@ -3195,9 +3336,9 @@ def _display_optimization_results(
                     height=400,
                     template="plotly_dark",
                 )
-                
+
                 st.plotly_chart(fig, use_container_width=True)
-                
+
                 # Add explanation
                 st.caption(
                     "**How to read heatmap:** "
@@ -3206,10 +3347,10 @@ def _display_optimization_results(
                     "Red = low weight, Green = high weight. "
                     "If a bar is the same color across its width - weight does not change."
                 )
-                
+
                 # Line chart for individual assets
                 st.markdown("**Weight Changes by Asset**")
-                
+
                 # Sort tickers by sensitivity (most sensitive first)
                 sorted_tickers = sorted(
                     sensitivity_info,
@@ -3217,11 +3358,11 @@ def _display_optimization_results(
                     reverse=True,
                 )
                 ticker_options = [info["ticker"] for info in sorted_tickers]
-                
+
                 selected_tickers = st.multiselect(
                     "Select Assets to Display",
                     options=ticker_options,
-                    default=ticker_options[:min(6, len(ticker_options))],
+                    default=ticker_options[: min(6, len(ticker_options))],
                     key="opt_sensitivity_tickers",
                     help=(
                         "Select assets to display. "
@@ -3229,28 +3370,27 @@ def _display_optimization_results(
                         "(most sensitive at top)."
                     ),
                 )
-                
+
                 if selected_tickers:
                     fig_lines = go.Figure()
-                    
+
                     # Use colors from unified palette
                     colors = [
-                        COLORS["primary"],    # Purple
+                        COLORS["primary"],  # Purple
                         COLORS["secondary"],  # Blue
-                        COLORS["success"],    # Green
-                        COLORS["warning"],    # Orange
-                        COLORS["additional"], # Yellow
-                        COLORS["danger"],     # Red
+                        COLORS["success"],  # Green
+                        COLORS["warning"],  # Orange
+                        COLORS["additional"],  # Yellow
+                        COLORS["danger"],  # Red
                     ]
-                    
+
                     for idx, ticker in enumerate(selected_tickers):
                         weights = sens_df[ticker].values * 100
                         color = colors[idx % len(colors)]
-                        
+
                         # Calculate if line is flat
                         weight_range = weights.max() - weights.min()
-                        is_flat = weight_range < 0.1  # Less than 0.1% variation
-                        
+
                         fig_lines.add_trace(
                             go.Scatter(
                                 x=sens_df[variation_col].values * 100,
@@ -3267,12 +3407,12 @@ def _display_optimization_results(
                                 ),
                             )
                         )
-                    
+
                     # Add horizontal reference lines for constraints if available
                     if constraints:
                         min_weight = constraints.get("min_weight")
                         max_weight = constraints.get("max_weight")
-                        
+
                         if min_weight is not None:
                             fig_lines.add_hline(
                                 y=min_weight * 100,
@@ -3289,7 +3429,7 @@ def _display_optimization_results(
                                 annotation_text=f"Max: {max_weight:.1%}",
                                 annotation_position="right",
                             )
-                    
+
                     fig_lines.update_layout(
                         title="Weight Sensitivity by Asset",
                         xaxis_title="Parameter Variation (%)",
@@ -3305,9 +3445,9 @@ def _display_optimization_results(
                             x=1.02,
                         ),
                     )
-                    
+
                     st.plotly_chart(fig_lines, use_container_width=True)
-                    
+
                     # Add explanation
                     st.caption(
                         "**How to read chart:** "
@@ -3318,31 +3458,33 @@ def _display_optimization_results(
                     )
                 else:
                     st.info("Select assets to display on the chart.")
-                
+
                 # Summary statistics
                 st.markdown("**Sensitivity Summary**")
                 summary_data = []
                 for info in sorted_tickers:
-                    summary_data.append({
-                        "Ticker": info["ticker"],
-                        "Min Weight": f"{info['min']:.2%}",
-                        "Max Weight": f"{info['max']:.2%}",
-                        "Range": f"{info['range']:.2%}",
-                        "Std Dev": f"{info['std']:.2%}",
-                        "Sensitivity": (
-                            "High" if info["range"] > 0.05
-                            else "Medium" if info["range"] > 0.01
-                            else "Low"
-                        ),
-                    })
-                
+                    summary_data.append(
+                        {
+                            "Ticker": info["ticker"],
+                            "Min Weight": f"{info['min']:.2%}",
+                            "Max Weight": f"{info['max']:.2%}",
+                            "Range": f"{info['range']:.2%}",
+                            "Std Dev": f"{info['std']:.2%}",
+                            "Sensitivity": (
+                                "High"
+                                if info["range"] > 0.05
+                                else "Medium" if info["range"] > 0.01 else "Low"
+                            ),
+                        }
+                    )
+
                 summary_df = pd.DataFrame(summary_data)
                 st.dataframe(
                     summary_df,
                     use_container_width=True,
                     hide_index=True,
                 )
-                
+
                 st.caption(
                     "**Interpretation:** "
                     "**Range** shows how much the asset weight changes when the parameter varies. "
@@ -3350,20 +3492,20 @@ def _display_optimization_results(
                     "**Low sensitivity** (<1%) = weight practically does not change. "
                     "Assets are sorted by sensitivity (most sensitive at top)."
                 )
-                
+
                 # Interpretation: Sensitivity analysis
                 interpretation = _interpret_sensitivity_analysis(sens_results)
                 if interpretation:
                     st.info(interpretation)
-    
+
     # Apply optimization
     st.subheader("Apply Optimization")
-    
+
     st.warning(
         "⚠️ Applying optimization will update your portfolio weights. "
         "This action cannot be undone."
     )
-    
+
     if st.button("Apply Optimization to Portfolio", type="primary"):
         # TODO: Implement apply optimization
         st.info("Apply optimization feature will be implemented soon.")
@@ -3371,4 +3513,3 @@ def _display_optimization_results(
 
 if __name__ == "__main__":
     render_optimization_page()
-

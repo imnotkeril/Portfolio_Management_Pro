@@ -1,15 +1,14 @@
 """Base forecaster class and result types."""
 
 import logging
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-from core.exceptions import CalculationError, InsufficientDataError
+from core.exceptions import InsufficientDataError
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ class ForecastResult:
     forecast_returns: np.ndarray
     """Forecasted returns (if applicable)"""
 
-    confidence_intervals: Dict[str, np.ndarray] = field(default_factory=dict)
+    confidence_intervals: dict[str, np.ndarray] = field(default_factory=dict)
     """Confidence intervals: upper_95, lower_95, upper_80, lower_80"""
 
     final_value: float = 0.0
@@ -39,10 +38,10 @@ class ForecastResult:
     change_pct: float = 0.0
     """Percentage change from last historical value"""
 
-    validation_metrics: Optional[Dict[str, float]] = None
+    validation_metrics: Optional[dict[str, float]] = None
     """Out-of-sample validation metrics: MAPE, RMSE, MAE, direction_accuracy, r_squared"""
 
-    model_info: Dict[str, any] = field(default_factory=dict)
+    model_info: dict[str, any] = field(default_factory=dict)
     """Model information: parameters, AIC, BIC, training_time"""
 
     residuals: Optional[np.ndarray] = None
@@ -62,17 +61,17 @@ class ForecastResult:
         if len(self.forecast_values) > 0:
             if self.final_value == 0.0:
                 self.final_value = float(self.forecast_values[-1])
-            
+
             # Calculate change_pct if not provided and we have a reference
             # Note: change_pct calculation requires last_price, which is not available here
             # So we leave it to the forecaster to set it explicitly
 
-    def to_dict(self) -> Dict[str, any]:
+    def to_dict(self) -> dict[str, any]:
         """
         Convert result to dictionary for serialization.
-        
+
         Converts numpy arrays to lists and handles datetime serialization.
-        
+
         Returns:
             Dictionary representation of ForecastResult
         """
@@ -81,15 +80,29 @@ class ForecastResult:
             date.isoformat() if hasattr(date, "isoformat") else str(date)
             for date in self.forecast_dates
         ]
-        
+
         result = {
             "method": self.method,
             "forecast_dates": forecast_dates_list,
-            "forecast_values": self.forecast_values.tolist() if isinstance(self.forecast_values, np.ndarray) else list(self.forecast_values),
-            "forecast_returns": self.forecast_returns.tolist() if isinstance(self.forecast_returns, np.ndarray) else list(self.forecast_returns),
+            "forecast_values": (
+                self.forecast_values.tolist()
+                if isinstance(self.forecast_values, np.ndarray)
+                else list(self.forecast_values)
+            ),
+            "forecast_returns": (
+                self.forecast_returns.tolist()
+                if isinstance(self.forecast_returns, np.ndarray)
+                else list(self.forecast_returns)
+            ),
             "confidence_intervals": {
-                k: v.tolist() if isinstance(v, np.ndarray) else (
-                    list(v) if hasattr(v, "__iter__") and not isinstance(v, str) else v
+                k: (
+                    v.tolist()
+                    if isinstance(v, np.ndarray)
+                    else (
+                        list(v)
+                        if hasattr(v, "__iter__") and not isinstance(v, str)
+                        else v
+                    )
                 )
                 for k, v in self.confidence_intervals.items()
             },
@@ -98,11 +111,13 @@ class ForecastResult:
             "validation_metrics": self.validation_metrics,
             "model_info": self.model_info,
             "residuals": (
-                self.residuals.tolist() 
+                self.residuals.tolist()
                 if self.residuals is not None and isinstance(self.residuals, np.ndarray)
                 else (
-                    list(self.residuals) 
-                    if self.residuals is not None and hasattr(self.residuals, "__iter__") and not isinstance(self.residuals, str)
+                    list(self.residuals)
+                    if self.residuals is not None
+                    and hasattr(self.residuals, "__iter__")
+                    and not isinstance(self.residuals, str)
                     else None
                 )
             ),
@@ -150,7 +165,7 @@ class BaseForecaster(ABC):
             )
 
         self.prices = prices.sort_index()
-        
+
         # Calculate returns if not provided
         if returns is not None:
             self.returns = returns.sort_index()
@@ -164,7 +179,7 @@ class BaseForecaster(ABC):
         # Ensure returns index is sorted
         if len(self.returns) > 0:
             self.returns = self.returns.sort_index()
-            
+
             # Validate returns don't contain invalid values
             if not np.all(np.isfinite(self.returns.values)):
                 logger.warning(
@@ -204,7 +219,7 @@ class BaseForecaster(ABC):
         self,
         forecast: ForecastResult,
         actual: pd.Series,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Evaluate forecast quality against actual values.
 
@@ -242,7 +257,7 @@ class BaseForecaster(ABC):
         # Normalize timezones for comparison
         forecast_dates = forecast.forecast_dates
         actual_index = actual.index
-        
+
         # Remove timezone if present for comparison
         if hasattr(forecast_dates, "tz") and forecast_dates.tz is not None:
             forecast_dates = forecast_dates.tz_localize(None)
@@ -315,7 +330,7 @@ class BaseForecaster(ABC):
             return 0.0
 
         final_forecast = forecast_values[-1]
-        
+
         # Validate final_forecast
         if not np.isfinite(final_forecast):
             logger.warning(
@@ -375,7 +390,7 @@ class BaseForecaster(ABC):
                 start=last_date + pd.Timedelta(days=1),
                 periods=horizon,
             )
-            
+
             # Ensure we got the right number of dates
             if len(forecast_dates) != horizon:
                 logger.warning(
@@ -389,7 +404,7 @@ class BaseForecaster(ABC):
                         periods=horizon - len(forecast_dates),
                     )
                     forecast_dates = forecast_dates.union(additional_dates)[:horizon]
-            
+
             return forecast_dates
         except Exception as e:
             logger.error(f"Error creating forecast dates: {e}", exc_info=True)
@@ -403,7 +418,4 @@ class BaseForecaster(ABC):
                 logger.warning("Using daily frequency instead of business days")
                 return forecast_dates
             except Exception as e2:
-                raise ValueError(
-                    f"Failed to create forecast dates: {e2}"
-                ) from e2
-
+                raise ValueError(f"Failed to create forecast dates: {e2}") from e2

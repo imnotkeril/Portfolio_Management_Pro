@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 
 try:
-    from sklearn.svm import SVR
     from sklearn.preprocessing import StandardScaler
+    from sklearn.svm import SVR
 except ImportError:
     SVR = None
     StandardScaler = None
@@ -55,7 +55,7 @@ class SVMForecaster(BaseForecaster):
         self,
         horizon: int,
         kernel: str = "rbf",
-        C: float = 100.0,
+        C: float = 100.0,  # noqa: N803
         epsilon: float = 0.1,
         gamma: Optional[str] = "scale",
         use_technical_features: bool = True,
@@ -154,14 +154,13 @@ class SVMForecaster(BaseForecaster):
                 scaler_y = StandardScaler()
                 y_train_scaled = scaler_y.fit_transform(y_train.reshape(-1, 1)).ravel()
                 if len(y_val) > 0:
-                    y_val_scaled = scaler_y.transform(y_val.reshape(-1, 1)).ravel()
+                    scaler_y.transform(y_val.reshape(-1, 1)).ravel()
                 else:
-                    y_val_scaled = y_train_scaled
+                    pass
             else:
                 X_train_scaled = X_train
                 X_val_scaled = X_val
                 y_train_scaled = y_train
-                y_val_scaled = y_val
 
             # Train SVR model
             model = SVR(
@@ -202,20 +201,15 @@ class SVMForecaster(BaseForecaster):
                     val_pred = val_pred_scaled
                 val_rmse = np.sqrt(np.mean((y_val - val_pred) ** 2))
                 logger.debug(
-                    f"SVR: Train RMSE={train_rmse:.6f}, "
-                    f"Val RMSE={val_rmse:.6f}"
+                    f"SVR: Train RMSE={train_rmse:.6f}, " f"Val RMSE={val_rmse:.6f}"
                 )
 
             # Generate forecast iteratively
             forecast_values = []
 
             # Get last lookback elements from both arrays
-            last_prices = self.prices.iloc[
-                -min(lookback, len(self.prices)) :
-            ].values
-            last_returns = self.returns.iloc[
-                -min(lookback, len(self.returns)) :
-            ].values
+            last_prices = self.prices.iloc[-min(lookback, len(self.prices)) :].values
+            last_returns = self.returns.iloc[-min(lookback, len(self.returns)) :].values
 
             # Pad both arrays to exactly lookback length
             if len(last_prices) < lookback:
@@ -311,7 +305,9 @@ class SVMForecaster(BaseForecaster):
 
             # Calculate returns
             forecast_returns = np.diff(forecast_values) / forecast_values[:-1]
-            first_return = (forecast_values[0] - self.prices.iloc[-1]) / self.prices.iloc[-1]
+            first_return = (
+                forecast_values[0] - self.prices.iloc[-1]
+            ) / self.prices.iloc[-1]
             forecast_returns = np.insert(forecast_returns, 0, first_return)
 
             # Calculate change percentage
@@ -335,13 +331,9 @@ class SVMForecaster(BaseForecaster):
                 residuals = y_train - train_pred
 
             # Filter out NaN/Inf residuals
-            valid_residuals = residuals[
-                np.isfinite(residuals) & ~np.isnan(residuals)
-            ]
+            valid_residuals = residuals[np.isfinite(residuals) & ~np.isnan(residuals)]
             if len(valid_residuals) == 0:
-                logger.warning(
-                    "No valid residuals, using default confidence intervals"
-                )
+                logger.warning("No valid residuals, using default confidence intervals")
                 valid_residuals = None
 
             # Calculate confidence intervals
@@ -355,7 +347,9 @@ class SVMForecaster(BaseForecaster):
 
             # Get support vectors info
             n_support_vectors = (
-                len(model.support_vectors_) if hasattr(model, "support_vectors_") else None
+                len(model.support_vectors_)
+                if hasattr(model, "support_vectors_")
+                else None
             )
 
             return ForecastResult(
@@ -489,9 +483,7 @@ class SVMForecaster(BaseForecaster):
                 std_20_bb = np.std(prices[-20:])
                 bb_upper = sma_20_bb + 2 * std_20_bb
                 bb_lower = sma_20_bb - 2 * std_20_bb
-                bb_width = (
-                    (bb_upper - bb_lower) / sma_20_bb if sma_20_bb > 0 else 0.0
-                )
+                bb_width = (bb_upper - bb_lower) / sma_20_bb if sma_20_bb > 0 else 0.0
             else:
                 bb_upper = prices[-1]
                 bb_lower = prices[-1]
@@ -503,4 +495,3 @@ class SVMForecaster(BaseForecaster):
             features.extend([0.0] * 15)
 
         return np.array(features)
-

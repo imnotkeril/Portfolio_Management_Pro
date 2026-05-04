@@ -6,11 +6,10 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
-
 from scipy import stats as scipy_stats
 
 from core.analytics_engine.chart_data import get_rolling_var_data
@@ -26,8 +25,8 @@ logger = logging.getLogger(__name__)
 def _interpret_var_metrics(
     var_95: float,
     cvar_95: float,
-    var_99: Optional[float],
-    cvar_99: Optional[float],
+    var_99: float | None,
+    cvar_99: float | None,
 ) -> str:
     lines = ["**VaR & CVaR Analysis:**"]
     if abs(var_95) < 0.02:
@@ -43,12 +42,16 @@ def _interpret_var_metrics(
                 f"CVaR (95%): {cvar_95*100:.2f}% - Tail risk is {excess*100:.2f}% higher than VaR"
             )
         else:
-            lines.append(f"CVaR (95%): {cvar_95*100:.2f}% - Tail risk is similar to VaR")
+            lines.append(
+                f"CVaR (95%): {cvar_95*100:.2f}% - Tail risk is similar to VaR"
+            )
     if var_99 is not None:
         if abs(var_99) < 0.03:
             lines.append(f"VaR (99%): {var_99*100:.2f}% - Low extreme risk exposure")
         elif abs(var_99) < 0.08:
-            lines.append(f"VaR (99%): {var_99*100:.2f}% - Moderate extreme risk exposure")
+            lines.append(
+                f"VaR (99%): {var_99*100:.2f}% - Moderate extreme risk exposure"
+            )
         else:
             lines.append(f"⚠ VaR (99%): {var_99*100:.2f}% - High extreme risk exposure")
     if var_99 is not None and var_95:
@@ -59,7 +62,7 @@ def _interpret_var_metrics(
     return "\n".join(lines)
 
 
-def _interpret_var_methods(var_data: Dict[str, Any], conf: float) -> str:
+def _interpret_var_methods(var_data: dict[str, Any], conf: float) -> str:
     methods = ["historical", "parametric", "cornish_fisher", "monte_carlo"]
     values = {}
     for m in methods:
@@ -77,9 +80,7 @@ def _interpret_var_methods(var_data: Dict[str, Any], conf: float) -> str:
     elif spread < 0.03:
         lines.append(f"Moderate spread ({spread*100:.2f}%) — some model uncertainty")
     else:
-        lines.append(
-            f"⚠ Large spread ({spread*100:.2f}%) — consider multiple methods"
-        )
+        lines.append(f"⚠ Large spread ({spread*100:.2f}%) — consider multiple methods")
     if "historical" in values and "parametric" in values:
         d = abs(values["historical"] - values["parametric"])
         if d > 0.02:
@@ -101,23 +102,25 @@ def _nearest_cov_confidence(conf: float) -> float:
 
 def _return_histogram(
     returns: pd.Series, bins: int = 50
-) -> tuple[List[Dict[str, float]], List[float]]:
+) -> tuple[list[dict[str, float]], list[float]]:
     arr = returns.dropna().values
     if len(arr) == 0:
         return [], []
     counts, edges = np.histogram(arr, bins=bins)
     centers = ((edges[:-1] + edges[1:]) / 2).tolist()
-    return [{"x": float(c), "count": float(n)} for c, n in zip(centers, counts)], edges.tolist()
+    return [
+        {"x": float(c), "count": float(n)} for c, n in zip(centers, counts)
+    ], edges.tolist()
 
 
-def _pct_lookup(pct: Dict[Any, Any], k: float) -> Optional[float]:
+def _pct_lookup(pct: dict[Any, Any], k: float) -> float | None:
     for key in (k, float(k), int(k)):
         if key in pct:
             return float(pct[key])
     return None
 
 
-def _interpret_rolling_var(rolling_stats: Dict[str, float]) -> str:
+def _interpret_rolling_var(rolling_stats: dict[str, float]) -> str:
     if not rolling_stats:
         return ""
     lines = ["**Rolling VaR Analysis:**"]
@@ -147,7 +150,9 @@ def _interpret_rolling_var(rolling_stats: Dict[str, float]) -> str:
 
 def _interpret_portfolio_var_covariance(portfolio_var: float, confidence: float) -> str:
     lines = ["**Portfolio VaR (Covariance Method) Analysis:**"]
-    lines.append(f"Portfolio VaR ({confidence*100:.0f}%): {abs(portfolio_var)*100:.2f}%")
+    lines.append(
+        f"Portfolio VaR ({confidence*100:.0f}%): {abs(portfolio_var)*100:.2f}%"
+    )
     if abs(portfolio_var) < 0.02:
         lines.append("Low portfolio risk relative to typical daily moves.")
     elif abs(portfolio_var) < 0.05:
@@ -161,7 +166,7 @@ def _interpret_portfolio_var_covariance(portfolio_var: float, confidence: float)
 
 
 def _interpret_var_decomposition_rows(
-    decomp: List[Dict[str, Any]], portfolio_var_pct: float
+    decomp: list[dict[str, Any]], portfolio_var_pct: float
 ) -> str:
     if not decomp:
         return ""
@@ -177,9 +182,13 @@ def _interpret_var_decomposition_rows(
     )
     top3 = sum(float(r.get("contribution_pct", 0)) for r in sorted_rows[:3])
     if top3 > 70:
-        lines.append(f"⚠ High concentration: top 3 assets contribute {top3:.1f}% of VaR")
+        lines.append(
+            f"⚠ High concentration: top 3 assets contribute {top3:.1f}% of VaR"
+        )
     elif top3 > 50:
-        lines.append(f"Moderate concentration: top 3 assets contribute {top3:.1f}% of VaR")
+        lines.append(
+            f"Moderate concentration: top 3 assets contribute {top3:.1f}% of VaR"
+        )
     else:
         lines.append(f"✓ Diversified: top 3 assets contribute {top3:.1f}% of VaR")
     mismatches = []
@@ -198,7 +207,9 @@ def _interpret_var_decomposition_rows(
     return "\n".join(lines)
 
 
-def _interpret_monte_carlo_stats_full(stats: Dict[str, Any], initial_value: float) -> str:
+def _interpret_monte_carlo_stats_full(
+    stats: dict[str, Any], initial_value: float
+) -> str:
     if not stats:
         return ""
     lines = ["**Monte Carlo Simulation Analysis:**"]
@@ -236,14 +247,14 @@ def _interpret_monte_carlo_stats_full(stats: Dict[str, Any], initial_value: floa
 
 
 def _interpret_monte_carlo_percentiles_full(
-    percentiles: Dict[Any, Any], initial_value: float
+    percentiles: dict[Any, Any], initial_value: float
 ) -> str:
     if not percentiles or initial_value <= 0:
         return ""
     lines = ["**Percentile Analysis:**"]
     p5 = _pct_lookup(percentiles, 5.0)
     p25 = _pct_lookup(percentiles, 25.0)
-    p50 = _pct_lookup(percentiles, 50.0)
+    _pct_lookup(percentiles, 50.0)
     p75 = _pct_lookup(percentiles, 75.0)
     p95 = _pct_lookup(percentiles, 95.0)
     if p5 is not None:
@@ -299,7 +310,9 @@ def _interpret_confidence_intervals_mc(finals: np.ndarray, initial_value: float)
     tail_width_90 = (ci_90_upper - ci_90_lower) / initial_value * 100
     tail_width_99 = (ci_99_upper - ci_99_lower) / initial_value * 100
     if tail_width_90 < 10:
-        lines.append(f"\nNarrow 90% range ({tail_width_90:.1f}%) — predictable outcomes")
+        lines.append(
+            f"\nNarrow 90% range ({tail_width_90:.1f}%) — predictable outcomes"
+        )
     elif tail_width_90 < 25:
         lines.append(f"\nModerate 90% range ({tail_width_90:.1f}%)")
     else:
@@ -329,18 +342,28 @@ def _interpret_monte_carlo_var_comparison(
     elif diff_pct < 20:
         lines.append(f"Moderate difference {diff*100:.2f}% ({diff_pct:.1f}% relative)")
     elif diff > 0:
-        lines.append("⚠ MC VaR higher — forward model implies more tail risk than history")
+        lines.append(
+            "⚠ MC VaR higher — forward model implies more tail risk than history"
+        )
     else:
-        lines.append("MC VaR lower than historical — model implies less tail risk than history")
+        lines.append(
+            "MC VaR lower than historical — model implies less tail risk than history"
+        )
     return "\n".join(lines)
 
 
-def _interpret_extreme_rows(extreme_rows: List[Dict[str, Any]], initial_value: float) -> str:
+def _interpret_extreme_rows(
+    extreme_rows: list[dict[str, Any]], initial_value: float
+) -> str:
     if not extreme_rows or initial_value <= 0:
         return ""
     lines = ["**Extreme Scenarios Analysis:**"]
-    worst = next((r for r in extreme_rows if "Worst 5%" in str(r.get("scenario", ""))), None)
-    best = next((r for r in extreme_rows if "Best 5%" in str(r.get("scenario", ""))), None)
+    worst = next(
+        (r for r in extreme_rows if "Worst 5%" in str(r.get("scenario", ""))), None
+    )
+    best = next(
+        (r for r in extreme_rows if "Best 5%" in str(r.get("scenario", ""))), None
+    )
     if worst:
         v = float(worst.get("value", 0))
         lines.append(
@@ -354,7 +377,7 @@ def _interpret_extreme_rows(extreme_rows: List[Dict[str, Any]], initial_value: f
     return "\n".join(lines)
 
 
-def _interpret_var_cvar_sim_table(rows: List[Dict[str, Any]]) -> str:
+def _interpret_var_cvar_sim_table(rows: list[dict[str, Any]]) -> str:
     if not rows:
         return ""
     lines = ["**VaR & CVaR (from terminal returns):**"]
@@ -366,7 +389,9 @@ def _interpret_var_cvar_sim_table(rows: List[Dict[str, Any]]) -> str:
         lines.append(f"95% CVaR: {abs(cp):.2f}% — mean loss beyond that threshold")
         spread = abs(cp) - abs(vp)
         if spread > 2:
-            lines.append(f"Large CVaR–VaR spread ({spread:.2f}%) — meaningful tail beyond VaR")
+            lines.append(
+                f"Large CVaR–VaR spread ({spread:.2f}%) — meaningful tail beyond VaR"
+            )
         elif spread > 1:
             lines.append(f"Moderate tail beyond VaR ({spread:.2f}%)")
         else:
@@ -383,11 +408,13 @@ def _interpret_var_cvar_sim_table(rows: List[Dict[str, Any]]) -> str:
                     f"⚠ Risk escalation: 99% VaR is {exp_ratio:.1f}x 90% VaR — extreme scenarios matter"
                 )
             elif exp_ratio > 1.5:
-                lines.append(f"Moderate escalation: 99% vs 90% VaR ratio {exp_ratio:.1f}x")
+                lines.append(
+                    f"Moderate escalation: 99% vs 90% VaR ratio {exp_ratio:.1f}x"
+                )
     return "\n".join(lines)
 
 
-def _interpret_hist_vs_mc_chart(diffs: List[Dict[str, float]]) -> str:
+def _interpret_hist_vs_mc_chart(diffs: list[dict[str, float]]) -> str:
     if not diffs:
         return ""
     lines = ["**Historical vs Monte Carlo VaR (chart summary):**"]
@@ -406,11 +433,13 @@ def _interpret_hist_vs_mc_chart(diffs: List[Dict[str, float]]) -> str:
         low = abs(diffs[0]["diff"])
         high = abs(diffs[-1]["diff"])
         if high > low * 1.5:
-            lines.append("Gap widens at higher confidence — model uncertainty in the far tail")
+            lines.append(
+                "Gap widens at higher confidence — model uncertainty in the far tail"
+            )
     return "\n".join(lines)
 
 
-def _interpret_scenario_results(results: List[Dict[str, Any]]) -> str:
+def _interpret_scenario_results(results: list[dict[str, Any]]) -> str:
     if not results:
         return ""
     lines = ["**Scenario Analysis:**"]
@@ -441,7 +470,7 @@ def _interpret_scenario_results(results: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _interpret_scenario_recovery(results: List[Dict[str, Any]]) -> str:
+def _interpret_scenario_recovery(results: list[dict[str, Any]]) -> str:
     if not results:
         return ""
     lines = ["**Recovery Timeline Analysis:**"]
@@ -463,12 +492,14 @@ def _interpret_scenario_recovery(results: List[Dict[str, Any]]) -> str:
     slowest = max(rec_rows, key=lambda x: x["days"])
     lines.append(f"Fastest recovery: {fastest['name']} ({fastest['days']:.0f} days)")
     lines.append(f"Slowest recovery: {slowest['name']} ({slowest['days']:.0f} days)")
-    lines.append(f"Average recovery: {float(np.mean([x['days'] for x in rec_rows])):.0f} days")
+    lines.append(
+        f"Average recovery: {float(np.mean([x['days'] for x in rec_rows])):.0f} days"
+    )
     return "\n".join(lines)
 
 
 def _interpret_position_impact_breakdown(
-    position_impacts: Dict[str, float], scenario_name: str
+    position_impacts: dict[str, float], scenario_name: str
 ) -> str:
     if not position_impacts:
         return ""
@@ -491,7 +522,9 @@ def _interpret_position_impact_breakdown(
         tot = sum(abs_i) or 1
         conc = t2 / tot * 100
         if conc > 70:
-            lines.append(f"Concentrated: top 2 positions drive {conc:.1f}% of gross impact")
+            lines.append(
+                f"Concentrated: top 2 positions drive {conc:.1f}% of gross impact"
+            )
     return "\n".join(lines)
 
 
@@ -500,12 +533,12 @@ def build_stress_historical_display_bundle(
     portfolio_service: PortfolioService,
     *,
     portfolio_id: str,
-    scenario_keys: List[str],
-) -> Dict[str, Any]:
+    scenario_keys: list[str],
+) -> dict[str, Any]:
     scenarios = get_all_scenarios()
     results = risk_service.run_stress_test(portfolio_id, scenario_keys)
 
-    recovery_series: List[Dict[str, Any]] = []
+    recovery_series: list[dict[str, Any]] = []
     for r in results:
         name = r.get("scenario_name", "")
         impact_pct = float(r.get("portfolio_impact_pct", 0.0))
@@ -520,11 +553,14 @@ def build_stress_historical_display_bundle(
             recovery_series.append(
                 {
                     "scenario_name": name,
-                    "points": [{"day": float(d), "pct": float(v) * 100} for d, v in zip(days, path)],
+                    "points": [
+                        {"day": float(d), "pct": float(v) * 100}
+                        for d, v in zip(days, path)
+                    ],
                 }
             )
 
-    enhanced: List[Dict[str, Any]] = []
+    enhanced: list[dict[str, Any]] = []
     for r in results:
         sn = r.get("scenario_name")
         key = next(
@@ -548,14 +584,14 @@ def build_stress_historical_display_bundle(
 
     portfolio = portfolio_service.get_portfolio(portfolio_id)
     positions = portfolio.get_all_positions() if portfolio else []
-    weight_by_ticker: Dict[str, float] = {}
+    weight_by_ticker: dict[str, float] = {}
     for p in positions:
         weight_by_ticker[p.ticker] = float(p.weight_target or 0.0)
     tw = sum(weight_by_ticker.values())
     if tw > 0:
         weight_by_ticker = {k: v / tw for k, v in weight_by_ticker.items()}
 
-    position_breakdowns: List[Dict[str, Any]] = []
+    position_breakdowns: list[dict[str, Any]] = []
     for r in results:
         details = r.get("details") or {}
         pi = details.get("position_impacts") or {}
@@ -584,7 +620,7 @@ def build_stress_historical_display_bundle(
             }
         )
 
-    timeline: List[Dict[str, Any]] = []
+    timeline: list[dict[str, Any]] = []
     for k in scenario_keys:
         if k not in scenarios:
             continue
@@ -638,7 +674,7 @@ def build_var_full_bundle(
     rolling_window: int = 63,
     include_monte_carlo: bool = True,
     num_simulations: int = 10000,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     base = risk_service.calculate_var_analysis(
         portfolio_id=portfolio_id,
         start_date=start_date,
@@ -662,7 +698,7 @@ def build_var_full_bundle(
         var_99_hist = float(calculate_var(portfolio_returns, 0.99, "historical"))
         cvar_99 = float(calculate_cvar(portfolio_returns, 0.99))
 
-    comparison_rows: List[Dict[str, Any]] = []
+    comparison_rows: list[dict[str, Any]] = []
     method_labels = {
         "historical": "Historical",
         "parametric": "Parametric",
@@ -690,19 +726,24 @@ def build_var_full_bundle(
 
     hist_bars, _ = _return_histogram(portfolio_returns, 50)
     var_hist = var_data.get("historical")
-    var_hist_f = float(var_hist) if var_hist is not None and not isinstance(var_hist, str) else None
+    var_hist_f = (
+        float(var_hist)
+        if var_hist is not None and not isinstance(var_hist, str)
+        else None
+    )
 
     sensitivity = []
     for cl in (0.90, 0.95, 0.99):
         sensitivity.append(
             {
                 "confidence_pct": int(cl * 100),
-                "var_pct": float(calculate_var(portfolio_returns, cl, "historical")) * 100,
+                "var_pct": float(calculate_var(portfolio_returns, cl, "historical"))
+                * 100,
                 "cvar_pct": float(calculate_cvar(portfolio_returns, cl)) * 100,
             }
         )
 
-    rolling_block: Optional[Dict[str, Any]] = None
+    rolling_block: dict[str, Any] | None = None
     try:
         rv = get_rolling_var_data(
             portfolio_returns,
@@ -726,7 +767,7 @@ def build_var_full_bundle(
     except Exception as exc:
         logger.warning("Rolling VaR failed: %s", exc)
 
-    covariance_block: Optional[Dict[str, Any]] = None
+    covariance_block: dict[str, Any] | None = None
     try:
         portfolio = portfolio_service.get_portfolio(portfolio_id)
         positions = portfolio.get_all_positions() if portfolio else []
@@ -813,7 +854,9 @@ def build_var_full_bundle(
         "key_metrics": {
             "var_95_historical_pct": var_95_hist * 100,
             "cvar_95_pct": cvar_95 * 100,
-            "var_99_historical_pct": var_99_hist * 100 if var_99_hist is not None else None,
+            "var_99_historical_pct": (
+                var_99_hist * 100 if var_99_hist is not None else None
+            ),
             "cvar_99_pct": cvar_99 * 100 if cvar_99 is not None else None,
             "var_selected_pct": float(var_data.get("historical") or 0) * 100,
             "cvar_selected_pct": cvar_sel * 100,
@@ -847,7 +890,7 @@ def build_monte_carlo_display_bundle(
     model: str,
     include_sample_paths: bool,
     max_paths: int = 40,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     raw = risk_service.run_monte_carlo_simulation(
         portfolio_id=portfolio_id,
         start_date=start_date,
@@ -858,9 +901,9 @@ def build_monte_carlo_display_bundle(
         model=model,
     )
     finals = np.array(raw.get("final_values") or [], dtype=float)
-    hist: List[Dict[str, float]] = []
-    normal_curve: List[Dict[str, float]] = []
-    percentile_markers: List[Dict[str, Any]] = []
+    hist: list[dict[str, float]] = []
+    normal_curve: list[dict[str, float]] = []
+    percentile_markers: list[dict[str, Any]] = []
 
     if len(finals) > 0:
         counts, edges = np.histogram(finals, bins=50)
@@ -870,7 +913,7 @@ def build_monte_carlo_display_bundle(
         std_f = float(np.std(finals))
         hist = []
         for c, n in zip(centers, counts):
-            entry: Dict[str, float] = {"x": float(c), "count": float(n)}
+            entry: dict[str, float] = {"x": float(c), "count": float(n)}
             if std_f > 0:
                 entry["norm_y"] = float(
                     scipy_stats.norm.pdf(float(c), loc=mean_f, scale=std_f)
@@ -884,7 +927,9 @@ def build_monte_carlo_display_bundle(
             x_norm = np.linspace(float(edges[0]), float(edges[-1]), 100)
             pdf_values = scipy_stats.norm.pdf(x_norm, loc=mean_f, scale=std_f)
             y_norm = pdf_values * len(finals) * bin_w
-            normal_curve = [{"x": float(x), "y": float(y)} for x, y in zip(x_norm, y_norm)]
+            normal_curve = [
+                {"x": float(x), "y": float(y)} for x, y in zip(x_norm, y_norm)
+            ]
 
         pct_raw = raw.get("percentiles") or {}
         for label, pk, side in [
@@ -912,13 +957,15 @@ def build_monte_carlo_display_bundle(
         _interpret_confidence_intervals_mc(finals, initial_value) if len(finals) else ""
     )
 
-    var_cvar_sim_rows: List[Dict[str, Any]] = []
-    hist_vs_mc_rows: List[Dict[str, Any]] = []
-    hist_vs_mc_diffs: List[Dict[str, float]] = []
+    var_cvar_sim_rows: list[dict[str, Any]] = []
+    hist_vs_mc_rows: list[dict[str, Any]] = []
+    hist_vs_mc_diffs: list[dict[str, float]] = []
     interp_hist_mc = ""
     interp_hist_mc_chart = ""
     returns_sim = (
-        finals / initial_value - 1.0 if initial_value > 0 and len(finals) else np.array([])
+        finals / initial_value - 1.0
+        if initial_value > 0 and len(finals)
+        else np.array([])
     )
 
     if len(returns_sim) > 0:
@@ -935,7 +982,9 @@ def build_monte_carlo_display_bundle(
                     "cvar_usd": cvar_val * initial_value,
                 }
             )
-        pr = risk_service._get_portfolio_returns(portfolio_id, start_date, end_date)  # noqa: SLF001
+        pr = risk_service._get_portfolio_returns(
+            portfolio_id, start_date, end_date
+        )  # noqa: SLF001
         if pr is not None and not pr.empty:
             for cl in (0.90, 0.95, 0.99):
                 hist_var = float(calculate_var(pr, cl, "historical"))
@@ -955,18 +1004,20 @@ def build_monte_carlo_display_bundle(
             interp_hist_mc_chart = _interpret_hist_vs_mc_chart(hist_vs_mc_diffs)
     interp_var_cvar_sim = _interpret_var_cvar_sim_table(var_cvar_sim_rows)
 
-    extreme_rows: List[Dict[str, Any]] = []
+    extreme_rows: list[dict[str, Any]] = []
     if len(finals) > 0:
 
-        def _ext_row(label: str, pct: float) -> Dict[str, Any]:
+        def _ext_row(label: str, pct: float) -> dict[str, Any]:
             v = float(np.percentile(finals, pct))
             return {
                 "scenario": label,
                 "value": v,
                 "return_usd": v - initial_value,
-                "return_pct": ((v - initial_value) / initial_value) * 100
-                if initial_value > 0
-                else 0.0,
+                "return_pct": (
+                    ((v - initial_value) / initial_value) * 100
+                    if initial_value > 0
+                    else 0.0
+                ),
             }
 
         extreme_rows = [
@@ -979,8 +1030,8 @@ def build_monte_carlo_display_bundle(
         ]
     interp_extreme = _interpret_extreme_rows(extreme_rows, initial_value)
 
-    paths_out: Optional[List[List[Dict[str, float]]]] = None
-    path_envelope: Optional[Dict[str, List[Dict[str, float]]]] = None
+    paths_out: list[list[dict[str, float]]] | None = None
+    path_envelope: dict[str, list[dict[str, float]]] | None = None
     interp_paths = ""
     if include_sample_paths and raw.get("simulated_paths"):
         sp = np.array(raw["simulated_paths"], dtype=float)
@@ -1036,7 +1087,10 @@ def build_monte_carlo_display_bundle(
             for i in idx:
                 path = sp[i]
                 paths_out.append(
-                    [{"day": float(d), "value": float(v)} for d, v in enumerate(path.tolist())]
+                    [
+                        {"day": float(d), "value": float(v)}
+                        for d, v in enumerate(path.tolist())
+                    ]
                 )
 
     return {
@@ -1066,7 +1120,7 @@ def build_monte_carlo_display_bundle(
     }
 
 
-def serialize_scenario_catalog(risk_service: RiskService) -> List[Dict[str, Any]]:
+def serialize_scenario_catalog(risk_service: RiskService) -> list[dict[str, Any]]:
     scenarios = risk_service.get_available_scenarios()
     out = []
     for key, sc in scenarios.items():

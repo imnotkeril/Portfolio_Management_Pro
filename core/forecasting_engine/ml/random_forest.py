@@ -171,31 +171,37 @@ class RandomForestForecaster(BaseForecaster):
 
             # Generate forecast iteratively
             forecast_values = []
-            
+
             # Get last lookback elements from both arrays
             # Take exactly lookback elements, padding if necessary
-            last_prices = self.prices.iloc[-min(lookback, len(self.prices)):].values
-            last_returns = self.returns.iloc[-min(lookback, len(self.returns)):].values
-            
+            last_prices = self.prices.iloc[-min(lookback, len(self.prices)) :].values
+            last_returns = self.returns.iloc[-min(lookback, len(self.returns)) :].values
+
             # Pad both arrays to exactly lookback length
             if len(last_prices) < lookback:
                 # Pad with the first (oldest) price
-                padding_value = last_prices[0] if len(last_prices) > 0 else self.prices.iloc[0]
+                padding_value = (
+                    last_prices[0] if len(last_prices) > 0 else self.prices.iloc[0]
+                )
                 padding = np.full(lookback - len(last_prices), padding_value)
                 last_prices = np.concatenate([padding, last_prices])
-            
+
             if len(last_returns) < lookback:
                 # Pad with zero (no return)
                 padding = np.full(lookback - len(last_returns), 0.0)
                 last_returns = np.concatenate([padding, last_returns])
-            
+
             # Ensure both arrays have exactly lookback length
             last_prices = last_prices[-lookback:]
             last_returns = last_returns[-lookback:]
-            
+
             # Final check: arrays must have the same length
-            assert len(last_prices) == lookback, f"last_prices length {len(last_prices)} != lookback {lookback}"
-            assert len(last_returns) == lookback, f"last_returns length {len(last_returns)} != lookback {lookback}"
+            assert (
+                len(last_prices) == lookback
+            ), f"last_prices length {len(last_prices)} != lookback {lookback}"
+            assert (
+                len(last_returns) == lookback
+            ), f"last_returns length {len(last_returns)} != lookback {lookback}"
 
             # Prepare initial feature vector (same as XGBoost)
             current_features = self._prepare_single_features(
@@ -204,7 +210,7 @@ class RandomForestForecaster(BaseForecaster):
                 lookback,
                 use_technical_features,
             )
-            
+
             # Verify feature count
             if len(current_features) != expected_features:
                 raise CalculationError(
@@ -225,7 +231,7 @@ class RandomForestForecaster(BaseForecaster):
                 # Update feature vector - maintain lookback length
                 last_prices = np.concatenate([last_prices[1:], [next_price]])
                 last_returns = np.concatenate([last_returns[1:], [next_return]])
-                
+
                 # Ensure arrays maintain lookback length
                 if len(last_prices) > lookback:
                     last_prices = last_prices[-lookback:]
@@ -247,11 +253,15 @@ class RandomForestForecaster(BaseForecaster):
 
             # Calculate returns
             forecast_returns = np.diff(forecast_values) / forecast_values[:-1]
-            first_return = (forecast_values[0] - self.prices.iloc[-1]) / self.prices.iloc[-1]
+            first_return = (
+                forecast_values[0] - self.prices.iloc[-1]
+            ) / self.prices.iloc[-1]
             forecast_returns = np.insert(forecast_returns, 0, first_return)
 
             # Calculate change percentage
-            change_pct = self._calculate_change_pct(forecast_values, self.prices.iloc[-1])
+            change_pct = self._calculate_change_pct(
+                forecast_values, self.prices.iloc[-1]
+            )
 
             # Get residuals (use validation if available for better uncertainty estimation)
             if len(X_val) > 0:
@@ -264,9 +274,7 @@ class RandomForestForecaster(BaseForecaster):
                 residuals = y_train - y_train_pred
 
             # Filter out NaN/Inf residuals
-            valid_residuals = residuals[
-                np.isfinite(residuals) & ~np.isnan(residuals)
-            ]
+            valid_residuals = residuals[np.isfinite(residuals) & ~np.isnan(residuals)]
             if len(valid_residuals) == 0:
                 logger.warning("No valid residuals, using default confidence intervals")
                 valid_residuals = None
@@ -334,15 +342,17 @@ class RandomForestForecaster(BaseForecaster):
         Must match the features created by prepare_features().
         """
         features = []
-        
+
         # Ensure arrays are the right length (lookback)
         # Take only the last lookback elements
         prices = prices[-lookback:] if len(prices) > lookback else prices
         returns = returns[-lookback:] if len(returns) > lookback else returns
-        
+
         # Pad if needed
         if len(prices) < lookback:
-            padding = np.full(lookback - len(prices), prices[0] if len(prices) > 0 else 0.0)
+            padding = np.full(
+                lookback - len(prices), prices[0] if len(prices) > 0 else 0.0
+            )
             prices = np.concatenate([padding, prices])
         if len(returns) < lookback:
             padding = np.full(lookback - len(returns), 0.0)
@@ -371,18 +381,22 @@ class RandomForestForecaster(BaseForecaster):
             features.extend([sma_5, sma_10, sma_20])
 
             # Price relative to moving averages (3 features)
-            features.extend([
-                prices[-1] / sma_5 - 1 if sma_5 > 0 else 0.0,
-                prices[-1] / sma_10 - 1 if sma_10 > 0 else 0.0,
-                prices[-1] / sma_20 - 1 if sma_20 > 0 else 0.0,
-            ])
+            features.extend(
+                [
+                    prices[-1] / sma_5 - 1 if sma_5 > 0 else 0.0,
+                    prices[-1] / sma_10 - 1 if sma_10 > 0 else 0.0,
+                    prices[-1] / sma_20 - 1 if sma_20 > 0 else 0.0,
+                ]
+            )
 
             # Volatility (rolling standard deviation) (3 features)
-            features.extend([
-                np.std(returns[-5:]) if len(returns) >= 5 else 0.0,
-                np.std(returns[-10:]) if len(returns) >= 10 else 0.0,
-                np.std(returns[-20:]) if len(returns) >= 20 else 0.0,
-            ])
+            features.extend(
+                [
+                    np.std(returns[-5:]) if len(returns) >= 5 else 0.0,
+                    np.std(returns[-10:]) if len(returns) >= 10 else 0.0,
+                    np.std(returns[-20:]) if len(returns) >= 20 else 0.0,
+                ]
+            )
 
             # RSI (simplified) — match calculate_technical_indicators(): mean of gains/losses over window / 14
             if len(returns) >= 14:
@@ -398,10 +412,12 @@ class RandomForestForecaster(BaseForecaster):
             features.append(rsi)
 
             # Momentum (2 features)
-            features.extend([
-                prices[-1] / prices[-6] - 1 if len(prices) >= 6 else 0.0,
-                prices[-1] / prices[-11] - 1 if len(prices) >= 11 else 0.0,
-            ])
+            features.extend(
+                [
+                    prices[-1] / prices[-6] - 1 if len(prices) >= 6 else 0.0,
+                    prices[-1] / prices[-11] - 1 if len(prices) >= 11 else 0.0,
+                ]
+            )
 
             # Bollinger Bands (simplified) (3 features)
             if len(prices) >= 20:
@@ -421,4 +437,3 @@ class RandomForestForecaster(BaseForecaster):
             features.extend([0.0] * 15)
 
         return np.array(features)
-

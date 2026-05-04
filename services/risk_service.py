@@ -7,33 +7,37 @@ and stress testing across the risk engine and scenario engine modules.
 
 import logging
 from datetime import date
-from typing import Dict, List, Optional
+from typing import Optional
 
 import pandas as pd
 
-from core.risk_engine.var_calculator import calculate_var_all_methods
+from core.exceptions import InsufficientDataError, ValidationError
 from core.risk_engine.monte_carlo import simulate_portfolio_paths
 from core.risk_engine.stress_testing import (
     StressTester,
     apply_stress_scenario,
 )
-from core.scenario_engine.historical_scenarios import (
-    get_all_scenarios as get_all_historical_scenarios,
-    get_scenario_by_name,
-    HistoricalScenario,
-)
+from core.risk_engine.var_calculator import calculate_var_all_methods
 from core.scenario_engine.custom_scenarios import (
     CustomScenario,
     validate_scenario,
+)
+from core.scenario_engine.historical_scenarios import (
+    HistoricalScenario,
+)
+from core.scenario_engine.historical_scenarios import (
+    get_all_scenarios as get_all_historical_scenarios,
+)
+from core.scenario_engine.historical_scenarios import (
+    get_scenario_by_name,
 )
 from core.scenario_engine.scenario_chain import (
     ScenarioChain,
     apply_scenario_chain,
 )
-from core.exceptions import InsufficientDataError, ValidationError
-from services.portfolio_service import PortfolioService
-from services.data_service import DataService
 from services.analytics_service import AnalyticsService
+from services.data_service import DataService
+from services.portfolio_service import PortfolioService
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +77,7 @@ class RiskService:
         include_monte_carlo: bool = True,
         num_simulations: int = 10000,
         time_horizon: int = 1,
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Calculate comprehensive VaR analysis for portfolio.
 
@@ -90,9 +94,7 @@ class RiskService:
             Dictionary with VaR results for all methods
         """
         # Get portfolio returns
-        returns = self._get_portfolio_returns(
-            portfolio_id, start_date, end_date
-        )
+        returns = self._get_portfolio_returns(portfolio_id, start_date, end_date)
 
         # Calculate VaR using all methods
         var_results = calculate_var_all_methods(
@@ -120,7 +122,7 @@ class RiskService:
         num_simulations: int = 10000,
         initial_value: float = 1.0,
         model: str = "gbm",
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Run Monte Carlo simulation for portfolio.
 
@@ -137,9 +139,7 @@ class RiskService:
             Dictionary with simulation results
         """
         # Get portfolio returns
-        returns = self._get_portfolio_returns(
-            portfolio_id, start_date, end_date
-        )
+        returns = self._get_portfolio_returns(portfolio_id, start_date, end_date)
 
         # Run simulation
         result = simulate_portfolio_paths(
@@ -168,8 +168,8 @@ class RiskService:
     def run_stress_test(
         self,
         portfolio_id: str,
-        scenario_names: List[str],
-    ) -> List[Dict[str, any]]:
+        scenario_names: list[str],
+    ) -> list[dict[str, any]]:
         """
         Run stress tests using historical scenarios.
 
@@ -193,15 +193,12 @@ class RiskService:
         total_weight = sum(portfolio_positions.values())
         if total_weight > 0:
             portfolio_positions = {
-                k: v / total_weight
-                for k, v in portfolio_positions.items()
+                k: v / total_weight for k, v in portfolio_positions.items()
             }
 
         # Get current portfolio value
         # Fetch current prices for all positions
-        tickers = [
-            pos.ticker for pos in positions if pos.ticker != "CASH"
-        ]
+        tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
         prices = {}
         for ticker in tickers:
             try:
@@ -269,7 +266,7 @@ class RiskService:
         self,
         portfolio_id: str,
         scenario: CustomScenario,
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Run custom scenario test.
 
@@ -298,15 +295,12 @@ class RiskService:
         total_weight = sum(portfolio_positions.values())
         if total_weight > 0:
             portfolio_positions = {
-                k: v / total_weight
-                for k, v in portfolio_positions.items()
+                k: v / total_weight for k, v in portfolio_positions.items()
             }
 
         # Get current portfolio value
         # Fetch current prices for all positions
-        tickers = [
-            pos.ticker for pos in positions if pos.ticker != "CASH"
-        ]
+        tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
         prices = {}
         for ticker in tickers:
             try:
@@ -323,8 +317,9 @@ class RiskService:
         current_value = portfolio.calculate_current_value(prices)
 
         # Convert to stress scenario format
-        from core.risk_engine.stress_testing import StressScenario
         from datetime import date
+
+        from core.risk_engine.stress_testing import StressScenario
 
         stress_scenario = StressScenario(
             name=scenario.name,
@@ -362,7 +357,7 @@ class RiskService:
         self,
         portfolio_id: str,
         chain: ScenarioChain,
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Run scenario chain analysis.
 
@@ -386,15 +381,12 @@ class RiskService:
         total_weight = sum(portfolio_positions.values())
         if total_weight > 0:
             portfolio_positions = {
-                k: v / total_weight
-                for k, v in portfolio_positions.items()
+                k: v / total_weight for k, v in portfolio_positions.items()
             }
 
         # Get current portfolio value
         # Fetch current prices for all positions
-        tickers = [
-            pos.ticker for pos in positions if pos.ticker != "CASH"
-        ]
+        tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
         prices = {}
         for ticker in tickers:
             try:
@@ -411,13 +403,11 @@ class RiskService:
         current_value = portfolio.calculate_current_value(prices)
 
         # Apply chain
-        results = apply_scenario_chain(
-            portfolio_positions, current_value, chain
-        )
+        results = apply_scenario_chain(portfolio_positions, current_value, chain)
 
         return results
 
-    def get_available_scenarios(self) -> Dict[str, HistoricalScenario]:
+    def get_available_scenarios(self) -> dict[str, HistoricalScenario]:
         """Get all available historical scenarios."""
         return get_all_historical_scenarios()
 
@@ -433,8 +423,6 @@ class RiskService:
         # Extract returns directly from result
         returns = metrics.get("portfolio_returns")
         if returns is None or returns.empty:
-            raise InsufficientDataError(
-                "No returns data available for portfolio"
-            )
+            raise InsufficientDataError("No returns data available for portfolio")
 
         return returns

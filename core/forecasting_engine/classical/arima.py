@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -42,9 +42,7 @@ class ARIMAForecaster(BaseForecaster):
         """
         super().__init__(prices, returns)
 
-    def _get_residuals(
-        self, fitted_model, is_auto_arima: bool
-    ) -> Optional[np.ndarray]:
+    def _get_residuals(self, fitted_model, is_auto_arima: bool) -> Optional[np.ndarray]:
         """
         Get residuals from fitted model.
 
@@ -60,9 +58,8 @@ class ARIMAForecaster(BaseForecaster):
         try:
             if is_auto_arima:
                 # pmdarima auto_arima: residuals are in arima_res_
-                if (
-                    hasattr(fitted_model, "arima_res_")
-                    and hasattr(fitted_model.arima_res_, "resid")
+                if hasattr(fitted_model, "arima_res_") and hasattr(
+                    fitted_model.arima_res_, "resid"
                 ):
                     residuals = fitted_model.arima_res_.resid
                     # Convert to numpy array if needed
@@ -82,7 +79,7 @@ class ARIMAForecaster(BaseForecaster):
 
     def _get_confidence_intervals(
         self, fitted_model, horizon: int, is_auto_arima: bool
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Get confidence intervals from fitted model.
 
@@ -98,19 +95,13 @@ class ARIMAForecaster(BaseForecaster):
             if is_auto_arima:
                 # pmdarima auto_arima: use arima_res_ for get_forecast
                 if hasattr(fitted_model, "arima_res_"):
-                    forecast_obj = (
-                        fitted_model.arima_res_.get_forecast(steps=horizon)
-                    )
+                    forecast_obj = fitted_model.arima_res_.get_forecast(steps=horizon)
                 else:
                     # Fallback: try direct access
-                    forecast_obj = fitted_model.get_forecast(
-                        steps=horizon
-                    )
+                    forecast_obj = fitted_model.get_forecast(steps=horizon)
             else:
                 # statsmodels ARIMA: direct access
-                forecast_obj = fitted_model.get_forecast(
-                    steps=horizon
-                )
+                forecast_obj = fitted_model.get_forecast(steps=horizon)
 
             conf_int = forecast_obj.conf_int()
             lower_95 = conf_int.iloc[:, 0].values
@@ -122,9 +113,7 @@ class ARIMAForecaster(BaseForecaster):
 
             return lower_95, upper_95
         except Exception as e:
-            logger.warning(
-                f"Could not get confidence intervals from model: {e}"
-            )
+            logger.warning(f"Could not get confidence intervals from model: {e}")
             # Fallback: calculate using residuals
             residuals = self._get_residuals(fitted_model, is_auto_arima)
             forecast_values = self._get_forecast_values(
@@ -168,12 +157,8 @@ class ARIMAForecaster(BaseForecaster):
                 forecast_values = np.array(forecast_result)
 
             # Validate
-            if np.any(np.isnan(forecast_values)) or np.any(
-                np.isinf(forecast_values)
-            ):
-                logger.warning(
-                    "ARIMA forecast contains NaN or Inf values, cleaning"
-                )
+            if np.any(np.isnan(forecast_values)) or np.any(np.isinf(forecast_values)):
+                logger.warning("ARIMA forecast contains NaN or Inf values, cleaning")
                 forecast_values = np.nan_to_num(
                     forecast_values, nan=0.0, posinf=0.0, neginf=0.0
                 )
@@ -188,7 +173,7 @@ class ARIMAForecaster(BaseForecaster):
         forecast_returns: np.ndarray,
         ci_lower: np.ndarray,
         ci_upper: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Convert returns forecast to prices forecast.
 
@@ -261,9 +246,7 @@ class ARIMAForecaster(BaseForecaster):
                 data = self.returns.dropna()
                 if len(data) < 30:
                     # Fallback to prices if not enough returns
-                    logger.warning(
-                        "Not enough returns data, falling back to prices"
-                    )
+                    logger.warning("Not enough returns data, falling back to prices")
                     data = self.prices
                     use_returns = False
             else:
@@ -314,8 +297,7 @@ class ARIMAForecaster(BaseForecaster):
             # Validate order format
             if not isinstance(order, (tuple, list)) or len(order) != 3:
                 raise CalculationError(
-                    f"Invalid order format: {order}. "
-                    "Expected (p, d, q) tuple."
+                    f"Invalid order format: {order}. " "Expected (p, d, q) tuple."
                 )
 
             # Generate forecast
@@ -330,8 +312,7 @@ class ARIMAForecaster(BaseForecaster):
                 )
             except Exception as e:
                 logger.warning(
-                    f"Could not get confidence intervals: {e}, "
-                    "using fallback"
+                    f"Could not get confidence intervals: {e}, " "using fallback"
                 )
                 # Fallback: calculate using residuals
                 residuals = self._get_residuals(fitted_model, is_auto_arima)
@@ -343,10 +324,8 @@ class ARIMAForecaster(BaseForecaster):
 
             # If forecasting returns, convert to prices
             if use_returns:
-                forecast_values, lower_95, upper_95 = (
-                    self._convert_returns_to_prices(
-                        forecast_values, lower_95, upper_95
-                    )
+                forecast_values, lower_95, upper_95 = self._convert_returns_to_prices(
+                    forecast_values, lower_95, upper_95
                 )
             else:
                 # Direct price forecast - ensure positive values

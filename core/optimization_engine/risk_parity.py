@@ -1,12 +1,11 @@
 """Risk Parity optimization."""
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import scipy.optimize as scipy_opt
 
-from core.exceptions import CalculationError
 from core.optimization_engine.base import BaseOptimizer, OptimizationResult
 from core.optimization_engine.constraints import OptimizationConstraints
 
@@ -16,27 +15,27 @@ logger = logging.getLogger(__name__)
 class RiskParityOptimizer(BaseOptimizer):
     """
     Risk Parity optimizer.
-    
+
     Allocates weights so that each asset contributes equally to
     portfolio risk. This typically results in better diversification
     than equal weights.
-    
+
     Algorithm: Minimize sum of squared differences between risk contributions
     and their mean (target equal risk contribution).
     """
 
     def optimize(
         self,
-        constraints: Optional[Dict[str, any]] = None,
+        constraints: Optional[dict[str, any]] = None,
         covariance_method: str = "shrink",
         shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio using risk parity.
-        
+
         Args:
             constraints: Optional constraints dictionary
-        
+
         Returns:
             OptimizationResult with risk parity weights
         """
@@ -44,7 +43,7 @@ class RiskParityOptimizer(BaseOptimizer):
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
 
         n = len(self.tickers)
-        
+
         # Handle CASH: set minimum volatility to avoid division by zero
         # CASH typically has zero volatility, which breaks risk parity
         effective_cov = self._estimate_covariance_matrix(
@@ -52,16 +51,12 @@ class RiskParityOptimizer(BaseOptimizer):
             shrinkage_alpha=shrinkage_alpha,
         )
         cov_matrix = effective_cov.values.copy()
-        cash_indices = [
-            i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
-        ]
+        cash_indices = [i for i, ticker in enumerate(self.tickers) if ticker == "CASH"]
         # Set minimum volatility for CASH to avoid numerical issues
         for cash_idx in cash_indices:
             if cov_matrix[cash_idx, cash_idx] < 1e-8:
                 cov_matrix[cash_idx, cash_idx] = 1e-8
-        non_cash_indices = [
-            i for i in range(n) if i not in set(cash_indices)
-        ]
+        non_cash_indices = [i for i in range(n) if i not in set(cash_indices)]
 
         # Risk parity: minimize sum of squared differences in risk
         # contributions from their mean
@@ -91,7 +86,7 @@ class RiskParityOptimizer(BaseOptimizer):
             mean_rc = np.mean(target_rc)
             diff = target_rc - mean_rc
 
-            return float(np.sum(diff ** 2))
+            return float(np.sum(diff**2))
 
         constraints_list = [
             {
@@ -99,15 +94,18 @@ class RiskParityOptimizer(BaseOptimizer):
                 "fun": lambda w: np.sum(w) - 1.0,
             },
         ]
-        
+
         # Return constraint (if specified)
         if constraints_obj.min_return is not None:
             mean_returns = self._mean_returns.values
-            constraints_list.append({
-                "type": "ineq",
-                "fun": lambda w: np.dot(mean_returns, w) - constraints_obj.min_return,
-            })
-        
+            constraints_list.append(
+                {
+                    "type": "ineq",
+                    "fun": lambda w: np.dot(mean_returns, w)
+                    - constraints_obj.min_return,
+                }
+            )
+
         # Add explicit cash constraint if specified
         if constraints_obj.max_cash_weight is not None:
             cash_indices = [
@@ -115,12 +113,15 @@ class RiskParityOptimizer(BaseOptimizer):
             ]
             if cash_indices:
                 # Constraint: sum of CASH weights <= max_cash_weight
-                constraints_list.append({
-                    "type": "ineq",
-                    "fun": lambda w: float(
-                        constraints_obj.max_cash_weight - sum(w[i] for i in cash_indices)
-                    ),
-                })
+                constraints_list.append(
+                    {
+                        "type": "ineq",
+                        "fun": lambda w: float(
+                            constraints_obj.max_cash_weight
+                            - sum(w[i] for i in cash_indices)
+                        ),
+                    }
+                )
 
         # Initial guess: inverse volatility weights
         individual_vols = np.sqrt(np.diag(cov_matrix))
@@ -173,9 +174,7 @@ class RiskParityOptimizer(BaseOptimizer):
                         else None
                     ),
                     "erc_scope": (
-                        "non_cash_assets"
-                        if len(non_cash_indices) > 0
-                        else "all_assets"
+                        "non_cash_assets" if len(non_cash_indices) > 0 else "all_assets"
                     ),
                 },
             )
@@ -205,7 +204,7 @@ class RiskParityOptimizer(BaseOptimizer):
             )
 
     def _build_constraints(
-        self, constraints: Optional[Dict[str, any]]
+        self, constraints: Optional[dict[str, any]]
     ) -> OptimizationConstraints:
         """Build constraints object from dictionary."""
         # Call base class method to get all constraints including max_cash_weight, min_return, diversification_lambda

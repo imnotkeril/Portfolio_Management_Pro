@@ -1,5 +1,6 @@
-import pandas as pd
 from datetime import date
+
+import pandas as pd
 
 from services.analytics_service import AnalyticsService
 
@@ -24,24 +25,32 @@ def test_mixed_timezone_dates_are_normalized_and_filtered():
     """Ensure price fetch normalizes mixed timezone inputs to tz-naive range."""
     # Build two small frames: one tz-naive, one tz-aware (UTC)
     dates_naive = pd.to_datetime(["2025-01-02", "2025-01-03"])  # naive
-    df_naive = pd.DataFrame({
-        "Date": dates_naive,
-        "Adjusted_Close": [100.0, 101.0],
-    })
+    df_naive = pd.DataFrame(
+        {
+            "Date": dates_naive,
+            "Adjusted_Close": [100.0, 101.0],
+        }
+    )
 
-    dates_aware = pd.to_datetime([
-        "2025-01-02",
-        "2025-01-03",
-    ]).tz_localize("UTC")
-    df_aware = pd.DataFrame({
-        "Date": dates_aware,
-        "Adjusted_Close": [200.0, 202.0],
-    })
+    dates_aware = pd.to_datetime(
+        [
+            "2025-01-02",
+            "2025-01-03",
+        ]
+    ).tz_localize("UTC")
+    df_aware = pd.DataFrame(
+        {
+            "Date": dates_aware,
+            "Adjusted_Close": [200.0, 202.0],
+        }
+    )
 
-    fake_ds = _FakeDataService({
-        "AAA": df_naive.copy(),
-        "BBB": df_aware.copy(),
-    })
+    fake_ds = _FakeDataService(
+        {
+            "AAA": df_naive.copy(),
+            "BBB": df_aware.copy(),
+        }
+    )
 
     svc = AnalyticsService(data_service=fake_ds)
 
@@ -49,10 +58,14 @@ def test_mixed_timezone_dates_are_normalized_and_filtered():
     end = date(2025, 1, 3)
 
     # Should not raise and should return tz-naive index inside pivot result
-    pivot = svc._fetch_portfolio_prices([
-        "AAA",
-        "BBB",
-    ], start, end)
+    pivot = svc._fetch_portfolio_prices(
+        [
+            "AAA",
+            "BBB",
+        ],
+        start,
+        end,
+    )
     assert not pivot.empty
 
     # Index must be DatetimeIndex and tz-naive
@@ -62,4 +75,3 @@ def test_mixed_timezone_dates_are_normalized_and_filtered():
     # Ensure filtering applied inclusively
     assert pivot.index.min().date() >= start
     assert pivot.index.max().date() <= end
-

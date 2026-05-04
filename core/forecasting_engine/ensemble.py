@@ -1,14 +1,13 @@
 """Ensemble forecasting models."""
 
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 from core.exceptions import CalculationError
 from core.forecasting_engine.base import BaseForecaster, ForecastResult
-from core.forecasting_engine.utils import calculate_confidence_intervals
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class EnsembleForecaster(BaseForecaster):
         self,
         prices: pd.Series,
         returns: Optional[pd.Series] = None,
-        forecasters: Optional[List[BaseForecaster]] = None,
+        forecasters: Optional[list[BaseForecaster]] = None,
     ) -> None:
         """
         Initialize ensemble forecaster.
@@ -45,7 +44,7 @@ class EnsembleForecaster(BaseForecaster):
         self,
         horizon: int,
         method: str = "weighted_average",
-        forecast_results: Optional[List[ForecastResult]] = None,
+        forecast_results: Optional[list[ForecastResult]] = None,
         weight_metric: str = "mape",
         trim_percent: float = 0.1,
         **kwargs,
@@ -90,9 +89,7 @@ class EnsembleForecaster(BaseForecaster):
                     )
 
         # Filter successful forecasts
-        successful_forecasts = [
-            r for r in forecast_results if r.success
-        ]
+        successful_forecasts = [r for r in forecast_results if r.success]
 
         if len(successful_forecasts) < 2:
             raise CalculationError(
@@ -153,9 +150,7 @@ class EnsembleForecaster(BaseForecaster):
             else:
                 # Fallback to equal weights if all weights are zero
                 weights = np.ones(len(weights)) / len(weights)
-            ensemble_values = np.average(
-                forecast_values_array, axis=0, weights=weights
-            )
+            ensemble_values = np.average(forecast_values_array, axis=0, weights=weights)
         elif method == "median":
             # Median is robust to outliers
             ensemble_values = np.median(forecast_values_array, axis=0)
@@ -168,7 +163,11 @@ class EnsembleForecaster(BaseForecaster):
                 for t in range(forecast_values_array.shape[1]):
                     values_at_t = forecast_values_array[:, t]
                     sorted_values = np.sort(values_at_t)
-                    trimmed = sorted_values[trim_count:-trim_count] if trim_count > 0 else sorted_values
+                    trimmed = (
+                        sorted_values[trim_count:-trim_count]
+                        if trim_count > 0
+                        else sorted_values
+                    )
                     ensemble_values.append(np.mean(trimmed))
                 ensemble_values = np.array(ensemble_values)
             else:
@@ -178,7 +177,9 @@ class EnsembleForecaster(BaseForecaster):
 
         # Calculate returns
         ensemble_returns = np.diff(ensemble_values) / ensemble_values[:-1]
-        first_return = (ensemble_values[0] - self.prices.iloc[-1]) / self.prices.iloc[-1]
+        first_return = (ensemble_values[0] - self.prices.iloc[-1]) / self.prices.iloc[
+            -1
+        ]
         ensemble_returns = np.insert(ensemble_returns, 0, first_return)
 
         # Calculate change percentage
@@ -284,7 +285,9 @@ class EnsembleForecaster(BaseForecaster):
                 "ensemble_method": method,
                 "methods_used": methods_used,
                 "weights": weights_info,
-                "weight_metric": weight_metric if method == "weighted_average" else None,
+                "weight_metric": (
+                    weight_metric if method == "weighted_average" else None
+                ),
                 "num_forecasters": len(successful_forecasts),
                 "trim_percent": trim_percent if method == "trimmed_mean" else None,
             },
@@ -295,4 +298,3 @@ class EnsembleForecaster(BaseForecaster):
                 f"({', '.join(methods_used)}) using {method}"
             ),
         )
-

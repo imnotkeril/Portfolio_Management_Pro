@@ -1,7 +1,7 @@
 """Maximum alpha optimization."""
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 class MaxAlphaOptimizer(BaseOptimizer):
     """
     Maximum alpha optimizer.
-    
+
     Maximizes portfolio alpha (excess return) relative to a benchmark.
     Requires benchmark returns as input.
     """
-    
+
     def __init__(
         self,
         returns: pd.DataFrame,
@@ -31,7 +31,7 @@ class MaxAlphaOptimizer(BaseOptimizer):
     ) -> None:
         """
         Initialize optimizer with benchmark.
-        
+
         Args:
             returns: Portfolio returns DataFrame
             benchmark_returns: Benchmark returns Series (aligned)
@@ -39,52 +39,52 @@ class MaxAlphaOptimizer(BaseOptimizer):
             periods_per_year: Trading periods per year
         """
         super().__init__(returns, risk_free_rate, periods_per_year)
-        
+
         if len(benchmark_returns) != len(returns):
             raise ValueError(
                 "Benchmark returns must have same length as portfolio returns"
             )
-        
+
         benchmark_aligned = benchmark_returns.reindex(returns.index)
         if benchmark_aligned.isna().any():
             raise ValueError("Benchmark returns have missing values")
-        
+
         self.benchmark_returns = benchmark_aligned * self.periods_per_year
         self._benchmark_mean = benchmark_aligned.mean() * periods_per_year
-    
+
     def optimize(
         self,
-        constraints: Optional[Dict[str, any]] = None,
+        constraints: Optional[dict[str, any]] = None,
     ) -> OptimizationResult:
         """
         Optimize portfolio to maximize alpha.
-        
+
         Args:
             constraints: Optional constraints dictionary
-        
+
         Returns:
             OptimizationResult with maximum alpha weights
         """
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
-        
+
         n = len(self.tickers)
-        
+
         # Objective: maximize alpha = portfolio_return - benchmark_return
         def objective(weights: np.ndarray) -> float:
             portfolio_return = np.dot(weights, self._mean_returns)
             alpha = portfolio_return - self._benchmark_mean
             return -alpha  # Minimize negative = maximize
-        
+
         constraints_list = [
             {
                 "type": "eq",
                 "fun": lambda w: np.sum(w) - 1.0,
             },
         ]
-        
+
         x0 = np.ones(n) / n
-        
+
         try:
             result = scipy_opt.minimize(
                 objective,
@@ -94,19 +94,17 @@ class MaxAlphaOptimizer(BaseOptimizer):
                 constraints=constraints_list,
                 options={"maxiter": 1000},
             )
-            
+
             if not result.success:
-                raise CalculationError(
-                    f"Optimization failed: {result.message}"
-                )
-            
+                raise CalculationError(f"Optimization failed: {result.message}")
+
             weights = self._normalize_weights(result.x, constraints_obj)
             metrics = self._calculate_portfolio_metrics(weights)
-            
+
             # Calculate alpha
             portfolio_return = metrics["expected_return"]
             alpha = portfolio_return - self._benchmark_mean
-            
+
             return OptimizationResult(
                 weights=weights,
                 tickers=self.tickers,
@@ -132,11 +130,10 @@ class MaxAlphaOptimizer(BaseOptimizer):
                 success=False,
                 message=f"Optimization failed: {str(e)}",
             )
-    
+
     def _build_constraints(
-        self, constraints: Optional[Dict[str, any]]
+        self, constraints: Optional[dict[str, any]]
     ) -> OptimizationConstraints:
         """Build constraints object from dictionary."""
         # Call base class method to get all constraints including max_cash_weight, min_return, diversification_lambda
         return super()._build_constraints(constraints)
-

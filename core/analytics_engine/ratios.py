@@ -9,9 +9,9 @@ import pandas as pd
 from core.analytics_engine.performance import calculate_annualized_return
 from core.analytics_engine.risk_metrics import (
     calculate_cvar,
+    calculate_downside_deviation,
     calculate_max_drawdown,
     calculate_ulcer_index,
-    calculate_downside_deviation,
 )
 from core.exceptions import InsufficientDataError
 
@@ -45,9 +45,7 @@ def calculate_sharpe_ratio(
         raise InsufficientDataError("Returns series is empty")
 
     try:
-        annual_return = calculate_annualized_return(
-            returns, periods_per_year
-        )
+        annual_return = calculate_annualized_return(returns, periods_per_year)
         volatility = float(returns.std() * np.sqrt(periods_per_year))
 
         # Check for zero or near-zero volatility (with tolerance for floating point errors)
@@ -91,12 +89,8 @@ def calculate_sortino_ratio(
         raise InsufficientDataError("Returns series is empty")
 
     try:
-        annual_return = calculate_annualized_return(
-            returns, periods_per_year
-        )
-        downside_dev = calculate_downside_deviation(
-            returns, periods_per_year
-        )
+        annual_return = calculate_annualized_return(returns, periods_per_year)
+        downside_dev = calculate_downside_deviation(returns, periods_per_year)
 
         if downside_dev == 0:
             return None
@@ -300,25 +294,23 @@ def calculate_information_ratio(
 
     try:
         # Align by date
-        aligned = pd.DataFrame({
-            "portfolio": portfolio_returns,
-            "benchmark": benchmark_returns,
-        }).dropna()
+        aligned = pd.DataFrame(
+            {
+                "portfolio": portfolio_returns,
+                "benchmark": benchmark_returns,
+            }
+        ).dropna()
 
         if aligned.empty:
             return None
 
-        active_returns = (
-            aligned["portfolio"] - aligned["benchmark"]
-        )
+        active_returns = aligned["portfolio"] - aligned["benchmark"]
         tracking_error = float(active_returns.std())
 
         if tracking_error == 0:
             return None
 
-        active_return_annualized = float(
-            active_returns.mean() * TRADING_DAYS_PER_YEAR
-        )
+        active_return_annualized = float(active_returns.mean() * TRADING_DAYS_PER_YEAR)
 
         info_ratio = active_return_annualized / tracking_error
 
@@ -356,16 +348,10 @@ def calculate_modigliani_m2(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        portfolio_return = calculate_annualized_return(
-            portfolio_returns
-        )
+        portfolio_return = calculate_annualized_return(portfolio_returns)
 
-        portfolio_vol = float(
-            portfolio_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
-        )
-        benchmark_vol = float(
-            benchmark_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
-        )
+        portfolio_vol = float(portfolio_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR))
+        benchmark_vol = float(benchmark_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR))
 
         if benchmark_vol == 0:
             return None
@@ -373,8 +359,7 @@ def calculate_modigliani_m2(
         # M² = Risk-free + (Portfolio Return - Risk-free) *
         #     (Benchmark Vol / Portfolio Vol)
         m2 = risk_free_rate + (
-            (portfolio_return - risk_free_rate)
-            * (benchmark_vol / portfolio_vol)
+            (portfolio_return - risk_free_rate) * (benchmark_vol / portfolio_vol)
         )
 
         if not np.isfinite(m2):
@@ -606,9 +591,7 @@ def calculate_common_sense_ratio(returns: pd.Series) -> Optional[float]:
 
         return float(common_sense)
     except Exception as e:
-        logger.warning(
-            f"Error calculating Common Sense ratio: {e}"
-        )
+        logger.warning(f"Error calculating Common Sense ratio: {e}")
         return None
 
 
@@ -637,12 +620,8 @@ def calculate_rachev_ratio(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        portfolio_cvar = calculate_cvar(
-            portfolio_returns, confidence_level=1 - alpha
-        )
-        benchmark_cvar = calculate_cvar(
-            benchmark_returns, confidence_level=1 - alpha
-        )
+        portfolio_cvar = calculate_cvar(portfolio_returns, confidence_level=1 - alpha)
+        benchmark_cvar = calculate_cvar(benchmark_returns, confidence_level=1 - alpha)
 
         if abs(portfolio_cvar) == 0:
             return None
@@ -656,4 +635,3 @@ def calculate_rachev_ratio(
     except Exception as e:
         logger.warning(f"Error calculating Rachev ratio: {e}")
         return None
-

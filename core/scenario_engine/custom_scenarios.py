@@ -7,7 +7,7 @@ portfolio performance under hypothetical conditions.
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Dict, Optional
+from typing import Optional
 
 from core.scenario_engine.historical_scenarios import HistoricalScenario
 
@@ -24,8 +24,8 @@ class CustomScenario:
     name: str
     description: str
     market_impact_pct: float  # Overall market impact (%)
-    sector_impacts: Dict[str, float]  # Sector -> impact %
-    asset_impacts: Dict[str, float]  # Ticker -> impact %
+    sector_impacts: dict[str, float]  # Sector -> impact %
+    asset_impacts: dict[str, float]  # Ticker -> impact %
     volatility_spike: Optional[float] = None
     recovery_period_days: Optional[int] = None
 
@@ -59,8 +59,8 @@ def create_custom_scenario(
     name: str,
     description: str,
     market_impact_pct: float,
-    sector_impacts: Optional[Dict[str, float]] = None,
-    asset_impacts: Optional[Dict[str, float]] = None,
+    sector_impacts: Optional[dict[str, float]] = None,
+    asset_impacts: Optional[dict[str, float]] = None,
     volatility_spike: Optional[float] = None,
     recovery_period_days: Optional[int] = None,
 ) -> CustomScenario:
@@ -119,26 +119,20 @@ def validate_scenario(scenario: CustomScenario) -> tuple[bool, Optional[str]]:
         if abs(impact) > 1.0:
             return (
                 False,
-                f"Sector impact for {sector} must be "
-                "between -100% and +100%",
+                f"Sector impact for {sector} must be " "between -100% and +100%",
             )
 
     for ticker, impact in scenario.asset_impacts.items():
         if abs(impact) > 2.0:  # Allow larger asset-specific impacts
             return (
                 False,
-                f"Asset impact for {ticker} must be "
-                "between -200% and +200%",
+                f"Asset impact for {ticker} must be " "between -200% and +200%",
             )
 
     if scenario.volatility_spike is not None and scenario.volatility_spike < 0:
         return False, "Volatility spike must be non-negative"
 
-    if (
-        scenario.recovery_period_days is not None
-        and scenario.recovery_period_days < 0
-    ):
+    if scenario.recovery_period_days is not None and scenario.recovery_period_days < 0:
         return False, "Recovery period must be non-negative"
 
     return True, None
-

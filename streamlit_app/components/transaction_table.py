@@ -1,8 +1,7 @@
 """Transaction table component for displaying transactions."""
 
 import logging
-from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def render_transaction_table(
-    transactions: List[Transaction],
+    transactions: list[Transaction],
     portfolio_id: str,
     show_actions: bool = True,
 ) -> Optional[str]:
@@ -38,7 +37,7 @@ def render_transaction_table(
     data = []
     for txn in transactions:
         # Color code transaction type
-        type_color = {
+        {
             "BUY": COLORS["success"],
             "SELL": COLORS["danger"],
             "DEPOSIT": COLORS["info"],
@@ -94,4 +93,3 @@ def render_transaction_table(
         return None
 
     return None
-

@@ -3,7 +3,7 @@
 import logging
 import time
 from datetime import date
-from typing import Dict, Optional
+from typing import Optional
 
 import pandas as pd
 
@@ -11,17 +11,17 @@ from core.analytics_engine import market_metrics, performance, ratios
 from core.analytics_engine.risk_metrics import (
     calculate_average_drawdown,
     calculate_current_drawdown,
+    calculate_cvar,
+    calculate_downside_deviation,
     calculate_drawdown_duration,
     calculate_kurtosis,
     calculate_max_drawdown,
     calculate_pain_index,
     calculate_recovery_time,
+    calculate_semi_deviation,
     calculate_skewness,
     calculate_ulcer_index,
     calculate_var,
-    calculate_cvar,
-    calculate_downside_deviation,
-    calculate_semi_deviation,
     calculate_volatility,
 )
 from core.exceptions import InsufficientDataError
@@ -40,9 +40,7 @@ class AnalyticsEngine:
     across 4 categories: Performance, Risk, Ratios, Market Metrics.
     """
 
-    def __init__(
-        self, risk_free_rate: float = DEFAULT_RISK_FREE_RATE
-    ) -> None:
+    def __init__(self, risk_free_rate: float = DEFAULT_RISK_FREE_RATE) -> None:
         """
         Initialize analytics engine.
 
@@ -58,7 +56,7 @@ class AnalyticsEngine:
         end_date: date,
         benchmark_returns: Optional[pd.Series] = None,
         portfolio_values: Optional[pd.Series] = None,
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Calculate all 70+ metrics for a portfolio.
 
@@ -84,15 +82,11 @@ class AnalyticsEngine:
         start_time = time.time()
 
         if portfolio_returns.empty:
-            raise InsufficientDataError(
-                "Portfolio returns series is empty"
-            )
+            raise InsufficientDataError("Portfolio returns series is empty")
 
-        logger.info(
-            f"Calculating metrics for period {start_date} to {end_date}"
-        )
+        logger.info(f"Calculating metrics for period {start_date} to {end_date}")
 
-        results: Dict[str, any] = {
+        results: dict[str, any] = {
             "performance": {},
             "risk": {},
             "ratios": {},
@@ -111,9 +105,7 @@ class AnalyticsEngine:
 
         # Risk Metrics (22)
         try:
-            results["risk"] = self._calculate_risk_metrics(
-                portfolio_returns
-            )
+            results["risk"] = self._calculate_risk_metrics(portfolio_returns)
         except Exception as e:
             logger.error(f"Error calculating risk metrics: {e}")
             results["risk"] = {}
@@ -150,9 +142,7 @@ class AnalyticsEngine:
         results["benchmark_returns"] = benchmark_returns
         results["portfolio_values"] = portfolio_values
 
-        logger.info(
-            f"Metrics calculation completed in {calculation_time:.3f}s"
-        )
+        logger.info(f"Metrics calculation completed in {calculation_time:.3f}s")
 
         return results
 
@@ -160,9 +150,9 @@ class AnalyticsEngine:
         self,
         returns: pd.Series,
         portfolio_values: Optional[pd.Series],
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """Calculate all 18 performance metrics."""
-        metrics: Dict[str, any] = {}
+        metrics: dict[str, any] = {}
 
         if returns.empty:
             return metrics
@@ -194,29 +184,29 @@ class AnalyticsEngine:
                         )
 
             # Annualized Return
-            metrics["annualized_return"] = (
-                performance.calculate_annualized_return(returns)
+            metrics["annualized_return"] = performance.calculate_annualized_return(
+                returns
             )
 
             # Period Returns
             if portfolio_values is not None:
-                period_returns = performance.calculate_period_returns(
-                    portfolio_values
-                )
+                period_returns = performance.calculate_period_returns(portfolio_values)
                 metrics.update(period_returns)
             else:
                 # Set to None if values not available
-                metrics.update({
-                    "ytd": None,
-                    "mtd": None,
-                    "qtd": None,
-                    "1m": None,
-                    "3m": None,
-                    "6m": None,
-                    "1y": None,
-                    "3y": None,
-                    "5y": None,
-                })
+                metrics.update(
+                    {
+                        "ytd": None,
+                        "mtd": None,
+                        "qtd": None,
+                        "1m": None,
+                        "3m": None,
+                        "6m": None,
+                        "1y": None,
+                        "3y": None,
+                        "5y": None,
+                    }
+                )
 
             # Best/Worst Month
             best_worst = performance.calculate_best_worst_periods(returns)
@@ -227,30 +217,22 @@ class AnalyticsEngine:
             metrics["win_rate"] = performance.calculate_win_rate(returns)
 
             # Payoff Ratio
-            metrics["payoff_ratio"] = performance.calculate_payoff_ratio(
-                returns
-            )
+            metrics["payoff_ratio"] = performance.calculate_payoff_ratio(returns)
 
             # Profit Factor
-            metrics["profit_factor"] = (
-                performance.calculate_profit_factor(returns)
-            )
+            metrics["profit_factor"] = performance.calculate_profit_factor(returns)
 
             # Expectancy
-            metrics["expectancy"] = performance.calculate_expectancy(
-                returns
-            )
+            metrics["expectancy"] = performance.calculate_expectancy(returns)
 
         except Exception as e:
             logger.warning(f"Error in performance metrics: {e}")
 
         return metrics
 
-    def _calculate_risk_metrics(
-        self, returns: pd.Series
-    ) -> Dict[str, any]:
+    def _calculate_risk_metrics(self, returns: pd.Series) -> dict[str, any]:
         """Calculate all 22 risk metrics."""
-        metrics: Dict[str, any] = {}
+        metrics: dict[str, any] = {}
 
         if returns.empty:
             return metrics
@@ -261,9 +243,7 @@ class AnalyticsEngine:
             metrics.update(volatility)
 
             # Max Drawdown
-            max_dd, peak_date, trough_date, duration = (
-                calculate_max_drawdown(returns)
-            )
+            max_dd, peak_date, trough_date, duration = calculate_max_drawdown(returns)
             metrics["max_drawdown"] = max_dd
             metrics["max_drawdown_peak_date"] = (
                 peak_date.isoformat() if peak_date else None
@@ -274,23 +254,17 @@ class AnalyticsEngine:
             metrics["max_drawdown_duration_days"] = duration
 
             # Current Drawdown
-            metrics["current_drawdown"] = (
-                calculate_current_drawdown(returns)
-            )
+            metrics["current_drawdown"] = calculate_current_drawdown(returns)
 
             # Average Drawdown
-            metrics["average_drawdown"] = (
-                calculate_average_drawdown(returns)
-            )
+            metrics["average_drawdown"] = calculate_average_drawdown(returns)
 
             # Drawdown Duration
             dd_duration = calculate_drawdown_duration(returns)
             metrics.update(dd_duration)
 
             # Recovery Time
-            metrics["recovery_time_days"] = (
-                calculate_recovery_time(returns)
-            )
+            metrics["recovery_time_days"] = calculate_recovery_time(returns)
 
             # Ulcer Index
             metrics["ulcer_index"] = calculate_ulcer_index(returns)
@@ -315,9 +289,7 @@ class AnalyticsEngine:
                     metrics[cvar_key] = None
 
             # Downside Deviation
-            metrics["downside_deviation"] = (
-                calculate_downside_deviation(returns)
-            )
+            metrics["downside_deviation"] = calculate_downside_deviation(returns)
 
             # Semi-Deviation
             metrics["semi_deviation"] = calculate_semi_deviation(returns)
@@ -333,9 +305,9 @@ class AnalyticsEngine:
 
         return metrics
 
-    def _calculate_ratios(self, returns: pd.Series) -> Dict[str, any]:
+    def _calculate_ratios(self, returns: pd.Series) -> dict[str, any]:
         """Calculate all 15 risk-adjusted ratios."""
-        metrics: Dict[str, any] = {}
+        metrics: dict[str, any] = {}
 
         if returns.empty:
             return metrics
@@ -355,9 +327,7 @@ class AnalyticsEngine:
             metrics["calmar_ratio"] = ratios.calculate_calmar_ratio(returns)
 
             # Sterling Ratio
-            metrics["sterling_ratio"] = ratios.calculate_sterling_ratio(
-                returns
-            )
+            metrics["sterling_ratio"] = ratios.calculate_sterling_ratio(returns)
 
             # Burke Ratio
             metrics["burke_ratio"] = ratios.calculate_burke_ratio(returns)
@@ -376,9 +346,7 @@ class AnalyticsEngine:
             metrics["kappa_3"] = ratios.calculate_kappa_3(returns)
 
             # Gain-Pain Ratio
-            metrics["gain_pain_ratio"] = (
-                ratios.calculate_gain_pain_ratio(returns)
-            )
+            metrics["gain_pain_ratio"] = ratios.calculate_gain_pain_ratio(returns)
 
             # Martin Ratio
             metrics["martin_ratio"] = ratios.calculate_martin_ratio(returns)
@@ -387,9 +355,7 @@ class AnalyticsEngine:
             metrics["tail_ratio"] = ratios.calculate_tail_ratio(returns)
 
             # Common Sense Ratio
-            metrics["common_sense_ratio"] = (
-                ratios.calculate_common_sense_ratio(returns)
-            )
+            metrics["common_sense_ratio"] = ratios.calculate_common_sense_ratio(returns)
 
             # Rachev Ratio (requires benchmark - set in market metrics)
 
@@ -402,9 +368,9 @@ class AnalyticsEngine:
         self,
         portfolio_returns: pd.Series,
         benchmark_returns: pd.Series,
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """Calculate all 15 market-related metrics."""
-        metrics: Dict[str, any] = {}
+        metrics: dict[str, any] = {}
 
         if portfolio_returns.empty or benchmark_returns.empty:
             return metrics
@@ -428,24 +394,18 @@ class AnalyticsEngine:
             )
 
             # Correlation
-            metrics["correlation"] = (
-                market_metrics.calculate_correlation(
-                    portfolio_returns, benchmark_returns
-                )
+            metrics["correlation"] = market_metrics.calculate_correlation(
+                portfolio_returns, benchmark_returns
             )
 
             # Tracking Error
-            metrics["tracking_error"] = (
-                market_metrics.calculate_tracking_error(
-                    portfolio_returns, benchmark_returns
-                )
+            metrics["tracking_error"] = market_metrics.calculate_tracking_error(
+                portfolio_returns, benchmark_returns
             )
 
             # Active Return
-            metrics["active_return"] = (
-                market_metrics.calculate_active_return(
-                    portfolio_returns, benchmark_returns
-                )
+            metrics["active_return"] = market_metrics.calculate_active_return(
+                portfolio_returns, benchmark_returns
             )
 
             # Up Capture
@@ -454,36 +414,28 @@ class AnalyticsEngine:
             )
 
             # Down Capture
-            metrics["down_capture"] = (
-                market_metrics.calculate_down_capture(
-                    portfolio_returns, benchmark_returns
-                )
+            metrics["down_capture"] = market_metrics.calculate_down_capture(
+                portfolio_returns, benchmark_returns
             )
 
             # Capture Ratio
-            metrics["capture_ratio"] = (
-                market_metrics.calculate_capture_ratio(
-                    portfolio_returns, benchmark_returns
-                )
+            metrics["capture_ratio"] = market_metrics.calculate_capture_ratio(
+                portfolio_returns, benchmark_returns
             )
 
             # Jensen's Alpha (same as Alpha)
-            metrics["jensens_alpha"] = (
-                market_metrics.calculate_jensens_alpha(
-                    portfolio_returns,
-                    benchmark_returns,
-                    self.risk_free_rate,
-                )
+            metrics["jensens_alpha"] = market_metrics.calculate_jensens_alpha(
+                portfolio_returns,
+                benchmark_returns,
+                self.risk_free_rate,
             )
 
             # Active Share (requires weights - not available here)
             metrics["active_share"] = None
 
             # Batting Average
-            metrics["batting_average"] = (
-                market_metrics.calculate_batting_average(
-                    portfolio_returns, benchmark_returns
-                )
+            metrics["batting_average"] = market_metrics.calculate_batting_average(
+                portfolio_returns, benchmark_returns
             )
 
             # Benchmark Relative Return
@@ -514,10 +466,8 @@ class AnalyticsEngine:
                     self.risk_free_rate,
                 )
 
-            metrics["information_ratio"] = (
-                ratios.calculate_information_ratio(
-                    portfolio_returns, benchmark_returns
-                )
+            metrics["information_ratio"] = ratios.calculate_information_ratio(
+                portfolio_returns, benchmark_returns
             )
 
             metrics["modigliani_m2"] = ratios.calculate_modigliani_m2(
@@ -534,4 +484,3 @@ class AnalyticsEngine:
             logger.warning(f"Error in market metrics: {e}")
 
         return metrics
-

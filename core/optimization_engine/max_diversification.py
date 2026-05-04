@@ -1,12 +1,11 @@
 """Maximum Diversification optimization."""
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import scipy.optimize as scipy_opt
 
-from core.exceptions import CalculationError
 from core.optimization_engine.base import BaseOptimizer, OptimizationResult
 from core.optimization_engine.constraints import OptimizationConstraints
 
@@ -16,30 +15,30 @@ logger = logging.getLogger(__name__)
 class MaxDiversificationOptimizer(BaseOptimizer):
     """
     Maximum Diversification optimizer.
-    
+
     Maximizes the diversification ratio, which measures the benefit
     from diversification.
-    
+
     Formula: max (Σ Weight[i] × Vol[i]) / Portfolio Vol
-    
+
     Higher ratio indicates better diversification benefit.
-    
+
     Note: CASH is excluded from optimization as it has zero volatility
     and would distort the diversification ratio.
     """
 
     def optimize(
         self,
-        constraints: Optional[Dict[str, any]] = None,
+        constraints: Optional[dict[str, any]] = None,
         covariance_method: str = "shrink",
         shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio to maximize diversification ratio.
-        
+
         Args:
             constraints: Optional constraints dictionary
-        
+
         Returns:
             OptimizationResult with maximum diversification weights
         """
@@ -51,12 +50,10 @@ class MaxDiversificationOptimizer(BaseOptimizer):
         )
 
         n = len(self.tickers)
-        
+
         # Handle CASH: set minimum volatility to avoid division by zero
         cov_matrix = effective_cov.values.copy()
-        cash_indices = [
-            i for i, ticker in enumerate(self.tickers) if ticker == "CASH"
-        ]
+        cash_indices = [i for i, ticker in enumerate(self.tickers) if ticker == "CASH"]
         # Set minimum volatility for CASH to avoid numerical issues
         for cash_idx in cash_indices:
             if cov_matrix[cash_idx, cash_idx] < 1e-8:
@@ -91,15 +88,18 @@ class MaxDiversificationOptimizer(BaseOptimizer):
                 "fun": lambda w: np.sum(w) - 1.0,
             },
         ]
-        
+
         # Return constraint (if specified)
         if constraints_obj.min_return is not None:
             mean_returns = self._mean_returns.values
-            constraints_list.append({
-                "type": "ineq",
-                "fun": lambda w: np.dot(mean_returns, w) - constraints_obj.min_return,
-            })
-        
+            constraints_list.append(
+                {
+                    "type": "ineq",
+                    "fun": lambda w: np.dot(mean_returns, w)
+                    - constraints_obj.min_return,
+                }
+            )
+
         # Add explicit cash constraint if specified
         if constraints_obj.max_cash_weight is not None:
             cash_indices = [
@@ -107,12 +107,15 @@ class MaxDiversificationOptimizer(BaseOptimizer):
             ]
             if cash_indices:
                 # Constraint: sum of CASH weights <= max_cash_weight
-                constraints_list.append({
-                    "type": "ineq",
-                    "fun": lambda w: float(
-                        constraints_obj.max_cash_weight - sum(w[i] for i in cash_indices)
-                    ),
-                })
+                constraints_list.append(
+                    {
+                        "type": "ineq",
+                        "fun": lambda w: float(
+                            constraints_obj.max_cash_weight
+                            - sum(w[i] for i in cash_indices)
+                        ),
+                    }
+                )
 
         # Initial guess: inverse volatility weights
         inv_vols = 1.0 / (individual_vols + 1e-6)
@@ -150,11 +153,7 @@ class MaxDiversificationOptimizer(BaseOptimizer):
             full_individual_vols = np.sqrt(np.diag(effective_cov.values))
             weighted_sum_vols = np.dot(weights, full_individual_vols)
             portfolio_vol = metrics["volatility"]
-            div_ratio = (
-                weighted_sum_vols / portfolio_vol
-                if portfolio_vol > 0
-                else 0.0
-            )
+            div_ratio = weighted_sum_vols / portfolio_vol if portfolio_vol > 0 else 0.0
 
             return OptimizationResult(
                 weights=weights,
@@ -202,7 +201,7 @@ class MaxDiversificationOptimizer(BaseOptimizer):
             )
 
     def _build_constraints(
-        self, constraints: Optional[Dict[str, any]]
+        self, constraints: Optional[dict[str, any]]
     ) -> OptimizationConstraints:
         """Build constraints object from dictionary."""
         return super()._build_constraints(constraints)

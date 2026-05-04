@@ -1,24 +1,24 @@
 """Unit tests for transaction domain model and repository."""
 
-import pytest
 from datetime import date
 from unittest.mock import patch
+
+import pytest
 
 from core.data_manager.transaction import Transaction
 from core.data_manager.transaction_repository import TransactionRepository
 from core.exceptions import ValidationError
-from database.session import Base, get_db_session
+from database.session import Base
 from models.portfolio import Portfolio
-from models.position import Position  # Import Position for SQLAlchemy relationship resolution
-from models.transaction import Transaction as TransactionORM
 
 
 @pytest.fixture(scope="function")
 def test_db():
     """Create test database and cleanup after test."""
+    from contextlib import contextmanager
+
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
-    from contextlib import contextmanager
 
     test_engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(test_engine)
@@ -38,7 +38,9 @@ def test_db():
             session.close()
 
     # Patch get_db_session in the repository module
-    with patch("core.data_manager.transaction_repository.get_db_session", mock_get_db_session):
+    with patch(
+        "core.data_manager.transaction_repository.get_db_session", mock_get_db_session
+    ):
         yield SessionLocal
 
     Base.metadata.drop_all(test_engine)
@@ -48,9 +50,7 @@ def test_db():
 def sample_portfolio(test_db):
     """Create a sample portfolio for testing."""
     # Ensure all models are imported for SQLAlchemy
-    from models.position import Position  # noqa: F401
-    from models.transaction import Transaction as TransactionORM  # noqa: F401
-    
+
     session = test_db()
     portfolio = Portfolio(
         name="Test Portfolio",
@@ -167,9 +167,7 @@ class TestTransactionDomain:
 
     def test_deposit_without_cash_ticker(self) -> None:
         """Test that DEPOSIT without CASH ticker raises error."""
-        with pytest.raises(
-            ValidationError, match="DEPOSIT/WITHDRAWAL transactions"
-        ):
+        with pytest.raises(ValidationError, match="DEPOSIT/WITHDRAWAL transactions"):
             Transaction(
                 transaction_date=date(2024, 1, 15),
                 transaction_type="DEPOSIT",
@@ -366,4 +364,3 @@ class TestTransactionRepository:
         repository = TransactionRepository()
         result = repository.delete("nonexistent-id")
         assert result is False
-

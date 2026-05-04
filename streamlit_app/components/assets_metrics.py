@@ -1,7 +1,7 @@
 """Components for individual asset analysis."""
 
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def calculate_asset_metrics(
     asset_prices: pd.Series,
     portfolio_returns: pd.Series,
-) -> Dict[str, Optional[float]]:
+) -> dict[str, Optional[float]]:
     """
     Calculate metrics for an individual asset.
 
@@ -92,8 +92,8 @@ def calculate_asset_metrics(
 
 
 def render_positions_overview_table(
-    positions: List,
-    prices_dict: Dict[str, float],
+    positions: list,
+    prices_dict: dict[str, float],
     total_value: float,
 ) -> None:
     """
@@ -129,8 +129,8 @@ def render_positions_overview_table(
 
 
 def render_asset_allocation_chart(
-    positions: List,
-    prices_dict: Dict[str, float],
+    positions: list,
+    prices_dict: dict[str, float],
 ) -> None:
     """
     Render asset allocation pie chart.
@@ -177,7 +177,7 @@ def render_asset_allocation_chart(
 
 
 def render_top_bottom_performers(
-    asset_returns_dict: Dict[str, float],
+    asset_returns_dict: dict[str, float],
     top_n: int = 5,
 ) -> None:
     """
@@ -380,7 +380,7 @@ def render_risk_contribution_chart(
 
 def render_individual_asset_metrics(
     ticker: str,
-    metrics: Dict[str, Optional[float]],
+    metrics: dict[str, Optional[float]],
 ) -> None:
     """
     Render metrics for individual asset.
@@ -439,37 +439,37 @@ def render_assets_table_extended(
 ) -> None:
     """
     Render extended asset information table with sortable columns.
-    
+
     Args:
-        asset_data: DataFrame with columns: ticker, weight, name, sector, 
+        asset_data: DataFrame with columns: ticker, weight, name, sector,
                     industry, currency, price, change_pct
     """
     if asset_data is None or asset_data.empty:
         st.info("No asset data available")
         return
-    
+
     # Format the dataframe for display
     display_df = asset_data.copy()
-    
+
     # Add row number
     display_df.insert(0, "#", range(1, len(display_df) + 1))
-    
+
     # Format columns
     if "weight" in display_df.columns:
         display_df["weight"] = display_df["weight"].apply(lambda x: f"{x:.2f}%")
-    
+
     if "price" in display_df.columns:
         display_df["price"] = display_df["price"].apply(
             lambda x: f"${x:,.2f}" if x > 0 else "N/A"
         )
-    
+
     if "change_pct" in display_df.columns:
         # Store original values for coloring
-        change_values = display_df["change_pct"].copy()
+        display_df["change_pct"].copy()
         display_df["change_pct"] = display_df["change_pct"].apply(
             lambda x: f"{x:+.2f}%" if pd.notna(x) else "0.00%"
         )
-    
+
     # Rename columns for display
     column_mapping = {
         "#": "#",
@@ -482,14 +482,25 @@ def render_assets_table_extended(
         "price": "Price",
         "change_pct": "Change %",
     }
-    
+
     display_df = display_df.rename(columns=column_mapping)
-    
+
     # Select columns to display
-    display_columns = ["#", "Ticker", "Weight %", "Name", "Sector", 
-                      "Industry", "Currency", "Price", "Change %"]
-    display_df = display_df[[col for col in display_columns if col in display_df.columns]]
-    
+    display_columns = [
+        "#",
+        "Ticker",
+        "Weight %",
+        "Name",
+        "Sector",
+        "Industry",
+        "Currency",
+        "Price",
+        "Change %",
+    ]
+    display_df = display_df[
+        [col for col in display_columns if col in display_df.columns]
+    ]
+
     # Apply styling
     def highlight_change(val):
         """Highlight positive/negative changes."""
@@ -503,13 +514,13 @@ def render_assets_table_extended(
             except ValueError:
                 pass
         return ""
-    
+
     # Display with styling
     styled_df = display_df.style.applymap(
         highlight_change,
-        subset=["Change %"] if "Change %" in display_df.columns else []
+        subset=["Change %"] if "Change %" in display_df.columns else [],
     )
-    
+
     st.dataframe(
         styled_df,
         use_container_width=True,

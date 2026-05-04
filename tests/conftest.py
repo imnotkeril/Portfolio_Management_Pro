@@ -1,6 +1,5 @@
 """Pytest fixtures and configuration."""
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -8,8 +7,7 @@ import pytest
 from core.data_manager.cache import Cache
 from core.data_manager.price_manager import PriceManager
 from core.data_manager.ticker_validator import TickerValidator
-from config.settings import settings
-from database.session import Base, engine, init_db
+from database.session import Base
 from services.data_service import DataService
 
 
@@ -59,4 +57,3 @@ def test_db():
     yield SessionLocal
 
     Base.metadata.drop_all(test_engine)
-

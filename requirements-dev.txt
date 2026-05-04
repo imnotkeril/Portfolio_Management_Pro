@@ -14,7 +14,9 @@ types-python-dateutil>=2.8.19
 
 # Linting and formatting
 ruff>=0.1.0
-black>=23.0.0  # Optional: for code formatting
+black>=23.0.0
+isort>=5.13.0
+pre-commit>=3.6.0
 
 # Code quality
 pylint>=3.0.0  # Optional: for additional linting

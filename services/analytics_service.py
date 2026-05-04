@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -44,7 +44,7 @@ class AnalyticsService:
         benchmark_ticker: Optional[str] = None,
         comparison_type: Optional[str] = None,  # 'ticker' | 'portfolio'
         comparison_value: Optional[str] = None,  # ticker or portfolio_id
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Calculate all metrics for a portfolio.
 
@@ -63,9 +63,7 @@ class AnalyticsService:
         """
         # Validate date range
         if start_date >= end_date:
-            raise ValidationError(
-                "Start date must be before end date"
-            )
+            raise ValidationError("Start date must be before end date")
 
         # Get portfolio
         portfolio = self._portfolio_service.get_portfolio(portfolio_id)
@@ -75,9 +73,7 @@ class AnalyticsService:
         tickers = [pos.ticker for pos in positions]
 
         if not tickers:
-            raise InsufficientDataError(
-                "Portfolio has no positions"
-            )
+            raise InsufficientDataError("Portfolio has no positions")
 
         logger.info(
             f"Calculating metrics for portfolio {portfolio_id} "
@@ -91,9 +87,7 @@ class AnalyticsService:
             )
         except Exception as e:
             logger.error(f"Error fetching portfolio prices: {e}")
-            raise InsufficientDataError(
-                f"Failed to fetch price data: {e}"
-            ) from e
+            raise InsufficientDataError(f"Failed to fetch price data: {e}") from e
 
         # Calculate portfolio returns
         portfolio_returns = self._calculate_portfolio_returns(
@@ -114,27 +108,35 @@ class AnalyticsService:
         benchmark_returns: Optional[pd.Series] = None
         if benchmark_ticker:
             try:
-                bm_prices = self._fetch_portfolio_prices([benchmark_ticker], start_date, end_date)
+                bm_prices = self._fetch_portfolio_prices(
+                    [benchmark_ticker], start_date, end_date
+                )
                 if not bm_prices.empty and benchmark_ticker in bm_prices.columns:
                     bm_series = bm_prices[benchmark_ticker].sort_index().ffill().bfill()
                     bm_ret = bm_series.pct_change().dropna()
                     # Align to portfolio dates
-                    benchmark_returns = bm_ret.reindex(portfolio_returns.index, method="ffill").dropna()
+                    benchmark_returns = bm_ret.reindex(
+                        portfolio_returns.index, method="ffill"
+                    ).dropna()
                 else:
                     benchmark_returns = pd.Series(dtype=float)
                     logger.warning(f"Empty benchmark prices for {benchmark_ticker}")
             except Exception as e:
-                logger.warning(f"Failed to fetch benchmark data for {benchmark_ticker}: {e}")
+                logger.warning(
+                    f"Failed to fetch benchmark data for {benchmark_ticker}: {e}"
+                )
                 # Continue without benchmark
 
         # === Comparison support (one series) ===
         comparison_label: Optional[str] = None
         comparison_returns: Optional[pd.Series] = None
-        comparison_metrics: Optional[Dict[str, float]] = None
+        comparison_metrics: Optional[dict[str, float]] = None
         try:
             if comparison_type == "ticker" and comparison_value:
                 comparison_label = comparison_value.upper()
-                series = self._get_single_ticker_returns(comparison_label, start_date, end_date)
+                series = self._get_single_ticker_returns(
+                    comparison_label, start_date, end_date
+                )
                 if not series.empty:
                     # Normalize tz and align strictly by intersection
                     try:
@@ -150,7 +152,9 @@ class AnalyticsService:
                     comparison_returns = series.copy()
             elif comparison_type == "portfolio" and comparison_value:
                 comparison_label = f"PORT:{comparison_value}"
-                series = self._get_portfolio_returns_by_id(comparison_value, start_date, end_date)
+                series = self._get_portfolio_returns_by_id(
+                    comparison_value, start_date, end_date
+                )
                 if not series.empty:
                     try:
                         pr_index = portfolio_returns.index.tz_localize(None)
@@ -164,11 +168,15 @@ class AnalyticsService:
                     series = series.loc[common_idx]
                     comparison_returns = series.copy()
             if comparison_returns is not None and not comparison_returns.empty:
-                comparison_metrics = self._compute_basic_metrics_from_returns(comparison_returns)
+                comparison_metrics = self._compute_basic_metrics_from_returns(
+                    comparison_returns
+                )
                 # Use comparison as benchmark for engine metrics (beta, alpha, etc.)
                 benchmark_returns = comparison_returns
         except Exception as e:
-            logger.warning(f"Comparison fetch failed: type={comparison_type}, value={comparison_value}, error={e}")
+            logger.warning(
+                f"Comparison fetch failed: type={comparison_type}, value={comparison_value}, error={e}"
+            )
 
         # Calculate all metrics
         metrics = self._engine.calculate_all_metrics(
@@ -179,9 +187,7 @@ class AnalyticsService:
             portfolio_values=portfolio_values,
         )
 
-        logger.info(
-            f"Metrics calculation completed for portfolio {portfolio_id}"
-        )
+        logger.info(f"Metrics calculation completed for portfolio {portfolio_id}")
 
         # Return metrics with returns data for charts
         return {
@@ -194,16 +200,20 @@ class AnalyticsService:
             "comparison_metrics": comparison_metrics,
         }
 
-    def _get_single_ticker_returns(self, ticker: str, start_date: date, end_date: date) -> pd.Series:
+    def _get_single_ticker_returns(
+        self, ticker: str, start_date: date, end_date: date
+    ) -> pd.Series:
         """Return ETF returns using the SAME path as portfolio (virtual 100% position)."""
         prices = self._fetch_portfolio_prices([ticker], start_date, end_date)
         if prices.empty or ticker not in prices.columns:
             return pd.Series(dtype=float)
+
         # Build virtual position list with 100% in the ticker
         class _TmpPos:
             def __init__(self, t: str, s: float) -> None:
                 self.ticker = t
                 self.shares = s
+
         positions = [_TmpPos(ticker, 1.0)]
         ret = self._calculate_portfolio_returns(prices, positions)
         if not ret.empty:
@@ -213,7 +223,9 @@ class AnalyticsService:
                 pass
         return ret
 
-    def _get_portfolio_returns_by_id(self, portfolio_id: str, start_date: date, end_date: date) -> pd.Series:
+    def _get_portfolio_returns_by_id(
+        self, portfolio_id: str, start_date: date, end_date: date
+    ) -> pd.Series:
         other = self._portfolio_service.get_portfolio(portfolio_id)
         if other is None:
             return pd.Series(dtype=float)
@@ -228,22 +240,27 @@ class AnalyticsService:
                 pass
         return series
 
-    def _compute_basic_metrics_from_returns(self, returns: pd.Series) -> Dict[str, float]:
+    def _compute_basic_metrics_from_returns(
+        self, returns: pd.Series
+    ) -> dict[str, float]:
         from core.analytics_engine.performance import calculate_annualized_return
-        from core.analytics_engine.risk_metrics import (
-            calculate_volatility,
-            calculate_max_drawdown,
-        )
         from core.analytics_engine.ratios import (
             calculate_sharpe_ratio,
             calculate_sortino_ratio,
         )
-        metrics: Dict[str, float] = {}
+        from core.analytics_engine.risk_metrics import (
+            calculate_max_drawdown,
+            calculate_volatility,
+        )
+
+        metrics: dict[str, float] = {}
         try:
             metrics["total_return"] = float((1 + returns).prod() - 1)
             metrics["annualized_return"] = float(calculate_annualized_return(returns))
             vol = calculate_volatility(returns)
-            metrics["volatility"] = float(vol.get("annual", 0.0) if isinstance(vol, dict) else vol)
+            metrics["volatility"] = float(
+                vol.get("annual", 0.0) if isinstance(vol, dict) else vol
+            )
             dd = calculate_max_drawdown(returns)
             metrics["max_drawdown"] = float(dd[0] if isinstance(dd, tuple) else dd)
             metrics["sharpe_ratio"] = float(calculate_sharpe_ratio(returns) or 0)
@@ -274,25 +291,27 @@ class AnalyticsService:
                 if ticker == "CASH":
                     # Business-day date range
                     dr = pd.bdate_range(start=start_date, end=end_date, normalize=True)
-                    
+
                     # Calculate CASH prices with risk-free rate compound interest
                     # Daily return = (1 + annual_rate)^(1/252) - 1
                     TRADING_DAYS_PER_YEAR = 252
                     daily_return = (1 + self._engine.risk_free_rate) ** (
                         1.0 / TRADING_DAYS_PER_YEAR
                     ) - 1
-                    
+
                     # Create prices starting from 1.0, compounding daily
                     prices_list = []
                     for i, date_val in enumerate(dr):
                         # Compound interest: price = 1.0 * (1 + daily_return)^days
                         price = (1.0 + daily_return) ** i
                         prices_list.append(price)
-                    
-                    prices = pd.DataFrame({
-                        "Date": dr,
-                        "Adjusted_Close": prices_list,
-                    })
+
+                    prices = pd.DataFrame(
+                        {
+                            "Date": dr,
+                            "Adjusted_Close": prices_list,
+                        }
+                    )
                 else:
                     prices = self._data_service.fetch_historical_prices(
                         ticker,
@@ -307,9 +326,7 @@ class AnalyticsService:
                     all_prices.append(prices)
 
             except Exception as e:
-                logger.warning(
-                    f"Failed to fetch prices for {ticker}: {e}"
-                )
+                logger.warning(f"Failed to fetch prices for {ticker}: {e}")
                 continue
 
         if not all_prices:
@@ -350,7 +367,9 @@ class AnalyticsService:
                 end_ts = end_ts.tz_localize(None)
             except Exception:
                 pass
-            pivot_df = pivot_df[(pivot_df.index >= start_ts) & (pivot_df.index <= end_ts)]
+            pivot_df = pivot_df[
+                (pivot_df.index >= start_ts) & (pivot_df.index <= end_ts)
+            ]
 
             return pivot_df
         else:
@@ -458,7 +477,7 @@ class AnalyticsService:
 
     def simulate_buy_and_hold_returns_from_weights(
         self,
-        weights: Dict[str, float],
+        weights: dict[str, float],
         start_date: date,
         end_date: date,
     ) -> pd.Series:
@@ -515,4 +534,3 @@ class AnalyticsService:
         except Exception:
             pass
         return rets
-

@@ -1,7 +1,6 @@
 """Market data utilities for dashboard."""
 
-from datetime import date, timedelta
-from typing import Dict, Optional
+from typing import Optional
 
 import yfinance as yf
 
@@ -11,7 +10,7 @@ from services.data_service import DataService
 def get_index_data(
     symbol: str,
     data_service: Optional[DataService] = None,
-) -> Dict[str, Optional[float]]:
+) -> dict[str, Optional[float]]:
     """
     Get current index data including price and daily change.
 
@@ -52,7 +51,9 @@ def get_index_data(
                 current_price = float(hist["Close"].iloc[-1])
                 previous_close = float(hist["Close"].iloc[-2])
                 change = current_price - previous_close
-                change_pct = (change / previous_close) * 100 if previous_close > 0 else 0.0
+                change_pct = (
+                    (change / previous_close) * 100 if previous_close > 0 else 0.0
+                )
 
                 return {
                     "price": current_price,
@@ -67,4 +68,3 @@ def get_index_data(
         logger.warning(f"Failed to fetch index data for {symbol}: {e}")
 
     return {"price": None, "change": None, "change_pct": None}
-

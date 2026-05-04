@@ -1,7 +1,7 @@
 """Period filter component for charts."""
 
 from datetime import date, timedelta
-from typing import Optional, Tuple
+from typing import Optional
 
 import streamlit as st
 
@@ -9,7 +9,7 @@ import streamlit as st
 def render_period_filter(
     key_prefix: str = "default",
     default_period: str = "1Y",
-) -> Tuple[date, date]:
+) -> tuple[date, date]:
     """
     Render period filter with date inputs.
 
@@ -22,20 +22,20 @@ def render_period_filter(
     """
     # Date inputs
     col1, col2 = st.columns(2)
-    
+
     # Calculate default dates based on period
     end_date_default = date.today()
-    
+
     period_days = {
         "6M": 180,
         "1Y": 365,
         "2Y": 730,
         "3Y": 1095,
     }
-    
+
     days_back = period_days.get(default_period, 365)
     start_date_default = end_date_default - timedelta(days=days_back)
-    
+
     with col1:
         start_date = st.date_input(
             "Start Date",
@@ -43,7 +43,7 @@ def render_period_filter(
             max_value=end_date_default,
             key=f"start_date_{key_prefix}",
         )
-    
+
     with col2:
         end_date = st.date_input(
             "End Date",
@@ -52,7 +52,7 @@ def render_period_filter(
             max_value=date.today(),
             key=f"end_date_{key_prefix}",
         )
-    
+
     return start_date, end_date
 
 
@@ -60,7 +60,7 @@ def get_period_dates(
     period: str,
     end_date: Optional[date] = None,
     original_start: Optional[date] = None,
-) -> Tuple[date, date]:
+) -> tuple[date, date]:
     """
     Get start and end dates for a given period.
 
@@ -133,7 +133,7 @@ def filter_series_by_period(
 
     # Get end_date from index
     end_date_ts = data_series.index.max()
-    if hasattr(end_date_ts, 'date'):
+    if hasattr(end_date_ts, "date"):
         end_date = end_date_ts.date()
     else:
         end_date = pd.Timestamp(end_date_ts).date()
@@ -144,4 +144,3 @@ def filter_series_by_period(
     start_ts = pd.Timestamp(start_date)
 
     return data_series[data_series.index >= start_ts]
-

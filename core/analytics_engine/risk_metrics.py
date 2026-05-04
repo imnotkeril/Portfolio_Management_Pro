@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,7 @@ TRADING_DAYS_PER_YEAR = 252
 def calculate_volatility(
     returns: pd.Series,
     periods_per_year: int = TRADING_DAYS_PER_YEAR,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Calculate volatility for multiple timeframes.
 
@@ -41,7 +41,7 @@ def calculate_volatility(
 
     daily_vol = float(returns.std())
 
-    results: Dict[str, float] = {
+    results: dict[str, float] = {
         "daily": daily_vol,
         "annual": daily_vol * np.sqrt(periods_per_year),
     }
@@ -49,9 +49,7 @@ def calculate_volatility(
     # Calculate weekly if we have enough daily data
     if len(returns) >= 5:
         try:
-            weekly_returns = returns.resample("W").apply(
-                lambda x: (1 + x).prod() - 1
-            )
+            weekly_returns = returns.resample("W").apply(lambda x: (1 + x).prod() - 1)
             if len(weekly_returns) >= 2:
                 results["weekly"] = float(weekly_returns.std())
         except Exception:
@@ -60,9 +58,7 @@ def calculate_volatility(
     # Calculate monthly if we have enough daily data
     if len(returns) >= 20:
         try:
-            monthly_returns = returns.resample("ME").apply(
-                lambda x: (1 + x).prod() - 1
-            )
+            monthly_returns = returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
             if len(monthly_returns) >= 2:
                 results["monthly"] = float(monthly_returns.std())
         except Exception:
@@ -73,7 +69,7 @@ def calculate_volatility(
 
 def calculate_max_drawdown(
     returns: pd.Series,
-) -> Tuple[float, Optional[date], Optional[date], int]:
+) -> tuple[float, Optional[date], Optional[date], int]:
     """
     Calculate maximum drawdown with dates and duration.
 
@@ -174,7 +170,7 @@ def calculate_average_drawdown(returns: pd.Series) -> float:
 
 def calculate_drawdown_duration(
     returns: pd.Series,
-) -> Dict[str, Optional[float]]:
+) -> dict[str, Optional[float]]:
     """
     Calculate maximum and average drawdown duration.
 
@@ -208,9 +204,7 @@ def calculate_drawdown_duration(
                 if group_data.iloc[0]:  # Is drawdown period
                     period_dates = group_data.index
                     if len(period_dates) >= 2:
-                        duration = (
-                            period_dates[-1] - period_dates[0]
-                        ).days
+                        duration = (period_dates[-1] - period_dates[0]).days
                         drawdown_periods.append(duration)
 
         if drawdown_periods:
@@ -247,9 +241,7 @@ def calculate_recovery_time(returns: pd.Series) -> Optional[int]:
         return None
 
     try:
-        max_dd, peak_date, trough_date, _ = calculate_max_drawdown(
-            returns
-        )
+        max_dd, peak_date, trough_date, _ = calculate_max_drawdown(returns)
 
         if not trough_date:
             return None
@@ -363,9 +355,7 @@ def calculate_var(
         raise InsufficientDataError("Returns series is empty")
 
     if confidence_level not in [0.90, 0.95, 0.99]:
-        raise ValueError(
-            "Confidence level must be 0.90, 0.95, or 0.99"
-        )
+        raise ValueError("Confidence level must be 0.90, 0.95, or 0.99")
 
     alpha = 1.0 - confidence_level
 
@@ -392,9 +382,7 @@ def calculate_var(
         z_cf = (
             z_normal
             + (1.0 / 6.0) * (z_normal**2 - 1) * skew
-            + (1.0 / 24.0)
-            * (z_normal**3 - 3 * z_normal)
-            * (kurt - 3)
+            + (1.0 / 24.0) * (z_normal**3 - 3 * z_normal) * (kurt - 3)
             - (1.0 / 36.0) * (2 * z_normal**3 - 5 * z_normal) * skew**2
         )
 
@@ -407,9 +395,7 @@ def calculate_var(
         )
 
 
-def calculate_cvar(
-    returns: pd.Series, confidence_level: float = 0.95
-) -> float:
+def calculate_cvar(returns: pd.Series, confidence_level: float = 0.95) -> float:
     """
     Calculate Conditional VaR (CVaR / Expected Shortfall).
 
@@ -547,9 +533,7 @@ def calculate_kurtosis(returns: pd.Series) -> float:
     try:
         kurt = float(returns.kurtosis())
         if not np.isfinite(kurt):
-            raise NumericalError(
-                "Kurtosis calculation resulted in NaN/Inf"
-            )
+            raise NumericalError("Kurtosis calculation resulted in NaN/Inf")
         return kurt
     except Exception as e:
         raise NumericalError(f"Error calculating kurtosis: {e}") from e
@@ -586,60 +570,72 @@ def calculate_top_drawdowns(
 
         # Find drawdown periods
         in_drawdown = drawdowns < -0.001  # Threshold to avoid tiny DDs
-        
+
         # Group consecutive drawdown periods
         drawdown_list = []
         groups = (in_drawdown != in_drawdown.shift()).cumsum()
-        
+
         for group_id, group_data in in_drawdown.groupby(groups):
             if not group_data.iloc[0]:  # Skip non-drawdown periods
                 continue
-                
+
             period_dates = group_data[group_data].index
-            
+
             if len(period_dates) == 0:
                 continue
-            
+
             start_date = period_dates[0]
-            
+
             # Find peak before this drawdown
-            peak_idx = cum_returns[:start_date].index[-1] if len(cum_returns[:start_date]) > 0 else start_date
-            
+            peak_idx = (
+                cum_returns[:start_date].index[-1]
+                if len(cum_returns[:start_date]) > 0
+                else start_date
+            )
+
             # Find trough (deepest point in this period)
             period_drawdowns = drawdowns[period_dates]
             bottom_date = period_drawdowns.idxmin()
             depth = float(period_drawdowns.min())
-            
+
             # Find recovery date
             peak_value = cum_returns.loc[peak_idx]
             after_trough = cum_returns[cum_returns.index > bottom_date]
             recovery_mask = after_trough >= peak_value
-            
+
             if recovery_mask.any():
                 recovery_date = after_trough[recovery_mask].index[0]
                 recovery_days = (recovery_date - bottom_date).days
             else:
                 recovery_date = None
                 recovery_days = None
-            
+
             # Calculate duration
             duration_days = (bottom_date - peak_idx).days
-            
+
             drawdown_info = {
-                'depth': depth,
-                'start_date': peak_idx.date() if hasattr(peak_idx, 'date') else peak_idx,
-                'bottom_date': bottom_date.date() if hasattr(bottom_date, 'date') else bottom_date,
-                'recovery_date': recovery_date.date() if recovery_date is not None and hasattr(recovery_date, 'date') else recovery_date,
-                'duration_days': duration_days,
-                'recovery_days': recovery_days,
+                "depth": depth,
+                "start_date": (
+                    peak_idx.date() if hasattr(peak_idx, "date") else peak_idx
+                ),
+                "bottom_date": (
+                    bottom_date.date() if hasattr(bottom_date, "date") else bottom_date
+                ),
+                "recovery_date": (
+                    recovery_date.date()
+                    if recovery_date is not None and hasattr(recovery_date, "date")
+                    else recovery_date
+                ),
+                "duration_days": duration_days,
+                "recovery_days": recovery_days,
             }
-            
+
             drawdown_list.append(drawdown_info)
-        
+
         # Sort by depth and take top N
-        drawdown_list.sort(key=lambda x: x['depth'])
+        drawdown_list.sort(key=lambda x: x["depth"])
         return drawdown_list[:top_n]
-        
+
     except Exception as e:
         logger.warning(f"Error calculating top drawdowns: {e}")
         return []

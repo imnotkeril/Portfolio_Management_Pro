@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -50,10 +50,10 @@ class ForecastingService:
         end_date: date,
         horizon: int,
         method: str,
-        method_params: Optional[Dict[str, any]] = None,
+        method_params: Optional[dict[str, any]] = None,
         out_of_sample: bool = False,
         training_ratio: float = 0.3,
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Forecast prices for a single asset.
 
@@ -140,7 +140,7 @@ class ForecastingService:
         # Initialize and run forecast
         try:
             forecaster = forecaster_class(prices=prices)
-            
+
             # Calculate total forecast horizon
             # For out-of-sample: need to forecast Validation Period + Forecast Horizon
             # For regular: just Forecast Horizon
@@ -153,8 +153,10 @@ class ForecastingService:
                 )
             else:
                 total_horizon = horizon
-            
-            forecast_result = forecaster.forecast(horizon=total_horizon, **(method_params or {}))
+
+            forecast_result = forecaster.forecast(
+                horizon=total_horizon, **(method_params or {})
+            )
 
             # If out-of-sample, evaluate on validation period
             if out_of_sample:
@@ -167,8 +169,16 @@ class ForecastingService:
                 )
 
                 validation_metrics = None
-                validation_forecast_dates = forecast_result.forecast_dates[:validation_days] if len(forecast_result.forecast_dates) >= validation_days else forecast_result.forecast_dates
-                validation_forecast_values = forecast_result.forecast_values[:validation_days] if len(forecast_result.forecast_values) >= validation_days else forecast_result.forecast_values
+                validation_forecast_dates = (
+                    forecast_result.forecast_dates[:validation_days]
+                    if len(forecast_result.forecast_dates) >= validation_days
+                    else forecast_result.forecast_dates
+                )
+                validation_forecast_values = (
+                    forecast_result.forecast_values[:validation_days]
+                    if len(forecast_result.forecast_values) >= validation_days
+                    else forecast_result.forecast_values
+                )
 
                 if not validation_prices.empty:
                     if "Date" in validation_prices.columns:
@@ -176,7 +186,9 @@ class ForecastingService:
                         validation_prices.index = pd.to_datetime(
                             validation_prices.index, errors="coerce"
                         )
-                        validation_prices.index = validation_prices.index.tz_localize(None)
+                        validation_prices.index = validation_prices.index.tz_localize(
+                            None
+                        )
 
                     if "Adjusted_Close" in validation_prices.columns:
                         actual = validation_prices["Adjusted_Close"]
@@ -190,23 +202,32 @@ class ForecastingService:
                         # Align forecast dates with actual dates (take first validation_days)
                         # The forecast_result contains validation period + forecast period
                         # We need to take only the validation period part for comparison
-                        
+
                         min_len = min(len(validation_forecast_dates), len(actual))
                         if min_len > 0:
                             actual_aligned = actual.iloc[:min_len]
-                            
+
                             # Create temporary ForecastResult with only validation period for evaluation
                             from core.forecasting_engine.base import ForecastResult
+
                             validation_forecast_result = ForecastResult(
                                 method=forecast_result.method,
                                 forecast_dates=validation_forecast_dates[:min_len],
                                 forecast_values=validation_forecast_values[:min_len],
-                                forecast_returns=forecast_result.forecast_returns[:min_len] if len(forecast_result.forecast_returns) >= min_len else np.array([]),
+                                forecast_returns=(
+                                    forecast_result.forecast_returns[:min_len]
+                                    if len(forecast_result.forecast_returns) >= min_len
+                                    else np.array([])
+                                ),
                                 confidence_intervals={
                                     k: v[:min_len] if len(v) >= min_len else v
                                     for k, v in forecast_result.confidence_intervals.items()
                                 },
-                                final_value=float(validation_forecast_values[min_len - 1]) if min_len > 0 else 0.0,
+                                final_value=(
+                                    float(validation_forecast_values[min_len - 1])
+                                    if min_len > 0
+                                    else 0.0
+                                ),
                                 change_pct=0.0,
                                 validation_metrics=None,
                                 model_info=forecast_result.model_info,
@@ -219,32 +240,62 @@ class ForecastingService:
                                 validation_metrics = forecaster.evaluate_forecast(
                                     validation_forecast_result, actual_aligned
                                 )
-                                logger.info(f"Validation metrics calculated for {method}: {validation_metrics}")
-                                
+                                logger.info(
+                                    f"Validation metrics calculated for {method}: {validation_metrics}"
+                                )
+
                                 # Calculate residuals for validation period
                                 # Residuals = actual - forecast
-                                if len(actual_aligned) > 0 and len(validation_forecast_values[:min_len]) > 0:
+                                if (
+                                    len(actual_aligned) > 0
+                                    and len(validation_forecast_values[:min_len]) > 0
+                                ):
                                     # Align actual and forecast by dates
-                                    actual_values_aligned = actual_aligned.reindex(validation_forecast_dates[:min_len])
-                                    forecast_values_aligned = validation_forecast_values[:min_len]
-                                    
+                                    actual_values_aligned = actual_aligned.reindex(
+                                        validation_forecast_dates[:min_len]
+                                    )
+                                    forecast_values_aligned = (
+                                        validation_forecast_values[:min_len]
+                                    )
+
                                     # Find common valid indices
-                                    valid_mask = ~(actual_values_aligned.isna() | ~np.isfinite(forecast_values_aligned))
+                                    valid_mask = ~(
+                                        actual_values_aligned.isna()
+                                        | ~np.isfinite(forecast_values_aligned)
+                                    )
                                     if valid_mask.any():
-                                        actual_valid = actual_values_aligned[valid_mask].values
-                                        forecast_valid = forecast_values_aligned[valid_mask]
-                                        validation_residuals = actual_valid - forecast_valid
-                                        
+                                        actual_valid = actual_values_aligned[
+                                            valid_mask
+                                        ].values
+                                        forecast_valid = forecast_values_aligned[
+                                            valid_mask
+                                        ]
+                                        validation_residuals = (
+                                            actual_valid - forecast_valid
+                                        )
+
                                         # Filter out invalid values
-                                        valid_residuals_mask = np.isfinite(validation_residuals)
+                                        valid_residuals_mask = np.isfinite(
+                                            validation_residuals
+                                        )
                                         if np.any(valid_residuals_mask):
-                                            validation_residuals_clean = validation_residuals[valid_residuals_mask]
+                                            validation_residuals_clean = (
+                                                validation_residuals[
+                                                    valid_residuals_mask
+                                                ]
+                                            )
                                             # Update residuals in forecast_result
                                             if len(validation_residuals_clean) > 0:
-                                                forecast_result.residuals = validation_residuals_clean
-                                                logger.debug(f"Updated residuals for validation period: {len(validation_residuals_clean)} values")
+                                                forecast_result.residuals = (
+                                                    validation_residuals_clean
+                                                )
+                                                logger.debug(
+                                                    f"Updated residuals for validation period: {len(validation_residuals_clean)} values"
+                                                )
                             except Exception as e:
-                                logger.warning(f"Failed to evaluate forecast for {method}: {e}")
+                                logger.warning(
+                                    f"Failed to evaluate forecast for {method}: {e}"
+                                )
                                 validation_metrics = {
                                     "mape": np.nan,
                                     "rmse": np.nan,
@@ -253,7 +304,9 @@ class ForecastingService:
                                     "r_squared": np.nan,
                                 }
                         else:
-                            logger.warning(f"No overlapping dates between forecast and actual for {method}")
+                            logger.warning(
+                                f"No overlapping dates between forecast and actual for {method}"
+                            )
                             validation_metrics = {
                                 "mape": np.nan,
                                 "rmse": np.nan,
@@ -262,7 +315,9 @@ class ForecastingService:
                                 "r_squared": np.nan,
                             }
                     else:
-                        logger.warning(f"No actual values found for validation period for {method}")
+                        logger.warning(
+                            f"No actual values found for validation period for {method}"
+                        )
                         validation_metrics = {
                             "mape": np.nan,
                             "rmse": np.nan,
@@ -271,7 +326,9 @@ class ForecastingService:
                             "r_squared": np.nan,
                         }
                 else:
-                    logger.warning(f"Validation prices are empty for {method}, cannot calculate validation metrics")
+                    logger.warning(
+                        f"Validation prices are empty for {method}, cannot calculate validation metrics"
+                    )
                     validation_metrics = {
                         "mape": np.nan,
                         "rmse": np.nan,
@@ -279,7 +336,7 @@ class ForecastingService:
                         "direction_accuracy": np.nan,
                         "r_squared": np.nan,
                     }
-                
+
                 # Set validation_metrics (even if all NaN)
                 forecast_result.validation_metrics = validation_metrics
             else:
@@ -293,21 +350,27 @@ class ForecastingService:
                 if len(validation_forecast_values) > 0:
                     # Save residuals before update (they may be lost)
                     original_residuals = forecast_result.residuals
-                    
+
                     forecast_result.forecast_values = validation_forecast_values
                     forecast_result.forecast_dates = validation_forecast_dates
-                    
+
                     # Restore residuals if they existed
                     if original_residuals is not None:
                         forecast_result.residuals = original_residuals
-                    
+
                     # Update final_value and change_pct based on last Validation Period value
                     last_historical_price = float(prices.iloc[-1])
-                    if last_historical_price > 0 and len(validation_forecast_values) > 0:
-                        forecast_result.final_value = float(validation_forecast_values[-1])
+                    if (
+                        last_historical_price > 0
+                        and len(validation_forecast_values) > 0
+                    ):
+                        forecast_result.final_value = float(
+                            validation_forecast_values[-1]
+                        )
                         try:
                             forecast_result.change_pct = (
-                                (forecast_result.final_value - last_historical_price) / last_historical_price
+                                (forecast_result.final_value - last_historical_price)
+                                / last_historical_price
                             ) * 100.0
                             if not np.isfinite(forecast_result.change_pct):
                                 forecast_result.change_pct = 0.0
@@ -316,14 +379,18 @@ class ForecastingService:
                             forecast_result.change_pct = 0.0
                     else:
                         if len(validation_forecast_values) > 0:
-                            forecast_result.final_value = float(validation_forecast_values[-1])
+                            forecast_result.final_value = float(
+                                validation_forecast_values[-1]
+                            )
                         forecast_result.change_pct = 0.0
 
             forecast_result.last_historical_price = float(prices.iloc[-1])
             return forecast_result.to_dict()
 
         except Exception as e:
-            logger.error(f"Error running forecast for {ticker} with {method}: {e}", exc_info=True)
+            logger.error(
+                f"Error running forecast for {ticker} with {method}: {e}", exc_info=True
+            )
             raise CalculationError(f"Forecast failed: {e}") from e
 
     def forecast_portfolio(
@@ -333,10 +400,10 @@ class ForecastingService:
         end_date: date,
         horizon: int,
         method: str,
-        method_params: Optional[Dict[str, any]] = None,
+        method_params: Optional[dict[str, any]] = None,
         out_of_sample: bool = False,
         training_ratio: float = 0.3,
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Forecast portfolio returns.
 
@@ -411,7 +478,7 @@ class ForecastingService:
         # Initialize and run forecast
         try:
             forecaster = forecaster_class(prices=portfolio_prices)
-            
+
             # Calculate total forecast horizon
             # For out-of-sample: need to forecast Validation Period + Forecast Horizon
             # For regular: just Forecast Horizon
@@ -424,8 +491,10 @@ class ForecastingService:
                 )
             else:
                 total_horizon = horizon
-            
-            forecast_result = forecaster.forecast(horizon=total_horizon, **(method_params or {}))
+
+            forecast_result = forecaster.forecast(
+                horizon=total_horizon, **(method_params or {})
+            )
 
             # If out-of-sample, evaluate on validation period
             if out_of_sample:
@@ -439,17 +508,30 @@ class ForecastingService:
                 )
 
                 validation_metrics = None
-                validation_forecast_dates = forecast_result.forecast_dates[:validation_days] if len(forecast_result.forecast_dates) >= validation_days else forecast_result.forecast_dates
-                validation_forecast_values = forecast_result.forecast_values[:validation_days] if len(forecast_result.forecast_values) >= validation_days else forecast_result.forecast_values
+                validation_forecast_dates = (
+                    forecast_result.forecast_dates[:validation_days]
+                    if len(forecast_result.forecast_dates) >= validation_days
+                    else forecast_result.forecast_dates
+                )
+                validation_forecast_values = (
+                    forecast_result.forecast_values[:validation_days]
+                    if len(forecast_result.forecast_values) >= validation_days
+                    else forecast_result.forecast_values
+                )
 
                 if not validation_price_data.empty:
                     # Convert to pivot format
-                    if "Ticker" in validation_price_data.columns and "Adjusted_Close" in validation_price_data.columns:
+                    if (
+                        "Ticker" in validation_price_data.columns
+                        and "Adjusted_Close" in validation_price_data.columns
+                    ):
                         if "Date" in validation_price_data.columns:
                             validation_price_data["Date"] = pd.to_datetime(
                                 validation_price_data["Date"], errors="coerce"
                             )
-                            validation_price_data["Date"] = validation_price_data["Date"].dt.tz_localize(None)
+                            validation_price_data["Date"] = validation_price_data[
+                                "Date"
+                            ].dt.tz_localize(None)
                             validation_pivot = validation_price_data.pivot_table(
                                 index="Date",
                                 columns="Ticker",
@@ -464,30 +546,41 @@ class ForecastingService:
                     )
 
                     if len(validation_portfolio_prices) > 0:
-                        validation_portfolio_prices = validation_portfolio_prices.sort_index().dropna()
+                        validation_portfolio_prices = (
+                            validation_portfolio_prices.sort_index().dropna()
+                        )
                         # Align forecast dates with actual dates (take first validation_days)
                         # The forecast_result contains validation period + forecast period
                         # We need to take only the validation period part for comparison
-                        
+
                         min_len = min(
                             len(validation_forecast_dates),
-                            len(validation_portfolio_prices)
+                            len(validation_portfolio_prices),
                         )
                         if min_len > 0:
                             actual_aligned = validation_portfolio_prices.iloc[:min_len]
-                            
+
                             # Create temporary ForecastResult with only validation period for evaluation
                             from core.forecasting_engine.base import ForecastResult
+
                             validation_forecast_result = ForecastResult(
                                 method=forecast_result.method,
                                 forecast_dates=validation_forecast_dates[:min_len],
                                 forecast_values=validation_forecast_values[:min_len],
-                                forecast_returns=forecast_result.forecast_returns[:min_len] if len(forecast_result.forecast_returns) >= min_len else np.array([]),
+                                forecast_returns=(
+                                    forecast_result.forecast_returns[:min_len]
+                                    if len(forecast_result.forecast_returns) >= min_len
+                                    else np.array([])
+                                ),
                                 confidence_intervals={
                                     k: v[:min_len] if len(v) >= min_len else v
                                     for k, v in forecast_result.confidence_intervals.items()
                                 },
-                                final_value=float(validation_forecast_values[min_len - 1]) if min_len > 0 else 0.0,
+                                final_value=(
+                                    float(validation_forecast_values[min_len - 1])
+                                    if min_len > 0
+                                    else 0.0
+                                ),
                                 change_pct=0.0,
                                 validation_metrics=None,
                                 model_info=forecast_result.model_info,
@@ -500,32 +593,62 @@ class ForecastingService:
                                 validation_metrics = forecaster.evaluate_forecast(
                                     validation_forecast_result, actual_aligned
                                 )
-                                logger.info(f"Validation metrics calculated for portfolio {portfolio_id} with {method}: {validation_metrics}")
-                                
+                                logger.info(
+                                    f"Validation metrics calculated for portfolio {portfolio_id} with {method}: {validation_metrics}"
+                                )
+
                                 # Calculate residuals for validation period
                                 # Residuals = actual - forecast
-                                if len(actual_aligned) > 0 and len(validation_forecast_values[:min_len]) > 0:
+                                if (
+                                    len(actual_aligned) > 0
+                                    and len(validation_forecast_values[:min_len]) > 0
+                                ):
                                     # Align actual and forecast by dates
-                                    actual_values_aligned = actual_aligned.reindex(validation_forecast_dates[:min_len])
-                                    forecast_values_aligned = validation_forecast_values[:min_len]
-                                    
+                                    actual_values_aligned = actual_aligned.reindex(
+                                        validation_forecast_dates[:min_len]
+                                    )
+                                    forecast_values_aligned = (
+                                        validation_forecast_values[:min_len]
+                                    )
+
                                     # Find common valid indices
-                                    valid_mask = ~(actual_values_aligned.isna() | ~np.isfinite(forecast_values_aligned))
+                                    valid_mask = ~(
+                                        actual_values_aligned.isna()
+                                        | ~np.isfinite(forecast_values_aligned)
+                                    )
                                     if valid_mask.any():
-                                        actual_valid = actual_values_aligned[valid_mask].values
-                                        forecast_valid = forecast_values_aligned[valid_mask]
-                                        validation_residuals = actual_valid - forecast_valid
-                                        
+                                        actual_valid = actual_values_aligned[
+                                            valid_mask
+                                        ].values
+                                        forecast_valid = forecast_values_aligned[
+                                            valid_mask
+                                        ]
+                                        validation_residuals = (
+                                            actual_valid - forecast_valid
+                                        )
+
                                         # Filter out invalid values
-                                        valid_residuals_mask = np.isfinite(validation_residuals)
+                                        valid_residuals_mask = np.isfinite(
+                                            validation_residuals
+                                        )
                                         if np.any(valid_residuals_mask):
-                                            validation_residuals_clean = validation_residuals[valid_residuals_mask]
+                                            validation_residuals_clean = (
+                                                validation_residuals[
+                                                    valid_residuals_mask
+                                                ]
+                                            )
                                             # Update residuals in forecast_result
                                             if len(validation_residuals_clean) > 0:
-                                                forecast_result.residuals = validation_residuals_clean
-                                                logger.debug(f"Updated residuals for validation period (portfolio): {len(validation_residuals_clean)} values")
+                                                forecast_result.residuals = (
+                                                    validation_residuals_clean
+                                                )
+                                                logger.debug(
+                                                    f"Updated residuals for validation period (portfolio): {len(validation_residuals_clean)} values"
+                                                )
                             except Exception as e:
-                                logger.warning(f"Failed to evaluate forecast for portfolio {portfolio_id} with {method}: {e}")
+                                logger.warning(
+                                    f"Failed to evaluate forecast for portfolio {portfolio_id} with {method}: {e}"
+                                )
                                 validation_metrics = {
                                     "mape": np.nan,
                                     "rmse": np.nan,
@@ -534,7 +657,9 @@ class ForecastingService:
                                     "r_squared": np.nan,
                                 }
                         else:
-                            logger.warning(f"No overlapping dates between forecast and actual for portfolio {portfolio_id} with {method}")
+                            logger.warning(
+                                f"No overlapping dates between forecast and actual for portfolio {portfolio_id} with {method}"
+                            )
                             validation_metrics = {
                                 "mape": np.nan,
                                 "rmse": np.nan,
@@ -543,7 +668,9 @@ class ForecastingService:
                                 "r_squared": np.nan,
                             }
                     else:
-                        logger.warning(f"Validation portfolio prices are empty for portfolio {portfolio_id} with {method}")
+                        logger.warning(
+                            f"Validation portfolio prices are empty for portfolio {portfolio_id} with {method}"
+                        )
                         validation_metrics = {
                             "mape": np.nan,
                             "rmse": np.nan,
@@ -552,7 +679,9 @@ class ForecastingService:
                             "r_squared": np.nan,
                         }
                 else:
-                    logger.warning(f"Validation price data is empty for portfolio {portfolio_id} with {method}, cannot calculate validation metrics")
+                    logger.warning(
+                        f"Validation price data is empty for portfolio {portfolio_id} with {method}, cannot calculate validation metrics"
+                    )
                     validation_metrics = {
                         "mape": np.nan,
                         "rmse": np.nan,
@@ -560,7 +689,7 @@ class ForecastingService:
                         "direction_accuracy": np.nan,
                         "r_squared": np.nan,
                     }
-                
+
                 # Set validation_metrics (even if all NaN)
                 forecast_result.validation_metrics = validation_metrics
             else:
@@ -574,21 +703,27 @@ class ForecastingService:
                 if len(validation_forecast_values) > 0:
                     # Save residuals before update (they may be lost)
                     original_residuals = forecast_result.residuals
-                    
+
                     forecast_result.forecast_values = validation_forecast_values
                     forecast_result.forecast_dates = validation_forecast_dates
-                    
+
                     # Restore residuals if they existed
                     if original_residuals is not None:
                         forecast_result.residuals = original_residuals
-                    
+
                     # Update final_value and change_pct based on last Validation Period value
                     last_historical_price = float(portfolio_prices.iloc[-1])
-                    if last_historical_price > 0 and len(validation_forecast_values) > 0:
-                        forecast_result.final_value = float(validation_forecast_values[-1])
+                    if (
+                        last_historical_price > 0
+                        and len(validation_forecast_values) > 0
+                    ):
+                        forecast_result.final_value = float(
+                            validation_forecast_values[-1]
+                        )
                         try:
                             forecast_result.change_pct = (
-                                (forecast_result.final_value - last_historical_price) / last_historical_price
+                                (forecast_result.final_value - last_historical_price)
+                                / last_historical_price
                             ) * 100.0
                             if not np.isfinite(forecast_result.change_pct):
                                 forecast_result.change_pct = 0.0
@@ -597,7 +732,9 @@ class ForecastingService:
                             forecast_result.change_pct = 0.0
                     else:
                         if len(validation_forecast_values) > 0:
-                            forecast_result.final_value = float(validation_forecast_values[-1])
+                            forecast_result.final_value = float(
+                                validation_forecast_values[-1]
+                            )
                         forecast_result.change_pct = 0.0
 
             forecast_result.last_historical_price = float(portfolio_prices.iloc[-1])
@@ -615,11 +752,11 @@ class ForecastingService:
         start_date: date,
         end_date: date,
         horizon: int,
-        methods: List[str],
-        method_params: Optional[Dict[str, Dict[str, any]]] = None,
+        methods: list[str],
+        method_params: Optional[dict[str, dict[str, any]]] = None,
         out_of_sample: bool = False,
         training_ratio: float = 0.3,
-    ) -> Dict[str, Dict[str, any]]:
+    ) -> dict[str, dict[str, any]]:
         """
         Run multiple forecasting methods and return all results.
 
@@ -667,13 +804,13 @@ class ForecastingService:
         start_date: date,
         end_date: date,
         horizon: int,
-        methods: List[str],
-        method_params: Optional[Dict[str, Dict[str, any]]] = None,
+        methods: list[str],
+        method_params: Optional[dict[str, dict[str, any]]] = None,
         out_of_sample: bool = False,
         training_ratio: float = 0.3,
-    ) -> Dict[str, Dict[str, any]]:
+    ) -> dict[str, dict[str, any]]:
         """Run multiple forecasting methods on portfolio value series (same as Streamlit batch)."""
-        results: Dict[str, Dict[str, any]] = {}
+        results: dict[str, dict[str, any]] = {}
         mp = method_params or {}
         for method in methods:
             try:
@@ -702,10 +839,10 @@ class ForecastingService:
 
     def create_ensemble(
         self,
-        forecasts: Dict[str, Dict[str, any]],
+        forecasts: dict[str, dict[str, any]],
         method: str = "weighted_average",
         last_historical_price: Optional[float] = None,
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Create ensemble forecast from multiple forecasts.
 
@@ -762,16 +899,14 @@ class ForecastingService:
 
         # Combine forecasts
         if method == "weighted_average":
-            ensemble_values = np.average(
-                forecast_values_list, axis=0, weights=weights
-            )
+            ensemble_values = np.average(forecast_values_list, axis=0, weights=weights)
         else:  # simple_average
             ensemble_values = np.mean(forecast_values_list, axis=0)
 
         # Calculate final value and change
         if len(ensemble_values) == 0:
             raise ValueError("Ensemble values are empty")
-        
+
         final_value = float(ensemble_values[-1])
 
         base_price = last_historical_price
@@ -795,7 +930,11 @@ class ForecastingService:
                 change_pct = 0.0
         else:
             first_value = float(ensemble_values[0])
-            if first_value > 0 and np.isfinite(first_value) and np.isfinite(final_value):
+            if (
+                first_value > 0
+                and np.isfinite(first_value)
+                and np.isfinite(final_value)
+            ):
                 try:
                     change_pct = ((final_value - first_value) / first_value) * 100.0
                     if not np.isfinite(change_pct):
@@ -816,8 +955,11 @@ class ForecastingService:
             "forecast_returns": (
                 (np.diff(ensemble_values) / ensemble_values[:-1]).tolist()
                 if len(ensemble_values) > 1 and np.all(ensemble_values[:-1] > 0)
-                else [0.0] * (len(ensemble_values) - 1) if len(ensemble_values) > 1
-                else []
+                else (
+                    [0.0] * (len(ensemble_values) - 1)
+                    if len(ensemble_values) > 1
+                    else []
+                )
             ),
             "confidence_intervals": {},
             "final_value": final_value,
@@ -836,7 +978,7 @@ class ForecastingService:
     def calculate_portfolio_prices(
         self,
         price_data: pd.DataFrame,
-        positions: List,
+        positions: list,
     ) -> pd.Series:
         """
         Calculate weighted portfolio prices (cumulative portfolio value).
@@ -874,15 +1016,15 @@ class ForecastingService:
 
         # Calculate portfolio value over time
         portfolio_prices = pd.Series(index=price_data.index, dtype=float)
-        
+
         for current_date in price_data.index:
             portfolio_value_at_date = 0.0
-            
+
             # Calculate value for each position
             for pos in positions:
                 ticker = pos.ticker
                 shares = pos.shares
-                
+
                 if ticker == "CASH":
                     # CASH value is just the shares amount (cash amount)
                     portfolio_value_at_date += shares
@@ -899,9 +1041,9 @@ class ForecastingService:
                             f"Could not get price for {ticker} on {current_date}: {e}"
                         )
                         continue
-            
+
             portfolio_prices.loc[current_date] = portfolio_value_at_date
-            
+
             # Log warning if value is zero (should not happen for valid portfolio)
             if portfolio_value_at_date == 0 and current_date == price_data.index[0]:
                 logger.warning(
@@ -920,7 +1062,7 @@ class ForecastingService:
     def _calculate_portfolio_returns(
         self,
         price_data: pd.DataFrame,
-        positions: List,
+        positions: list,
     ) -> pd.Series:
         """
         Calculate weighted portfolio returns.
@@ -942,30 +1084,33 @@ class ForecastingService:
         last_historical_price: float,
         last_historical_date: pd.Timestamp,
         horizon: int,
-    ) -> Tuple[np.ndarray, pd.DatetimeIndex]:
+    ) -> tuple[np.ndarray, pd.DatetimeIndex]:
         """
         Create Forecast Period forecast based on Validation Period trend.
-        
+
         Args:
             validation_forecast_values: Validation period forecast values
             validation_forecast_dates: Validation period forecast dates
             last_historical_price: Last historical price (end_date)
             last_historical_date: Last historical date (end_date)
             horizon: Number of days to forecast ahead
-            
+
         Returns:
             Tuple of (forecast_period_values, forecast_period_dates)
         """
         if len(validation_forecast_values) <= 1 or horizon <= 0:
             return np.array([]), pd.DatetimeIndex([])
-        
+
         # Calculate average daily return from validation period forecast
         # Safe division: avoid division by zero
         validation_forecast_safe = validation_forecast_values[:-1]
         # Filter zero and negative values
         valid_mask = validation_forecast_safe > 1e-10
         if np.any(valid_mask):
-            validation_returns = np.diff(validation_forecast_values)[valid_mask] / validation_forecast_safe[valid_mask]
+            validation_returns = (
+                np.diff(validation_forecast_values)[valid_mask]
+                / validation_forecast_safe[valid_mask]
+            )
             avg_daily_return = np.mean(validation_returns)
             # Calculate volatility (standard deviation of returns) from validation period
             volatility = np.std(validation_returns)
@@ -975,33 +1120,35 @@ class ForecastingService:
             # Fallback: use zero return and small volatility
             avg_daily_return = 0.0
             volatility = 0.01  # Default 1% volatility
-        
+
         # Get last price from Validation Period forecast
         last_validation_forecast_price = float(validation_forecast_values[-1])
-        
+
         # Calculate difference between last historical price and last Validation Period forecast price
         # This is needed to "shift" the forecast so it starts from the last historical price
         price_offset = last_historical_price - last_validation_forecast_price
-        
+
         # Create new forecast for forecast period
         # Start from last Validation Period forecast price + offset (to start from history)
         # but preserve the logic (trend) of Validation Period forecast
         # Do NOT add initial price - it will be added in forecast_charts.py for proper connection
         new_forecast_period_values = []
-        current_price = last_validation_forecast_price + price_offset  # Start from history
-        
+        current_price = (
+            last_validation_forecast_price + price_offset
+        )  # Start from history
+
         # Generate random shocks with volatility
         # Use local generator to avoid conflicts in parallel computations
         rng = np.random.default_rng(42)  # For reproducibility
         random_shocks = rng.normal(0, volatility, horizon)
-        
+
         for i in range(horizon):
             # Apply average return + random shock with volatility
             # This preserves the logic (trend) of Validation Period forecast
             daily_return = avg_daily_return + random_shocks[i]
             current_price = current_price * (1 + daily_return)
             new_forecast_period_values.append(current_price)
-        
+
         # Update dates - forecast period should start from end_date + 1
         # (without initial date, as it will be added in forecast_charts.py)
         if len(validation_forecast_dates) > 0:
@@ -1014,12 +1161,12 @@ class ForecastingService:
                 start_date = last_historical_date + pd.Timedelta(days=1)
         else:
             start_date = last_historical_date + pd.Timedelta(days=1)
-        
+
         new_forecast_period_dates = pd.bdate_range(
             start=start_date,
-            periods=horizon  # Without +1, as initial date will be added in forecast_charts.py
+            periods=horizon,  # Without +1, as initial date will be added in forecast_charts.py
         )
-        
+
         return np.array(new_forecast_period_values), new_forecast_period_dates
 
     def _get_forecaster_class(self, method: str):
@@ -1029,6 +1176,7 @@ class ForecastingService:
         # Simple models
         try:
             from core.forecasting_engine.simple.prophet import ProphetForecaster
+
             method_map["prophet"] = ProphetForecaster
         except ImportError:
             pass
@@ -1036,12 +1184,14 @@ class ForecastingService:
         # Classical models
         try:
             from core.forecasting_engine.classical.arima import ARIMAForecaster
+
             method_map["arima"] = ARIMAForecaster
         except ImportError:
             pass
 
         try:
             from core.forecasting_engine.classical.garch import GARCHForecaster
+
             method_map["garch"] = GARCHForecaster
         except ImportError:
             pass
@@ -1050,6 +1200,7 @@ class ForecastingService:
             from core.forecasting_engine.classical.arima_garch import (
                 ARIMAGARCHForecaster,
             )
+
             method_map["arima_garch"] = ARIMAGARCHForecaster
             method_map["arima-garch"] = ARIMAGARCHForecaster
         except ImportError:
@@ -1058,18 +1209,21 @@ class ForecastingService:
         # ML models
         try:
             from core.forecasting_engine.ml.svm_forecaster import SVMForecaster
+
             method_map["svm"] = SVMForecaster
             method_map["svr"] = SVMForecaster
         except ImportError:
             pass
         try:
             from core.forecasting_engine.ml.xgboost_forecaster import XGBoostForecaster
+
             method_map["xgboost"] = XGBoostForecaster
         except ImportError:
             pass
 
         try:
             from core.forecasting_engine.ml.random_forest import RandomForestForecaster
+
             method_map["random_forest"] = RandomForestForecaster
             method_map["randomforest"] = RandomForestForecaster  # Alternative name
         except ImportError:
@@ -1078,12 +1232,14 @@ class ForecastingService:
         # Deep learning models
         try:
             from core.forecasting_engine.deep_learning.lstm import LSTMForecaster
+
             method_map["lstm"] = LSTMForecaster
         except ImportError:
             pass
 
         try:
             from core.forecasting_engine.deep_learning.tcn import TCNForecaster
+
             method_map["tcn"] = TCNForecaster
         except ImportError:
             pass
@@ -1092,6 +1248,7 @@ class ForecastingService:
             from core.forecasting_engine.deep_learning.ssa_maemd_tcn import (
                 SSAMAEEMDTCNForecaster,
             )
+
             method_map["ssa_maemd_tcn"] = SSAMAEEMDTCNForecaster
             method_map["ssa-maemd-tcn"] = SSAMAEEMDTCNForecaster
         except ImportError:
@@ -1105,4 +1262,3 @@ class ForecastingService:
             )
 
         return forecaster_class
-

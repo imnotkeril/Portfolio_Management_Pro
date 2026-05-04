@@ -1,6 +1,6 @@
 """Metrics display component for showing portfolio metrics."""
 
-from typing import Any, Dict
+from typing import Any
 
 import streamlit as st
 
@@ -8,7 +8,7 @@ from streamlit_app.utils.formatters import format_percentage
 
 
 def render_metrics_section(
-    metrics: Dict[str, Any],
+    metrics: dict[str, Any],
     category: str,
     columns: int = 3,
 ) -> None:
@@ -23,9 +23,7 @@ def render_metrics_section(
     st.subheader(category)
 
     # Filter out None values
-    valid_metrics = {
-        k: v for k, v in metrics.items() if v is not None
-    }
+    valid_metrics = {k: v for k, v in metrics.items() if v is not None}
 
     if not valid_metrics:
         st.info(f"No {category.lower()} metrics available")
@@ -44,10 +42,7 @@ def render_metrics_section(
         # Determine color and format value based on type
         if isinstance(value, (int, float)):
             # Format value
-            if (
-                "return" in metric_name.lower() or
-                "ratio" in metric_name.lower()
-            ):
+            if "return" in metric_name.lower() or "ratio" in metric_name.lower():
                 formatted_value = format_percentage(value)
             elif abs(value) < 0.01:
                 formatted_value = f"{value:.4f}"

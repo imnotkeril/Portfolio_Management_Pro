@@ -1,6 +1,6 @@
 """Market statistics component."""
 
-from typing import Dict, List, Optional
+from typing import Optional
 
 import streamlit as st
 import yfinance as yf
@@ -13,7 +13,7 @@ from streamlit_app.utils.formatters import format_percentage
 def get_top_movers(
     gainers_count: int = 5,
     losers_count: int = 5,
-) -> Dict[str, List[Dict[str, any]]]:
+) -> dict[str, list[dict[str, any]]]:
     """
     Get top gainers and losers from market.
 
@@ -52,16 +52,24 @@ def get_top_movers(
                 else:
                     # Fallback to info
                     info = ticker_obj.info
-                    current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+                    current_price = info.get("currentPrice") or info.get(
+                        "regularMarketPrice"
+                    )
                     previous_close = info.get("previousClose")
 
                 if current_price and previous_close and previous_close > 0:
-                    change_pct = ((current_price - previous_close) / previous_close) * 100
+                    change_pct = (
+                        (current_price - previous_close) / previous_close
+                    ) * 100
 
                     # Get name
                     try:
                         info = ticker_obj.info
-                        name = info.get("longName") or info.get("shortName") or ticker_symbol
+                        name = (
+                            info.get("longName")
+                            or info.get("shortName")
+                            or ticker_symbol
+                        )
                     except Exception:
                         name = ticker_symbol
 
@@ -81,7 +89,9 @@ def get_top_movers(
                 continue
 
         # Sort and limit
-        gainers = sorted(gainers, key=lambda x: x["change_pct"], reverse=True)[:gainers_count]
+        gainers = sorted(gainers, key=lambda x: x["change_pct"], reverse=True)[
+            :gainers_count
+        ]
         losers = sorted(losers, key=lambda x: x["change_pct"])[:losers_count]
 
         return {"gainers": gainers, "losers": losers}
@@ -176,7 +186,9 @@ def render_market_stats(
 
     # Get inflation rate
     inflation_rate = get_inflation_rate()
-    inflation_rate_str = f"{inflation_rate:.2f}%" if inflation_rate is not None else "N/A"
+    inflation_rate_str = (
+        f"{inflation_rate:.2f}%" if inflation_rate is not None else "N/A"
+    )
 
     # Get top movers
     movers = get_top_movers(gainers_count=5, losers_count=5)
@@ -323,4 +335,3 @@ def render_market_stats(
                 )
         else:
             st.info("No data available")
-

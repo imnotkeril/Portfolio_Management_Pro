@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -40,7 +40,7 @@ def fetch_historical_asset_series(
     ticker: str,
     chart_start: date,
     end_date: date,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     hist = data_service.fetch_historical_prices(
         ticker=ticker,
         start_date=chart_start,
@@ -67,7 +67,7 @@ def fetch_historical_portfolio_series(
     portfolio_id: str,
     chart_start: date,
     end_date: date,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     portfolio = portfolio_service.get_portfolio(portfolio_id)
     if not portfolio:
         return []
@@ -95,10 +95,10 @@ def fetch_historical_portfolio_series(
 
 
 def merge_comparison_chart_data(
-    historical: List[Dict[str, Any]],
-    forecasts: Dict[str, Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    merged: Dict[str, Dict[str, Any]] = {}
+    historical: list[dict[str, Any]],
+    forecasts: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
     for row in historical:
         d = row["date"]
         merged[d] = {"date": d, "historical": row.get("value")}
@@ -126,29 +126,31 @@ def build_forecast_batch_bundle(
     portfolio_service: PortfolioService,
     *,
     scope: str,
-    ticker: Optional[str],
-    portfolio_id: Optional[str],
+    ticker: str | None,
+    portfolio_id: str | None,
     start_date: date,
     end_date: date,
     horizon: int,
-    methods: List[str],
-    method_params: Optional[Dict[str, Dict[str, Any]]] = None,
+    methods: list[str],
+    method_params: dict[str, dict[str, Any]] | None = None,
     out_of_sample: bool,
     training_ratio: float,
     create_ensemble: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if start_date >= end_date:
         raise ValidationError("Start date must be before end date")
     if not methods:
         raise ValidationError("Select at least one forecasting method")
 
-    training_start: Optional[date] = None
+    training_start: date | None = None
     if out_of_sample:
         analysis_days = (end_date - start_date).days
         training_days = int(analysis_days * training_ratio)
         training_start = start_date - timedelta(days=training_days)
 
-    chart_start = training_start if (training_start is not None and out_of_sample) else start_date
+    chart_start = (
+        training_start if (training_start is not None and out_of_sample) else start_date
+    )
     mp = method_params or {}
 
     if scope == "asset":
@@ -195,7 +197,7 @@ def build_forecast_batch_bundle(
         ok_only = {k: v for k, v in forecasts.items() if v.get("success")}
         if len(ok_only) >= 2:
             try:
-                last_hist: Optional[float] = None
+                last_hist: float | None = None
                 if historical:
                     v = historical[-1].get("value")
                     if v is not None:
@@ -216,7 +218,7 @@ def build_forecast_batch_bundle(
 
     comparison_chart = merge_comparison_chart_data(historical, forecasts)
 
-    forecast_end: Optional[str] = None
+    forecast_end: str | None = None
     if out_of_sample:
         forecast_end = (end_date + timedelta(days=horizon)).isoformat()
     else:

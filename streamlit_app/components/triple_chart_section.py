@@ -33,14 +33,10 @@ def create_triple_dynamics_chart(
         Plotly Figure with 3 subplots
     """
     # Filter data by period
-    portfolio_returns_filtered = filter_series_by_period(
-        portfolio_returns, period
-    )
+    portfolio_returns_filtered = filter_series_by_period(portfolio_returns, period)
 
     if benchmark_returns is not None and not benchmark_returns.empty:
-        benchmark_returns_filtered = filter_series_by_period(
-            benchmark_returns, period
-        )
+        benchmark_returns_filtered = filter_series_by_period(benchmark_returns, period)
     else:
         benchmark_returns_filtered = None
 
@@ -227,4 +223,3 @@ def render_triple_chart_section(
     except Exception as e:
         logger.error(f"Error creating triple chart: {e}", exc_info=True)
         st.error(f"Error creating chart: {e}")
-

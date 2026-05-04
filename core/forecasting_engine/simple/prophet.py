@@ -17,7 +17,6 @@ except ImportError:
 
 from core.exceptions import CalculationError
 from core.forecasting_engine.base import BaseForecaster, ForecastResult
-from core.forecasting_engine.utils import calculate_confidence_intervals
 
 logger = logging.getLogger(__name__)
 
@@ -88,8 +87,7 @@ class ProphetForecaster(BaseForecaster):
             # Check for invalid values
             if prices_clean.isna().any() or (prices_clean <= 0).any():
                 logger.warning(
-                    "Prophet: Data contains NaN or non-positive values, "
-                    "filtering..."
+                    "Prophet: Data contains NaN or non-positive values, " "filtering..."
                 )
                 prices_clean = prices_clean.dropna()
                 prices_clean = prices_clean[prices_clean > 0]
@@ -99,10 +97,12 @@ class ProphetForecaster(BaseForecaster):
                     )
 
             # Prepare data for Prophet (requires 'ds' and 'y' columns)
-            df = pd.DataFrame({
-                "ds": prices_clean.index,
-                "y": prices_clean.values,
-            })
+            df = pd.DataFrame(
+                {
+                    "ds": prices_clean.index,
+                    "y": prices_clean.values,
+                }
+            )
 
             # Convert dates to datetime and normalize timezone
             if not pd.api.types.is_datetime64_any_dtype(df["ds"]):
@@ -144,9 +144,7 @@ class ProphetForecaster(BaseForecaster):
             try:
                 model.fit(df)
             except Exception as e:
-                raise CalculationError(
-                    f"Prophet model fitting failed: {e}"
-                ) from e
+                raise CalculationError(f"Prophet model fitting failed: {e}") from e
 
             # Create future dataframe
             # Use business days for financial data (more appropriate than calendar days)
@@ -172,9 +170,7 @@ class ProphetForecaster(BaseForecaster):
             try:
                 forecast_df = model.predict(future_all)
             except Exception as e:
-                raise CalculationError(
-                    f"Prophet prediction failed: {e}"
-                ) from e
+                raise CalculationError(f"Prophet prediction failed: {e}") from e
 
             # Extract forecast values (only future period)
             # Normalize timezone for comparison
@@ -197,12 +193,8 @@ class ProphetForecaster(BaseForecaster):
             forecast_values = forecast_df.loc[forecast_mask, "yhat"].values
 
             # Validate forecast values
-            if np.any(np.isnan(forecast_values)) or np.any(
-                np.isinf(forecast_values)
-            ):
-                logger.warning(
-                    "Prophet forecast contains NaN or Inf values, cleaning"
-                )
+            if np.any(np.isnan(forecast_values)) or np.any(np.isinf(forecast_values)):
+                logger.warning("Prophet forecast contains NaN or Inf values, cleaning")
                 forecast_values = np.nan_to_num(
                     forecast_values, nan=0.0, posinf=0.0, neginf=0.0
                 )
@@ -253,9 +245,9 @@ class ProphetForecaster(BaseForecaster):
                     historical_forecast_df["ds"]
                 )
                 if historical_forecast_df["ds"].dt.tz is not None:
-                    historical_forecast_df["ds"] = (
-                        historical_forecast_df["ds"].dt.tz_localize(None)
-                    )
+                    historical_forecast_df["ds"] = historical_forecast_df[
+                        "ds"
+                    ].dt.tz_localize(None)
 
                 # Create Series from historical forecast
                 historical_forecast_series = pd.Series(
@@ -351,10 +343,11 @@ class ProphetForecaster(BaseForecaster):
             )
 
         sorted_ds = sorted(holiday_ts)
-        return pd.DataFrame({
-            "holiday": "us_market_holiday",
-            "ds": sorted_ds,
-            "lower_window": 0,
-            "upper_window": 0,
-        })
-
+        return pd.DataFrame(
+            {
+                "holiday": "us_market_holiday",
+                "ds": sorted_ds,
+                "lower_window": 0,
+                "upper_window": 0,
+            }
+        )

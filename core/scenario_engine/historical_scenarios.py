@@ -7,7 +7,7 @@ to portfolios for stress testing and scenario analysis.
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Dict, List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -24,14 +24,14 @@ class HistoricalScenario:
     start_date: date
     end_date: date
     market_impact_pct: float  # Overall market impact (%)
-    sector_impacts: Dict[str, float]  # Sector -> impact %
-    asset_impacts: Dict[str, float]  # Ticker -> impact %
+    sector_impacts: dict[str, float]  # Sector -> impact %
+    asset_impacts: dict[str, float]  # Ticker -> impact %
     volatility_spike: Optional[float] = None  # VIX-like spike
     recovery_period_days: Optional[int] = None  # Estimated recovery time
 
 
 # Historical scenarios database
-HISTORICAL_SCENARIOS: Dict[str, HistoricalScenario] = {
+HISTORICAL_SCENARIOS: dict[str, HistoricalScenario] = {
     "2008_financial_crisis": HistoricalScenario(
         name="2008 Financial Crisis",
         description=(
@@ -407,7 +407,7 @@ HISTORICAL_SCENARIOS: Dict[str, HistoricalScenario] = {
 }
 
 
-def get_all_scenarios() -> Dict[str, HistoricalScenario]:
+def get_all_scenarios() -> dict[str, HistoricalScenario]:
     """
     Get all available historical scenarios.
 
@@ -434,10 +434,7 @@ def get_scenario_by_name(name: str) -> Optional[HistoricalScenario]:
     # Try case-insensitive name match
     name_normalized = name.lower().replace(" ", "_").replace("-", "_")
     for key, scenario in HISTORICAL_SCENARIOS.items():
-        if (
-            key.lower() == name_normalized
-            or scenario.name.lower() == name.lower()
-        ):
+        if key.lower() == name_normalized or scenario.name.lower() == name.lower():
             return scenario
 
     return None
@@ -445,7 +442,7 @@ def get_scenario_by_name(name: str) -> Optional[HistoricalScenario]:
 
 def get_scenarios_by_date_range(
     start_date: date, end_date: date
-) -> List[HistoricalScenario]:
+) -> list[HistoricalScenario]:
     """
     Get scenarios that occurred within a date range.
 
@@ -461,4 +458,3 @@ def get_scenarios_by_date_range(
         if scenario.start_date <= end_date and scenario.end_date >= start_date:
             scenarios.append(scenario)
     return scenarios
-

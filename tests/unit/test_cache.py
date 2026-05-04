@@ -141,11 +141,12 @@ def test_cache_hit_rate_calculation(temp_cache_dir: Path) -> None:
 def test_cache_expired_disk_entry(temp_cache_dir: Path) -> None:
     """Test that expired disk cache entries are removed."""
     import time
+
     cache = Cache(cache_dir=temp_cache_dir)
 
     # Set with very short TTL
     cache.set("expires_soon", "value", ttl=1)
-    
+
     # Wait for expiration
     time.sleep(2)
 

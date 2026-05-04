@@ -5,9 +5,9 @@ This module provides historical and custom stress scenario testing
 capabilities to assess portfolio performance under adverse conditions.
 """
 
-from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from datetime import date
+from typing import Optional
 
 
 @dataclass
@@ -19,8 +19,8 @@ class StressScenario:
     start_date: date
     end_date: date
     market_shock: float  # Overall market shock percentage
-    sector_shocks: Dict[str, float]  # Sector-specific shocks
-    asset_shocks: Dict[str, float]  # Asset-specific shocks (ticker -> shock %)
+    sector_shocks: dict[str, float]  # Sector-specific shocks
+    asset_shocks: dict[str, float]  # Asset-specific shocks (ticker -> shock %)
     correlation_shift: Optional[float] = None  # Correlation increase factor
 
 
@@ -31,10 +31,10 @@ class StressTestResult:
     scenario_name: str
     portfolio_impact_pct: float  # Portfolio value change %
     portfolio_impact_value: float  # Portfolio value change in currency
-    worst_position_impact: Tuple[str, float]  # (ticker, impact %)
-    best_position_impact: Tuple[str, float]  # (ticker, impact %)
+    worst_position_impact: tuple[str, float]  # (ticker, impact %)
+    best_position_impact: tuple[str, float]  # (ticker, impact %)
     recovery_time_days: Optional[int] = None  # Estimated recovery time
-    details: Dict = None  # Additional details
+    details: dict = None  # Additional details
 
 
 class StressTester:
@@ -51,7 +51,7 @@ class StressTester:
 
     def apply_scenario(
         self,
-        portfolio_positions: Dict[str, float],  # ticker -> weight
+        portfolio_positions: dict[str, float],  # ticker -> weight
         current_portfolio_value: float,
         scenario: StressScenario,
     ) -> StressTestResult:
@@ -85,14 +85,10 @@ class StressTester:
             total_impact += position_impact
 
         # Find worst and best positions
-        worst_ticker = min(
-            position_impacts.items(), key=lambda x: x[1]
-        )[0]
+        worst_ticker = min(position_impacts.items(), key=lambda x: x[1])[0]
         worst_impact = position_impacts[worst_ticker]
 
-        best_ticker = max(
-            position_impacts.items(), key=lambda x: x[1]
-        )[0]
+        best_ticker = max(position_impacts.items(), key=lambda x: x[1])[0]
         best_impact = position_impacts[best_ticker]
 
         # Calculate portfolio impact
@@ -121,10 +117,10 @@ class StressTester:
 
     def apply_multiple_scenarios(
         self,
-        portfolio_positions: Dict[str, float],
+        portfolio_positions: dict[str, float],
         current_portfolio_value: float,
-        scenarios: List[StressScenario],
-    ) -> List[StressTestResult]:
+        scenarios: list[StressScenario],
+    ) -> list[StressTestResult]:
         """
         Apply multiple stress scenarios to portfolio.
 
@@ -146,7 +142,7 @@ class StressTester:
 
 
 def apply_stress_scenario(
-    portfolio_positions: Dict[str, float],
+    portfolio_positions: dict[str, float],
     current_portfolio_value: float,
     scenario: StressScenario,
 ) -> StressTestResult:
@@ -162,16 +158,14 @@ def apply_stress_scenario(
         StressTestResult with impact analysis
     """
     tester = StressTester()
-    return tester.apply_scenario(
-        portfolio_positions, current_portfolio_value, scenario
-    )
+    return tester.apply_scenario(portfolio_positions, current_portfolio_value, scenario)
 
 
 # Historical stress scenarios definitions
 # These are simplified representations - full implementation would
 # use actual historical market data
 
-HISTORICAL_SCENARIOS: Dict[str, StressScenario] = {
+HISTORICAL_SCENARIOS: dict[str, StressScenario] = {
     "2008_financial_crisis": StressScenario(
         name="2008 Financial Crisis",
         description="Global financial crisis following Lehman Brothers collapse",
@@ -274,7 +268,7 @@ HISTORICAL_SCENARIOS: Dict[str, StressScenario] = {
 }
 
 
-def get_historical_scenarios() -> Dict[str, StressScenario]:
+def get_historical_scenarios() -> dict[str, StressScenario]:
     """Get all available historical stress scenarios."""
     return HISTORICAL_SCENARIOS.copy()
 
@@ -292,4 +286,3 @@ def get_scenario_by_name(name: str) -> Optional[StressScenario]:
             return scenario
 
     return None
-

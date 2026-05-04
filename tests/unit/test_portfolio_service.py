@@ -1,6 +1,6 @@
 """Unit tests for portfolio service."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -52,7 +52,7 @@ def test_create_portfolio_success(portfolio_service: PortfolioService) -> None:
 
     # Mock repository
     portfolio_service._repository.find_by_name.return_value = None
-    
+
     # Create mock portfolio with required attributes
     saved_portfolio = MagicMock(spec=Portfolio)
     saved_portfolio.id = "test-id"
@@ -101,9 +101,7 @@ def test_create_portfolio_invalid_ticker(portfolio_service: PortfolioService) ->
     )
 
     portfolio_service._repository.find_by_name.return_value = None
-    portfolio_service._data_service.validate_tickers.return_value = {
-        "INVALID": False
-    }
+    portfolio_service._data_service.validate_tickers.return_value = {"INVALID": False}
 
     with pytest.raises(ValidationError, match="Invalid tickers"):
         portfolio_service.create_portfolio(request)
@@ -284,4 +282,3 @@ def test_clone_portfolio_duplicate_name(portfolio_service: PortfolioService) -> 
 
     with pytest.raises(ConflictError, match="already exists"):
         portfolio_service.clone_portfolio("source-id", "Existing Name")
-

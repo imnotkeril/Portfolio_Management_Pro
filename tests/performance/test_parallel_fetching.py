@@ -2,7 +2,6 @@
 
 import time
 from datetime import date, timedelta
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -16,17 +15,17 @@ from services.data_service import DataService
 def test_bulk_fetching_performance_uncached() -> None:
     """Test that parallel bulk fetching is faster than sequential for uncached data."""
     manager = PriceManager()
-    
+
     # Clear cache
     cache = Cache()
     tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]
     start_date = date.today() - timedelta(days=365)
     end_date = date.today()
-    
+
     for ticker in tickers:
         cache_key = f"prices:{ticker}:{start_date}:{end_date}"
         cache.delete(cache_key)
-    
+
     # Sequential fetching
     start = time.perf_counter()
     sequential_results = []
@@ -39,22 +38,20 @@ def test_bulk_fetching_performance_uncached() -> None:
         except Exception:
             pass  # Skip if fetch fails
     sequential_time = time.perf_counter() - start
-    
+
     # Clear cache again
     for ticker in tickers:
         cache_key = f"prices:{ticker}:{start_date}:{end_date}"
         cache.delete(cache_key)
-    
+
     # Parallel bulk fetching
     start = time.perf_counter()
     try:
-        bulk_result = manager.fetch_bulk_prices(
-            tickers, start_date, end_date, use_cache=False
-        )
+        manager.fetch_bulk_prices(tickers, start_date, end_date, use_cache=False)
         bulk_time = time.perf_counter() - start
     except Exception:
         pytest.skip("Bulk fetch failed, skipping performance test")
-    
+
     # Parallel should be faster (or at least not significantly slower)
     # Allow some margin for network variability
     if sequential_time > 1.0:  # Only compare if sequential took >1s
@@ -70,9 +67,9 @@ def test_bulk_fetching_performance_uncached() -> None:
 def test_get_latest_prices_performance() -> None:
     """Test that parallel get_latest_prices is faster for multiple tickers."""
     data_service = DataService()
-    
+
     tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX"]
-    
+
     # Sequential fetching
     start = time.perf_counter()
     sequential_prices = {}
@@ -83,17 +80,17 @@ def test_get_latest_prices_performance() -> None:
         except Exception:
             pass
     sequential_time = time.perf_counter() - start
-    
+
     # Parallel fetching
     start = time.perf_counter()
     parallel_prices = data_service.get_latest_prices(tickers)
     parallel_time = time.perf_counter() - start
-    
+
     # Both should return same prices
     for ticker in sequential_prices:
         if ticker in parallel_prices:
             assert sequential_prices[ticker] == parallel_prices[ticker]
-    
+
     # Parallel should be faster (or at least not significantly slower)
     if sequential_time > 0.1:  # Only compare if sequential took >100ms
         speedup = sequential_time / parallel_time if parallel_time > 0 else 0
@@ -155,4 +152,3 @@ def test_bulk_fetching_cached_vs_uncached() -> None:
         assert set(network_result["Ticker"].unique()) == set(
             cached_result["Ticker"].unique()
         )
-

@@ -4,7 +4,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 import yfinance as yf
@@ -92,7 +92,9 @@ class PriceManager:
             # Re-raise TickerNotFoundError as-is
             raise
         except Exception as e:
-            logger.error(f"Failed to fetch from Yahoo Finance for {ticker}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to fetch from Yahoo Finance for {ticker}: {e}", exc_info=True
+            )
             # TODO: Add fallback to other sources (Alpha Vantage, IEX Cloud)
             raise DataFetchError(f"Failed to fetch price data for {ticker}") from e
 
@@ -141,7 +143,9 @@ class PriceManager:
             data = ticker_obj.history(period="1d")
 
             if data.empty:
-                raise TickerNotFoundError(f"No price data available for ticker: {ticker}")
+                raise TickerNotFoundError(
+                    f"No price data available for ticker: {ticker}"
+                )
 
             current_price = float(data["Close"].iloc[-1])
 
@@ -156,12 +160,14 @@ class PriceManager:
         except TickerNotFoundError:
             raise
         except Exception as e:
-            logger.error(f"Error fetching current price for {ticker}: {e}", exc_info=True)
+            logger.error(
+                f"Error fetching current price for {ticker}: {e}", exc_info=True
+            )
             raise DataFetchError(f"Failed to fetch current price for {ticker}") from e
 
     def fetch_bulk_prices(
         self,
-        tickers: List[str],
+        tickers: list[str],
         start_date: date,
         end_date: date,
         use_cache: bool = True,
@@ -186,11 +192,15 @@ class PriceManager:
         if not tickers:
             return pd.DataFrame()
 
-        logger.info(f"Fetching bulk prices for {len(tickers)} tickers (parallel: {len(tickers) > 1})")
+        logger.info(
+            f"Fetching bulk prices for {len(tickers)} tickers (parallel: {len(tickers) > 1})"
+        )
 
         # For single ticker, use regular fetch
         if len(tickers) == 1:
-            df = self.fetch_historical_prices(tickers[0], start_date, end_date, use_cache=use_cache)
+            df = self.fetch_historical_prices(
+                tickers[0], start_date, end_date, use_cache=use_cache
+            )
             if not df.empty:
                 df["Ticker"] = tickers[0]
             return df
@@ -209,13 +219,15 @@ class PriceManager:
             dfs = []
             for ticker in tickers:
                 try:
-                    df = self.fetch_historical_prices(ticker, start_date, end_date, use_cache=True)
+                    df = self.fetch_historical_prices(
+                        ticker, start_date, end_date, use_cache=True
+                    )
                     if not df.empty:
                         df["Ticker"] = ticker
                         dfs.append(df)
                 except Exception as e:
                     logger.warning(f"Failed to fetch cached data for {ticker}: {e}")
-            
+
             if dfs:
                 result = pd.concat(dfs, ignore_index=True)
                 logger.info(f"Successfully fetched {len(dfs)} tickers from cache")
@@ -247,19 +259,25 @@ class PriceManager:
                             else:
                                 # Single ticker case
                                 ticker_data = data.copy()
-                            
+
                             ticker_data = self._standardize_dataframe(ticker_data)
                             ticker_data["Ticker"] = ticker
                             dfs.append(ticker_data)
                         except Exception as e:
-                            logger.warning(f"Error processing {ticker} from bulk download: {e}")
+                            logger.warning(
+                                f"Error processing {ticker} from bulk download: {e}"
+                            )
 
                     if dfs:
                         result = pd.concat(dfs, ignore_index=True)
-                        logger.info(f"Successfully fetched bulk prices for {len(dfs)} tickers using yfinance bulk")
+                        logger.info(
+                            f"Successfully fetched bulk prices for {len(dfs)} tickers using yfinance bulk"
+                        )
                         return result
             except Exception as e:
-                logger.warning(f"yfinance bulk download failed, falling back to parallel fetching: {e}")
+                logger.warning(
+                    f"yfinance bulk download failed, falling back to parallel fetching: {e}"
+                )
 
             # Fallback: Parallel fetching using ThreadPoolExecutor
             dfs = []
@@ -268,7 +286,9 @@ class PriceManager:
             def fetch_single(ticker: str) -> tuple[str, Optional[pd.DataFrame]]:
                 """Fetch single ticker, return (ticker, df)."""
                 try:
-                    df = self.fetch_historical_prices(ticker, start_date, end_date, use_cache=use_cache)
+                    df = self.fetch_historical_prices(
+                        ticker, start_date, end_date, use_cache=use_cache
+                    )
                     if not df.empty:
                         df["Ticker"] = ticker
                     return (ticker, df)
@@ -277,12 +297,13 @@ class PriceManager:
                     return (ticker, None)
 
             # Use ThreadPoolExecutor for parallel fetching
-            with ThreadPoolExecutor(max_workers=min(MAX_WORKERS_PARALLEL_FETCH, len(tickers))) as executor:
+            with ThreadPoolExecutor(
+                max_workers=min(MAX_WORKERS_PARALLEL_FETCH, len(tickers))
+            ) as executor:
                 future_to_ticker = {
-                    executor.submit(fetch_single, ticker): ticker 
-                    for ticker in tickers
+                    executor.submit(fetch_single, ticker): ticker for ticker in tickers
                 }
-                
+
                 for future in as_completed(future_to_ticker):
                     ticker, df = future.result()
                     if df is not None and not df.empty:
@@ -291,14 +312,20 @@ class PriceManager:
                         failed_tickers.append(ticker)
 
             if not dfs:
-                raise DataFetchError(f"No data returned for any ticker. Failed: {failed_tickers}")
+                raise DataFetchError(
+                    f"No data returned for any ticker. Failed: {failed_tickers}"
+                )
 
             result = pd.concat(dfs, ignore_index=True)
-            
-            if failed_tickers:
-                logger.warning(f"Failed to fetch {len(failed_tickers)} tickers: {failed_tickers}")
 
-            logger.info(f"Successfully fetched bulk prices for {len(dfs)}/{len(tickers)} tickers (parallel)")
+            if failed_tickers:
+                logger.warning(
+                    f"Failed to fetch {len(failed_tickers)} tickers: {failed_tickers}"
+                )
+
+            logger.info(
+                f"Successfully fetched bulk prices for {len(dfs)}/{len(tickers)} tickers (parallel)"
+            )
 
             return result
 
@@ -367,9 +394,13 @@ class PriceManager:
                     retry_delay *= RETRY_BACKOFF_MULTIPLIER
                 else:
                     logger.error(f"All {MAX_RETRIES_API} attempts failed for {ticker}")
-                    raise DataFetchError(f"Failed to fetch data for {ticker} after {MAX_RETRIES_API} attempts") from e
+                    raise DataFetchError(
+                        f"Failed to fetch data for {ticker} after {MAX_RETRIES_API} attempts"
+                    ) from e
 
-        raise DataFetchError(f"Failed to fetch data for {ticker}")  # Should never reach here
+        raise DataFetchError(
+            f"Failed to fetch data for {ticker}"
+        )  # Should never reach here
 
     def _standardize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -428,4 +459,3 @@ class PriceManager:
             result = result.sort_values("Date").reset_index(drop=True)
 
         return result
-

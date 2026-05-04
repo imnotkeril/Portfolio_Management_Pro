@@ -2,18 +2,18 @@
 
 import logging
 import time
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 try:
     import tensorflow as tf
-    from tensorflow import keras
-    from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional
-    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
     from sklearn.preprocessing import StandardScaler
+    from tensorflow import keras
+    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+    from tensorflow.keras.layers import LSTM, Bidirectional, Dense, Dropout
+    from tensorflow.keras.models import Sequential
 except ImportError:
     tf = None
     keras = None
@@ -66,7 +66,7 @@ class LSTMForecaster(BaseForecaster):
         data: np.ndarray,
         lookback: int,
         forecast_horizon: int = 1,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Create sequences for LSTM training.
 
@@ -80,10 +80,10 @@ class LSTMForecaster(BaseForecaster):
         """
         X, y = [], []
         for i in range(len(data) - lookback - forecast_horizon + 1):
-            X.append(data[i:(i + lookback)])
+            X.append(data[i : (i + lookback)])
             y.append(data[i + lookback + forecast_horizon - 1])
         return np.array(X), np.array(y)
-    
+
     def _calculate_directional_accuracy(
         self,
         y_true: np.ndarray,
@@ -91,52 +91,56 @@ class LSTMForecaster(BaseForecaster):
     ) -> dict:
         """
         Calculate directional accuracy metrics.
-        
+
         Important for trading: predicts if price will go up or down,
         which is often more important than exact value.
-        
+
         Args:
             y_true: Actual values
             y_pred: Predicted values
-            
+
         Returns:
             Dictionary with directional accuracy metrics
         """
         if len(y_true) < 2 or len(y_pred) < 2:
             return {
-                'directional_accuracy': 0.0,
-                'precision': 0.0,
-                'recall': 0.0,
-                'f1_score': 0.0,
+                "directional_accuracy": 0.0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1_score": 0.0,
             }
-        
+
         # Calculate directions
         true_direction = np.diff(y_true) > 0  # True if price increased
         pred_direction = np.diff(y_pred) > 0
-        
+
         # Directional accuracy
         directional_accuracy = np.mean(true_direction == pred_direction)
-        
+
         # Confusion matrix
-        tp = np.sum((true_direction == True) & (pred_direction == True))
-        tn = np.sum((true_direction == False) & (pred_direction == False))
-        fp = np.sum((true_direction == False) & (pred_direction == True))
-        fn = np.sum((true_direction == True) & (pred_direction == False))
-        
+        tp = np.sum((true_direction) & (pred_direction))
+        tn = np.sum((not true_direction) & (not pred_direction))
+        fp = np.sum((not true_direction) & (pred_direction))
+        fn = np.sum((true_direction) & (not pred_direction))
+
         # Precision, recall, F1
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-        
+        f1 = (
+            2 * (precision * recall) / (precision + recall)
+            if (precision + recall) > 0
+            else 0.0
+        )
+
         return {
-            'directional_accuracy': float(directional_accuracy),
-            'precision': float(precision),
-            'recall': float(recall),
-            'f1_score': float(f1),
-            'tp': int(tp),
-            'tn': int(tn),
-            'fp': int(fp),
-            'fn': int(fn),
+            "directional_accuracy": float(directional_accuracy),
+            "precision": float(precision),
+            "recall": float(recall),
+            "f1_score": float(f1),
+            "tp": int(tp),
+            "tn": int(tn),
+            "fp": int(fp),
+            "fn": int(fn),
         }
 
     def forecast(
@@ -204,7 +208,7 @@ class LSTMForecaster(BaseForecaster):
                     "Auto-enabling log returns for better stability."
                 )
                 use_log_returns = True
-            
+
             # Adapt lookback based on horizon (rule: lookback ≈ horizon for long forecasts)
             # But cap at reasonable limits
             if horizon > 60:
@@ -215,7 +219,7 @@ class LSTMForecaster(BaseForecaster):
                         f"for long forecast horizon ({horizon} days)"
                     )
                     lookback = adapted_lookback
-            
+
             # Prepare data - CRITICAL: Split BEFORE scaling to avoid data leakage
             if use_log_returns:
                 # Calculate log returns: log(p_t / p_{t-1})
@@ -227,9 +231,7 @@ class LSTMForecaster(BaseForecaster):
             elif use_returns:
                 data = self.returns.dropna().values
                 if len(data) < lookback + 10:
-                    logger.warning(
-                        "Insufficient returns data, falling back to prices"
-                    )
+                    logger.warning("Insufficient returns data, falling back to prices")
                     use_returns = False
                     use_log_returns = False
                     data = self.prices.values
@@ -255,7 +257,7 @@ class LSTMForecaster(BaseForecaster):
             # 3. Preserves distribution properties
             scaler = StandardScaler()
             train_scaled = scaler.fit_transform(train_data.reshape(-1, 1)).ravel()
-            
+
             # Transform test data using training statistics (no fit!)
             if len(test_data) > 0:
                 test_scaled = scaler.transform(test_data.reshape(-1, 1)).ravel()
@@ -264,7 +266,7 @@ class LSTMForecaster(BaseForecaster):
 
             # Create sequences from scaled data
             X_train, y_train = self._create_sequences(train_scaled, lookback)
-            
+
             if len(test_scaled) > 0:
                 # For validation, use test data
                 X_val, y_val = self._create_sequences(test_scaled, lookback)
@@ -304,11 +306,11 @@ class LSTMForecaster(BaseForecaster):
                 return_sequences=layers > 1,
                 input_shape=(lookback, 1),
             )
-            
+
             # Use bidirectional if requested (better for capturing context)
             if bidirectional:
                 lstm_layer = Bidirectional(lstm_layer)
-            
+
             model.add(lstm_layer)
             model.add(Dropout(dropout))
 
@@ -319,17 +321,17 @@ class LSTMForecaster(BaseForecaster):
                     units=units if not is_last else units // 2,
                     return_sequences=not is_last,
                 )
-                
+
                 if bidirectional and not is_last:
                     lstm_layer = Bidirectional(lstm_layer)
-                
+
                 model.add(lstm_layer)
                 model.add(Dropout(dropout))
 
             # Dense layers before output
-            model.add(Dense(32, activation='relu'))
+            model.add(Dense(32, activation="relu"))
             model.add(Dropout(0.1))
-            
+
             # Output layer
             model.add(Dense(1))
 
@@ -337,7 +339,7 @@ class LSTMForecaster(BaseForecaster):
             # This is critical for stable training, especially with LSTM
             optimizer = keras.optimizers.Adam(
                 learning_rate=learning_rate,
-                clipnorm=1.0  # Clip gradients to prevent explosion
+                clipnorm=1.0,  # Clip gradients to prevent explosion
             )
             model.compile(optimizer=optimizer, loss="mse", metrics=["mae"])
 
@@ -368,9 +370,7 @@ class LSTMForecaster(BaseForecaster):
                 )
 
             # Train model
-            validation_data = (
-                (X_val, y_val) if len(X_val) > 0 else None
-            )
+            validation_data = (X_val, y_val) if len(X_val) > 0 else None
             val_split = validation_split if validation_data is None else 0.0
 
             history = model.fit(
@@ -395,9 +395,7 @@ class LSTMForecaster(BaseForecaster):
             train_pred = scaler.inverse_transform(
                 train_pred_scaled.reshape(-1, 1)
             ).ravel()
-            train_actual = scaler.inverse_transform(
-                y_train.reshape(-1, 1)
-            ).ravel()
+            train_actual = scaler.inverse_transform(y_train.reshape(-1, 1)).ravel()
 
             train_rmse = np.sqrt(np.mean((train_actual - train_pred) ** 2))
             val_rmse = None
@@ -408,16 +406,14 @@ class LSTMForecaster(BaseForecaster):
                 val_pred = scaler.inverse_transform(
                     val_pred_scaled.reshape(-1, 1)
                 ).ravel()
-                val_actual = scaler.inverse_transform(
-                    y_val.reshape(-1, 1)
-                ).ravel()
+                val_actual = scaler.inverse_transform(y_val.reshape(-1, 1)).ravel()
                 val_rmse = np.sqrt(np.mean((val_actual - val_pred) ** 2))
-                
+
                 # Calculate directional accuracy (important for trading)
                 directional_metrics = self._calculate_directional_accuracy(
                     val_actual, val_pred
                 )
-                
+
                 logger.debug(
                     f"LSTM: Train RMSE={train_rmse:.6f}, "
                     f"Val RMSE={val_rmse:.6f}, "
@@ -437,7 +433,7 @@ class LSTMForecaster(BaseForecaster):
             # Use last sequence from training data (properly scaled)
             forecast_scaled = []
             last_sequence = train_scaled[-lookback:].copy()
-            
+
             # Log initial sequence for debugging
             logger.debug(
                 f"LSTM: Starting forecast with last_sequence range: "
@@ -462,7 +458,7 @@ class LSTMForecaster(BaseForecaster):
 
                 # Update sequence in scaled space (no arbitrary clip here; clip real log returns after inverse)
                 last_sequence = np.append(last_sequence[1:], next_value_raw)
-            
+
             # Log forecast statistics
             forecast_array = np.array(forecast_scaled)
             logger.debug(
@@ -475,9 +471,7 @@ class LSTMForecaster(BaseForecaster):
 
             # Inverse transform forecast (clip log returns in real space, not scaled space)
             forecast_scaled_array = np.array(forecast_scaled).reshape(-1, 1)
-            forecast_unscaled = scaler.inverse_transform(
-                forecast_scaled_array
-            ).ravel()
+            forecast_unscaled = scaler.inverse_transform(forecast_scaled_array).ravel()
             if use_log_returns:
                 forecast_unscaled = np.clip(forecast_unscaled, -0.05, 0.05)
 
@@ -489,46 +483,46 @@ class LSTMForecaster(BaseForecaster):
                 # As shown in guide: pred_prices = prices[split:-1] * np.exp(pred_returns)
                 last_price = float(self.prices.iloc[-1])
                 forecast_prices = [last_price]
-                
+
                 for log_ret in forecast_unscaled:
                     # Log return: log(p_t / p_{t-1}) = log(p_t) - log(p_{t-1})
                     # So: p_t = p_{t-1} * exp(log_ret)
                     next_price = forecast_prices[-1] * np.exp(log_ret)
-                    
+
                     # Only apply minimal safety checks - don't clip too aggressively
                     # This allows natural price evolution
                     if not np.isfinite(next_price) or next_price <= 0:
                         next_price = forecast_prices[-1]
-                    
+
                     forecast_prices.append(float(next_price))
-                
+
                 forecast_values = np.array(forecast_prices[1:])
-                
+
             elif use_returns:
                 # forecast_unscaled contains returns (unscaled)
                 last_price = float(self.prices.iloc[-1])
                 forecast_prices = [last_price]
-                
+
                 for ret in forecast_unscaled:
                     # Limit returns to reasonable range (±10% per period)
                     ret = np.clip(ret, -0.10, 0.10)
-                    
+
                     if np.isfinite(forecast_prices[-1]) and np.isfinite(ret):
                         next_price = forecast_prices[-1] * (1 + ret)
-                        
+
                         if not np.isfinite(next_price) or next_price <= 0:
                             next_price = forecast_prices[-1]
-                        
+
                         forecast_prices.append(float(next_price))
                     else:
                         forecast_prices.append(forecast_prices[-1])
-                
+
                 forecast_values = np.array(forecast_prices[1:])
-                
+
             else:
                 # forecast_unscaled contains prices (unscaled)
                 forecast_values = forecast_unscaled
-                
+
                 # Apply minimal bounds only for safety, not to restrict variation
                 if len(self.prices) > 0:
                     last_price = float(self.prices.iloc[-1])
@@ -536,13 +530,15 @@ class LSTMForecaster(BaseForecaster):
                     price_range = float(self.prices.max() - self.prices.min())
                     max_allowed = last_price + 3 * price_range
                     min_allowed = max(last_price - 3 * price_range, 0.01 * last_price)
-                    
+
                     forecast_values = np.clip(forecast_values, min_allowed, max_allowed)
-                    
+
                     # Additional check: remove any inf/nan values
                     valid_mask = np.isfinite(forecast_values)
                     if not np.all(valid_mask):
-                        logger.warning("LSTM: Found invalid forecast values, replacing with last price")
+                        logger.warning(
+                            "LSTM: Found invalid forecast values, replacing with last price"
+                        )
                         forecast_values[~valid_mask] = last_price
 
             # Create forecast dates
@@ -553,15 +549,13 @@ class LSTMForecaster(BaseForecaster):
             if len(forecast_values) > 1:
                 forecast_returns = np.diff(forecast_values) / forecast_values[:-1]
                 first_return = (
-                    (forecast_values[0] - self.prices.iloc[-1])
-                    / self.prices.iloc[-1]
-                )
+                    forecast_values[0] - self.prices.iloc[-1]
+                ) / self.prices.iloc[-1]
                 forecast_returns = np.insert(forecast_returns, 0, first_return)
             else:
                 first_return = (
-                    (forecast_values[0] - self.prices.iloc[-1])
-                    / self.prices.iloc[-1]
-                )
+                    forecast_values[0] - self.prices.iloc[-1]
+                ) / self.prices.iloc[-1]
                 forecast_returns = np.array([first_return])
 
             # Calculate change percentage
@@ -576,13 +570,9 @@ class LSTMForecaster(BaseForecaster):
                 residuals = train_actual - train_pred
 
             # Filter out NaN/Inf residuals
-            valid_residuals = residuals[
-                np.isfinite(residuals) & ~np.isnan(residuals)
-            ]
+            valid_residuals = residuals[np.isfinite(residuals) & ~np.isnan(residuals)]
             if len(valid_residuals) == 0:
-                logger.warning(
-                    "No valid residuals, using default confidence intervals"
-                )
+                logger.warning("No valid residuals, using default confidence intervals")
                 valid_residuals = None
 
             # Calculate confidence intervals
@@ -620,13 +610,15 @@ class LSTMForecaster(BaseForecaster):
                     "learning_rate": learning_rate,
                     "train_rmse": float(train_rmse),
                     "val_rmse": float(val_rmse) if val_rmse is not None else None,
-                    "directional_accuracy": directional_metrics['directional_accuracy'] if directional_metrics else None,
+                    "directional_accuracy": (
+                        directional_metrics["directional_accuracy"]
+                        if directional_metrics
+                        else None
+                    ),
                     "total_params": total_params,
                     "training_time": training_time,
                 },
-                residuals=valid_residuals
-                if valid_residuals is not None
-                else residuals,
+                residuals=valid_residuals if valid_residuals is not None else residuals,
                 success=True,
                 message=(
                     f"LSTM forecast completed "
@@ -639,4 +631,3 @@ class LSTMForecaster(BaseForecaster):
         except Exception as e:
             logger.error(f"LSTM forecast failed: {e}", exc_info=True)
             raise CalculationError(f"LSTM forecast failed: {e}") from e
-

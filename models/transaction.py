@@ -36,18 +36,14 @@ class Transaction(Base):
     )
 
     # Attributes
-    transaction_date: Mapped[date] = mapped_column(
-        Date, nullable=False, index=True
-    )
+    transaction_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     transaction_type: Mapped[str] = mapped_column(
         String(20), nullable=False  # BUY, SELL, DEPOSIT, WITHDRAWAL
     )
     ticker: Mapped[str] = mapped_column(String(10), nullable=False)
     shares: Mapped[float] = mapped_column(Float, nullable=False)
     price: Mapped[float] = mapped_column(Float, nullable=False)
-    amount: Mapped[float] = mapped_column(
-        Float, nullable=False
-    )  # shares * price
+    amount: Mapped[float] = mapped_column(Float, nullable=False)  # shares * price
     fees: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -80,4 +76,3 @@ class Transaction(Base):
             f"<Transaction(id={self.id}, type={self.transaction_type}, "
             f"ticker={self.ticker}, date={self.transaction_date})>"
         )
-

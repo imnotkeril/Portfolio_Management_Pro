@@ -79,7 +79,7 @@ def render_dashboard() -> None:
 
     # Indices comparison chart (always 1 year)
     st.subheader("Indices Comparison")
-    
+
     period_days = 365  # Always 1 year
 
     # Fetch and display chart

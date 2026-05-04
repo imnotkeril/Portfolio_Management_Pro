@@ -1,7 +1,7 @@
 """Minimum variance optimization."""
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import scipy.optimize as scipy_opt
@@ -16,23 +16,23 @@ logger = logging.getLogger(__name__)
 class MinVarianceOptimizer(BaseOptimizer):
     """
     Minimum variance portfolio optimizer.
-    
+
     Minimizes portfolio variance (risk) without considering expected returns.
     This is a special case of mean-variance optimization.
     """
-    
+
     def optimize(
         self,
-        constraints: Optional[Dict[str, any]] = None,
+        constraints: Optional[dict[str, any]] = None,
         covariance_method: str = "shrink",
         shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio to minimize variance.
-        
+
         Args:
             constraints: Optional constraints dictionary
-        
+
         Returns:
             OptimizationResult with minimum variance weights
         """
@@ -42,15 +42,13 @@ class MinVarianceOptimizer(BaseOptimizer):
             covariance_method=covariance_method,
             shrinkage_alpha=shrinkage_alpha,
         )
-        
+
         n = len(self.tickers)
-        
+
         # Objective: minimize portfolio variance = w^T * Cov * w
         def objective(weights: np.ndarray) -> float:
-            return float(
-                weights.T @ effective_cov.values @ weights
-            )
-        
+            return float(weights.T @ effective_cov.values @ weights)
+
         # Constraint: weights sum to 1
         constraints_list = [
             {
@@ -58,10 +56,10 @@ class MinVarianceOptimizer(BaseOptimizer):
                 "fun": lambda w: np.sum(w) - 1.0,
             },
         ]
-        
+
         # Initial guess: equal weights
         x0 = np.ones(n) / n
-        
+
         try:
             result = scipy_opt.minimize(
                 objective,
@@ -71,15 +69,13 @@ class MinVarianceOptimizer(BaseOptimizer):
                 constraints=constraints_list,
                 options={"maxiter": 1000},
             )
-            
+
             if not result.success:
-                raise CalculationError(
-                    f"Optimization failed: {result.message}"
-                )
-            
+                raise CalculationError(f"Optimization failed: {result.message}")
+
             weights = self._normalize_weights(result.x, constraints_obj)
             metrics = self._calculate_portfolio_metrics(weights)
-            
+
             return OptimizationResult(
                 weights=weights,
                 tickers=self.tickers,
@@ -109,11 +105,10 @@ class MinVarianceOptimizer(BaseOptimizer):
                 success=False,
                 message=f"Optimization failed: {str(e)}",
             )
-    
+
     def _build_constraints(
-        self, constraints: Optional[Dict[str, any]]
+        self, constraints: Optional[dict[str, any]]
     ) -> OptimizationConstraints:
         """Build constraints object from dictionary."""
         # Call base class method to get all constraints including max_cash_weight, min_return, diversification_lambda
         return super()._build_constraints(constraints)
-

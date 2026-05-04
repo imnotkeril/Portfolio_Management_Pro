@@ -2,7 +2,7 @@
 
 import logging
 import logging.handlers
-from pathlib import Path
+import sys
 
 from config.settings import settings
 
@@ -22,8 +22,8 @@ def setup_logging() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Console handler
-    console_handler = logging.StreamHandler()
+    # Console handler (stdout — consistent with production logging patterns)
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
@@ -41,4 +41,3 @@ def setup_logging() -> None:
     # Suppress noisy third-party loggers
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
-

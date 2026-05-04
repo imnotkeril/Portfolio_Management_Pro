@@ -1,7 +1,7 @@
 """Utility functions for forecasting."""
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def evaluate_forecast_metrics(
     forecast: np.ndarray,
     actual: np.ndarray,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Calculate forecast quality metrics.
 
@@ -53,9 +53,15 @@ def evaluate_forecast_metrics(
     # Handle division by zero: skip points where actual is zero or very small
     mape_mask = np.abs(actual_clean) > 1e-10
     if np.any(mape_mask):
-        mape = np.mean(
-            np.abs((actual_clean[mape_mask] - forecast_clean[mape_mask]) / actual_clean[mape_mask])
-        ) * 100.0
+        mape = (
+            np.mean(
+                np.abs(
+                    (actual_clean[mape_mask] - forecast_clean[mape_mask])
+                    / actual_clean[mape_mask]
+                )
+            )
+            * 100.0
+        )
     else:
         # If all actual values are zero, MAPE is undefined
         mape = np.nan
@@ -92,7 +98,7 @@ def calculate_confidence_intervals(
     forecast: np.ndarray,
     residuals: Optional[np.ndarray] = None,
     confidence_level: float = 0.95,
-) -> Dict[str, np.ndarray]:
+) -> dict[str, np.ndarray]:
     """
     Calculate confidence intervals for forecast.
 
@@ -119,7 +125,7 @@ def calculate_confidence_intervals(
         else:
             # Use residual standard error, but scale it appropriately
             residual_std = np.std(valid_residuals)
-            
+
             # Get average forecast magnitude for comparison
             if len(forecast) > 0:
                 avg_forecast_magnitude = np.mean(np.abs(forecast))
@@ -127,9 +133,9 @@ def calculate_confidence_intervals(
             else:
                 avg_forecast_magnitude = 1.0
                 min_forecast_magnitude = 1.0
-            
+
             max_residual_magnitude = np.max(np.abs(valid_residuals))
-            
+
             # For price forecasts, use percentage-based error if residuals are large relative to forecast
             if max_residual_magnitude > avg_forecast_magnitude * 0.5:
                 # Residuals are large relative to forecast, use percentage-based
@@ -138,8 +144,7 @@ def calculate_confidence_intervals(
                 # Use absolute residual std, but limit to reasonable percentage
                 # Ensure std_error has same length as forecast
                 std_error = np.minimum(
-                    np.full_like(forecast, residual_std),
-                    np.abs(forecast) * 0.2
+                    np.full_like(forecast, residual_std), np.abs(forecast) * 0.2
                 )
                 # Ensure minimum error to avoid zero intervals
                 std_error = np.maximum(std_error, min_forecast_magnitude * 0.01)
@@ -277,8 +282,8 @@ def calculate_technical_indicators(
     # Avoid division by zero for bb_width
     sma_20_safe = sma_20.replace(0, np.nan)
     indicators["bb_width"] = (
-        (indicators["bb_upper"] - indicators["bb_lower"]) / sma_20_safe
-    )
+        indicators["bb_upper"] - indicators["bb_lower"]
+    ) / sma_20_safe
 
     return indicators
 
@@ -287,7 +292,7 @@ def split_train_validation(
     data: pd.Series,
     validation_start: pd.Timestamp,
     validation_end: pd.Timestamp,
-) -> Tuple[pd.Series, pd.Series]:
+) -> tuple[pd.Series, pd.Series]:
     """
     Split data into training and validation sets.
 
@@ -342,4 +347,3 @@ def split_train_validation(
         )
 
     return training_data, validation_data
-

@@ -2,24 +2,24 @@
 
 import numpy as np
 import pandas as pd
-
 import pytest
+
 from core.analytics_engine.market_metrics import (
-    calculate_beta,
-    calculate_alpha,
-    calculate_r_squared,
-    calculate_correlation,
-    calculate_tracking_error,
     calculate_active_return,
-    calculate_up_capture,
-    calculate_down_capture,
-    calculate_capture_ratio,
-    calculate_jensens_alpha,
     calculate_active_share,
+    calculate_alpha,
     calculate_batting_average,
     calculate_benchmark_relative_return,
-    calculate_rolling_beta,
+    calculate_beta,
+    calculate_capture_ratio,
+    calculate_correlation,
+    calculate_down_capture,
+    calculate_jensens_alpha,
     calculate_market_timing_ratio,
+    calculate_r_squared,
+    calculate_rolling_beta,
+    calculate_tracking_error,
+    calculate_up_capture,
 )
 from core.exceptions import InsufficientDataError
 
@@ -53,9 +53,7 @@ def test_calculate_alpha() -> None:
     portfolio_returns = pd.Series(portfolio_return)
     benchmark_returns = pd.Series(market_return)
 
-    alpha = calculate_alpha(
-        portfolio_returns, benchmark_returns, risk_free_rate=0.04
-    )
+    alpha = calculate_alpha(portfolio_returns, benchmark_returns, risk_free_rate=0.04)
 
     assert alpha is not None
     assert alpha > 0  # Positive alpha (outperformance)
@@ -70,9 +68,7 @@ def test_calculate_correlation() -> None:
     portfolio_returns = pd.Series(portfolio_return)
     benchmark_returns = pd.Series(market_return)
 
-    correlation = calculate_correlation(
-        portfolio_returns, benchmark_returns
-    )
+    correlation = calculate_correlation(portfolio_returns, benchmark_returns)
 
     assert correlation is not None
     assert -1.0 <= correlation <= 1.0
@@ -163,9 +159,7 @@ def test_calculate_jensens_alpha() -> None:
     benchmark = pd.Series(np.random.normal(0.001, 0.02, 252))
     portfolio = benchmark + 0.002  # Positive alpha
 
-    jensens_alpha = calculate_jensens_alpha(
-        portfolio, benchmark, risk_free_rate=0.04
-    )
+    jensens_alpha = calculate_jensens_alpha(portfolio, benchmark, risk_free_rate=0.04)
 
     assert jensens_alpha is not None
     assert jensens_alpha > 0
@@ -201,9 +195,7 @@ def test_calculate_benchmark_relative_return() -> None:
     benchmark = pd.Series(np.random.normal(0.001, 0.02, 252))
     portfolio = benchmark * 1.1  # 10% better than benchmark
 
-    relative_return = calculate_benchmark_relative_return(
-        portfolio, benchmark
-    )
+    relative_return = calculate_benchmark_relative_return(portfolio, benchmark)
 
     assert relative_return is not None
 
@@ -217,9 +209,7 @@ def test_calculate_rolling_beta() -> None:
     benchmark.index = dates
     portfolio.index = dates
 
-    rolling_beta = calculate_rolling_beta(
-        portfolio, benchmark, window=60
-    )
+    rolling_beta = calculate_rolling_beta(portfolio, benchmark, window=60)
 
     # Rolling beta returns average beta as float
     assert rolling_beta is not None
@@ -359,4 +349,3 @@ def test_calculate_market_timing_ratio_no_up_down() -> None:
     timing_ratio = calculate_market_timing_ratio(portfolio, benchmark)
 
     assert timing_ratio is None or np.isfinite(timing_ratio)
-

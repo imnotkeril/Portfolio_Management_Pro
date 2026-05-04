@@ -1,13 +1,13 @@
 """Unit tests for price manager."""
 
-from datetime import date, timedelta
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
 from core.data_manager.price_manager import PriceManager
-from core.exceptions import DataFetchError, TickerNotFoundError
+from core.exceptions import TickerNotFoundError
 
 
 @patch("core.data_manager.price_manager.yf.Ticker")
@@ -118,9 +118,7 @@ def test_fetch_historical_prices_retry(mock_ticker_class) -> None:
     mock_ticker.info = {"symbol": "AAPL"}
     mock_ticker_class.return_value = mock_ticker
 
-    result = manager._fetch_from_yahoo(
-        "AAPL", date(2024, 1, 1), date(2024, 1, 1)
-    )
+    result = manager._fetch_from_yahoo("AAPL", date(2024, 1, 1), date(2024, 1, 1))
 
     assert not result.empty
     assert mock_ticker.history.call_count == 2
@@ -249,6 +247,7 @@ def test_fetch_bulk_prices_all_cached(mock_download, cache) -> None:
 
     # Mock fetch_historical_prices to return cached data with Ticker column
     with patch.object(manager, "fetch_historical_prices") as mock_fetch:
+
         def fetch_side_effect(ticker, *args, **kwargs):
             mock_df = pd.DataFrame(
                 {
@@ -278,7 +277,9 @@ def test_fetch_bulk_prices_all_cached(mock_download, cache) -> None:
 
 @patch("core.data_manager.price_manager.yf.download")
 @patch("core.data_manager.price_manager.ThreadPoolExecutor")
-def test_fetch_bulk_prices_parallel_fallback(mock_executor_class, mock_download) -> None:
+def test_fetch_bulk_prices_parallel_fallback(
+    mock_executor_class, mock_download
+) -> None:
     """Test parallel fetching fallback when bulk download fails."""
     manager = PriceManager()
 
@@ -292,9 +293,10 @@ def test_fetch_bulk_prices_parallel_fallback(mock_executor_class, mock_download)
 
     # Mock futures
     from concurrent.futures import Future
+
     mock_future1 = MagicMock(spec=Future)
     mock_future2 = MagicMock(spec=Future)
-    
+
     mock_df1 = pd.DataFrame(
         {
             "Date": pd.date_range("2024-01-01", periods=5),
@@ -302,7 +304,7 @@ def test_fetch_bulk_prices_parallel_fallback(mock_executor_class, mock_download)
         }
     )
     mock_df1["Ticker"] = "AAPL"
-    
+
     mock_df2 = pd.DataFrame(
         {
             "Date": pd.date_range("2024-01-01", periods=5),
@@ -320,11 +322,15 @@ def test_fetch_bulk_prices_parallel_fallback(mock_executor_class, mock_download)
 
     # Mock as_completed to return futures in order
     from unittest.mock import patch as mock_patch
-    with mock_patch("core.data_manager.price_manager.as_completed") as mock_as_completed:
+
+    with mock_patch(
+        "core.data_manager.price_manager.as_completed"
+    ) as mock_as_completed:
         mock_as_completed.return_value = [mock_future1, mock_future2]
 
         # Mock fetch_historical_prices for parallel fetching
         with patch.object(manager, "fetch_historical_prices") as mock_fetch:
+
             def fetch_side_effect(ticker, *args, **kwargs):
                 if ticker == "AAPL":
                     return mock_df1.drop(columns=["Ticker"])

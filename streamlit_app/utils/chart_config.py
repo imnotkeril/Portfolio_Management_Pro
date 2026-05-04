@@ -30,13 +30,14 @@ METHOD_COLORS = {
     "ensemble": "#C8E6C9",  # Pastel light green
 }
 
+
 def get_method_color(method_name: str) -> str:
     """
     Get color for a forecasting method.
-    
+
     Args:
         method_name: Name of the forecasting method (case-insensitive)
-        
+
     Returns:
         Color hex code for the method
     """
@@ -65,6 +66,7 @@ def get_method_color(method_name: str) -> str:
     else:
         # Default color if method not found
         return COLORS["primary"]
+
 
 DEFAULT_LAYOUT = {
     "height": 500,

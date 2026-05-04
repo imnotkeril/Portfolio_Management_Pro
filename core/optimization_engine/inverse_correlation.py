@@ -1,11 +1,10 @@
 """Inverse Correlation Weighting optimization."""
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 
-from core.exceptions import CalculationError
 from core.optimization_engine.base import BaseOptimizer, OptimizationResult
 from core.optimization_engine.constraints import OptimizationConstraints
 
@@ -15,38 +14,38 @@ logger = logging.getLogger(__name__)
 class InverseCorrelationOptimizer(BaseOptimizer):
     """
     Inverse Correlation Weighting optimizer.
-    
+
     Analytical method (no optimization needed) that allocates weights
     inversely proportional to average correlation with other assets.
-    
+
     Algorithm:
     1. Calculate average correlation to other assets: avg_corr_i
     2. Calculate diversification score: div_score_i = 1 - avg_corr_i
     3. Normalize weights: w_i = div_score_i / Σ div_score_j
     """
-    
+
     def optimize(
         self,
-        constraints: Optional[Dict[str, any]] = None,
+        constraints: Optional[dict[str, any]] = None,
         covariance_method: str = "shrink",
         shrinkage_alpha: float = 0.25,
     ) -> OptimizationResult:
         """
         Optimize portfolio using inverse correlation weighting.
-        
+
         Args:
             constraints: Optional constraints dictionary
             (Note: This method is analytical, constraints are applied
             after calculation)
-        
+
         Returns:
             OptimizationResult with inverse correlation weights
         """
         constraints_obj = self._build_constraints(constraints)
         min_bounds, max_bounds = constraints_obj.get_weight_bounds_array()
-        
+
         n = len(self.tickers)
-        
+
         try:
             # Build correlation matrix directly from returns (train),
             # consistent with notebook inverse-correlation heuristic.
@@ -63,7 +62,7 @@ class InverseCorrelationOptimizer(BaseOptimizer):
                 corr_matrix[cash_idx, cash_idx] = 1.0
             corr_matrix = 0.5 * (corr_matrix + corr_matrix.T)
             corr_matrix = np.clip(corr_matrix, -1.0, 1.0)
-            
+
             # Notebook-consistent inverse-correlation score:
             # mean_row_i = sum_j rho_ij / n
             # w_i ∝ 1 / mean_row_i
@@ -79,17 +78,17 @@ class InverseCorrelationOptimizer(BaseOptimizer):
                 weights = np.ones(n) / n
             else:
                 weights = inv_scores / inv_scores.sum()
-            
+
             # Apply constraints (clip to bounds)
             weights = np.clip(weights, min_bounds, max_bounds)
             weights = self._normalize_weights(weights, constraints_obj)
-            
+
             # Calculate metrics
             metrics = self._calculate_portfolio_metrics(weights)
-            
+
             # Calculate average correlation for metadata
             avg_corr = float(np.mean(mean_row))
-            
+
             return OptimizationResult(
                 weights=weights,
                 tickers=self.tickers,
@@ -119,7 +118,7 @@ class InverseCorrelationOptimizer(BaseOptimizer):
             weights = np.ones(n) / n
             weights = np.clip(weights, min_bounds, max_bounds)
             weights = self._normalize_weights(weights, constraints_obj)
-            
+
             return OptimizationResult(
                 weights=weights,
                 tickers=self.tickers,
@@ -127,10 +126,9 @@ class InverseCorrelationOptimizer(BaseOptimizer):
                 success=False,
                 message=f"Calculation failed: {str(e)}",
             )
-    
+
     def _build_constraints(
-        self, constraints: Optional[Dict[str, any]]
+        self, constraints: Optional[dict[str, any]]
     ) -> OptimizationConstraints:
         """Build constraints object from dictionary."""
         return super()._build_constraints(constraints)
-

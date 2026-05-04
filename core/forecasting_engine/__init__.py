@@ -3,4 +3,3 @@
 from core.forecasting_engine.base import BaseForecaster, ForecastResult
 
 __all__ = ["BaseForecaster", "ForecastResult"]
-

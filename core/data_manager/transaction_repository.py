@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 class TransactionRepository:
     """Repository for transaction persistence operations."""
 
-    def save(
-        self, transaction: Transaction, portfolio_id: str
-    ) -> Transaction:
+    def save(self, transaction: Transaction, portfolio_id: str) -> Transaction:
         """
         Save transaction to database.
 
@@ -32,20 +30,16 @@ class TransactionRepository:
         """
         with get_db_session() as session:
             if transaction.id:
-                return self._update_transaction(
-                    session, transaction, portfolio_id
-                )
+                return self._update_transaction(session, transaction, portfolio_id)
             else:
-                return self._create_transaction(
-                    session, transaction, portfolio_id
-                )
+                return self._create_transaction(session, transaction, portfolio_id)
 
     def find_by_portfolio(
         self,
         portfolio_id: str,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-    ) -> List[Transaction]:
+    ) -> list[Transaction]:
         """
         Find all transactions for a portfolio, optionally filtered by date range.
 
@@ -63,13 +57,9 @@ class TransactionRepository:
             )
 
             if start_date:
-                query = query.filter(
-                    TransactionORM.transaction_date >= start_date
-                )
+                query = query.filter(TransactionORM.transaction_date >= start_date)
             if end_date:
-                query = query.filter(
-                    TransactionORM.transaction_date <= end_date
-                )
+                query = query.filter(TransactionORM.transaction_date <= end_date)
 
             query = query.order_by(TransactionORM.transaction_date)
 
@@ -132,9 +122,7 @@ class TransactionRepository:
         )
 
         if not transaction_orm:
-            raise ValidationError(
-                f"Transaction not found: {transaction.id}"
-            )
+            raise ValidationError(f"Transaction not found: {transaction.id}")
 
         # Update fields
         transaction_orm.transaction_date = transaction.transaction_date
@@ -149,9 +137,7 @@ class TransactionRepository:
         session.flush()
         return self._orm_to_domain(transaction_orm)
 
-    def _orm_to_domain(
-        self, transaction_orm: TransactionORM
-    ) -> Transaction:
+    def _orm_to_domain(self, transaction_orm: TransactionORM) -> Transaction:
         """Convert ORM model to domain model."""
         return Transaction(
             transaction_date=transaction_orm.transaction_date,
@@ -164,4 +150,3 @@ class TransactionRepository:
             notes=transaction_orm.notes,
             transaction_id=transaction_orm.id,
         )
-

@@ -6,7 +6,7 @@ import time
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 from config.constants import CACHE_MAX_SIZE
 from config.settings import settings
@@ -22,7 +22,9 @@ class Cache:
     Level 2: Disk cache (parquet/pickle files) for persistence
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None, max_size: int = CACHE_MAX_SIZE) -> None:
+    def __init__(
+        self, cache_dir: Optional[Path] = None, max_size: int = CACHE_MAX_SIZE
+    ) -> None:
         """
         Initialize cache system with LRU eviction.
 
@@ -32,7 +34,7 @@ class Cache:
             max_size: Maximum number of items in memory cache (default: CACHE_MAX_SIZE)
         """
         # Use OrderedDict for LRU functionality
-        self._memory_cache: OrderedDict[str, Tuple[Any, float]] = OrderedDict()
+        self._memory_cache: OrderedDict[str, tuple[Any, float]] = OrderedDict()
         self._max_size = max_size
         self._cache_dir = cache_dir or settings.price_cache_dir
         self._cache_dir.mkdir(parents=True, exist_ok=True)
@@ -172,7 +174,7 @@ class Cache:
         except Exception as e:
             logger.warning(f"Error clearing disk cache: {e}")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """
         Get cache statistics.
 
@@ -209,11 +211,6 @@ class Cache:
         """
         # Replace invalid filesystem characters
         sanitized = key.replace("/", "_").replace("\\", "_").replace(":", "_")
-        sanitized = (
-            sanitized.replace("*", "_").replace("?", "_").replace('"', "_")
-        )
-        sanitized = (
-            sanitized.replace("<", "_").replace(">", "_").replace("|", "_")
-        )
+        sanitized = sanitized.replace("*", "_").replace("?", "_").replace('"', "_")
+        sanitized = sanitized.replace("<", "_").replace(">", "_").replace("|", "_")
         return sanitized
-

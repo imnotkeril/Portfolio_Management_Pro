@@ -1,7 +1,8 @@
 """Metric card component with comparison to benchmark."""
 
-import streamlit as st
 from typing import Optional, Union
+
+import streamlit as st
 
 
 def render_metric_cards_row(
@@ -64,11 +65,12 @@ def render_metric_card(
     if help_text:
         # Escape HTML special characters
         import html
+
         escaped_help = html.escape(help_text)
         # Add global CSS for tooltip (only once per session)
-        if '_help_tooltip_css' not in st.session_state:
+        if "_help_tooltip_css" not in st.session_state:
             st.markdown(
-                '''
+                """
                 <style>
                 .st-metric-help-icon {
                     cursor: help;
@@ -130,24 +132,24 @@ def render_metric_card(
                     opacity: 1;
                 }
                 </style>
-                ''',
-                unsafe_allow_html=True
+                """,
+                unsafe_allow_html=True,
             )
             st.session_state._help_tooltip_css = True
 
         # Create help icon with tooltip
         st.markdown(
             f'<div style="margin-bottom: 0.5rem;">'
-            f'<strong>{label}</strong> '
+            f"<strong>{label}</strong> "
             f'<span class="st-metric-help-icon" '
             f'data-tooltip="{escaped_help}" '
             f'style="cursor: help; display: inline-flex; align-items: center; '
-            f'justify-content: center; width: 16px; height: 16px; '
-            f'border-radius: 50%; background-color: transparent; '
-            f'border: 1px solid #808495; color: #808495; font-size: 11px; '
-            f'font-weight: 600; margin-left: 4px; vertical-align: middle; '
+            f"justify-content: center; width: 16px; height: 16px; "
+            f"border-radius: 50%; background-color: transparent; "
+            f"border: 1px solid #808495; color: #808495; font-size: 11px; "
+            f"font-weight: 600; margin-left: 4px; vertical-align: middle; "
             f'line-height: 1; position: relative; user-select: none;">?</span></div>',
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
     else:
         st.markdown(f"**{label}**")
@@ -209,9 +211,8 @@ def render_metric_card(
                 is_better = None
             else:
                 # Significant difference - determine better/worse
-                is_better = (
-                    (higher_is_better and delta > 0) or
-                    (not higher_is_better and delta < 0)
+                is_better = (higher_is_better and delta > 0) or (
+                    not higher_is_better and delta < 0
                 )
 
         if is_better is True:
@@ -224,9 +225,7 @@ def render_metric_card(
         st.markdown(f"{color_indicator} {benchmark_formatted}")
 
 
-def _format_value(
-    value: float, format_type: str, include_sign: bool = False
-) -> str:
+def _format_value(value: float, format_type: str, include_sign: bool = False) -> str:
     """Format value based on type."""
     if value is None:
         return "—"

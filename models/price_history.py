@@ -14,9 +14,7 @@ class PriceHistory(Base):
     __tablename__ = "price_history"
 
     # Composite primary key
-    ticker: Mapped[str] = mapped_column(
-        String(10), primary_key=True, nullable=False
-    )
+    ticker: Mapped[str] = mapped_column(String(10), primary_key=True, nullable=False)
     date: Mapped[date] = mapped_column(Date, primary_key=True, nullable=False)
 
     # OHLCV data
@@ -24,9 +22,7 @@ class PriceHistory(Base):
     high: Mapped[float | None] = mapped_column(Float, nullable=True)
     low: Mapped[float | None] = mapped_column(Float, nullable=True)
     close: Mapped[float] = mapped_column(Float, nullable=False)
-    adjusted_close: Mapped[float] = mapped_column(
-        Float, nullable=False
-    )
+    adjusted_close: Mapped[float] = mapped_column(Float, nullable=False)
     # Use Float for large numbers
     volume: Mapped[int | None] = mapped_column(Float, nullable=True)
 
@@ -34,9 +30,7 @@ class PriceHistory(Base):
     __table_args__ = (
         Index("idx_price_history_ticker", "ticker"),
         Index("idx_price_history_date", "date"),
-        Index(
-            "idx_price_history_ticker_date", "ticker", "date"
-        ),
+        Index("idx_price_history_ticker_date", "ticker", "date"),
         UniqueConstraint(
             "ticker",
             "date",

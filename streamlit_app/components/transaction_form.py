@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import streamlit as st
 
@@ -14,7 +14,7 @@ def render_transaction_form(
     default_date: Optional[date] = None,
     default_type: Optional[str] = None,
     default_ticker: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """
     Render transaction form in expander.
 
@@ -41,9 +41,11 @@ def render_transaction_form(
             transaction_type = st.selectbox(
                 "Transaction Type",
                 options=["BUY", "SELL", "DEPOSIT", "WITHDRAWAL"],
-                index=0
-                if not default_type
-                else ["BUY", "SELL", "DEPOSIT", "WITHDRAWAL"].index(default_type),
+                index=(
+                    0
+                    if not default_type
+                    else ["BUY", "SELL", "DEPOSIT", "WITHDRAWAL"].index(default_type)
+                ),
                 help="Type of transaction",
             )
 
@@ -117,9 +119,11 @@ def render_transaction_form(
                 return {
                     "transaction_date": transaction_date,
                     "transaction_type": transaction_type,
-                    "ticker": ticker
-                    if transaction_type not in ["DEPOSIT", "WITHDRAWAL"]
-                    else "CASH",
+                    "ticker": (
+                        ticker
+                        if transaction_type not in ["DEPOSIT", "WITHDRAWAL"]
+                        else "CASH"
+                    ),
                     "shares": shares,
                     "price": price,
                     "fees": fees,
@@ -131,4 +135,3 @@ def render_transaction_form(
                 return None
 
         return None
-

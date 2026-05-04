@@ -1,7 +1,7 @@
 """Repository for portfolio persistence."""
 
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -38,9 +38,7 @@ class PortfolioRepository:
                 # Create new portfolio
                 return self._create_portfolio(session, portfolio)
 
-    def _create_portfolio(
-        self, session: Session, portfolio: Portfolio
-    ) -> Portfolio:
+    def _create_portfolio(self, session: Session, portfolio: Portfolio) -> Portfolio:
         """Create new portfolio in database."""
         # Convert domain model to ORM
         portfolio_orm = PortfolioORM(
@@ -78,22 +76,14 @@ class PortfolioRepository:
         # Convert back to domain model (commit happens automatically in get_db_session)
         return self._orm_to_domain(portfolio_orm)
 
-    def _update_portfolio(
-        self, session: Session, portfolio: Portfolio
-    ) -> Portfolio:
+    def _update_portfolio(self, session: Session, portfolio: Portfolio) -> Portfolio:
         """Update existing portfolio in database."""
         portfolio_orm = (
-            session.query(PortfolioORM)
-            .filter(
-                PortfolioORM.id == portfolio.id
-            )
-            .first()
+            session.query(PortfolioORM).filter(PortfolioORM.id == portfolio.id).first()
         )
 
         if not portfolio_orm:
-            raise PortfolioNotFoundError(
-                f"Portfolio not found: {portfolio.id}"
-            )
+            raise PortfolioNotFoundError(f"Portfolio not found: {portfolio.id}")
 
         # Update attributes
         portfolio_orm.name = portfolio.name
@@ -157,9 +147,7 @@ class PortfolioRepository:
         """
         with get_db_session() as session:
             portfolio_orm = (
-                session.query(PortfolioORM)
-                .filter(PortfolioORM.name == name)
-                .first()
+                session.query(PortfolioORM).filter(PortfolioORM.name == name).first()
             )
 
             if not portfolio_orm:
@@ -167,9 +155,7 @@ class PortfolioRepository:
 
             return self._orm_to_domain(portfolio_orm)
 
-    def find_all(
-        self, limit: int = 100, offset: int = 0
-    ) -> List[Portfolio]:
+    def find_all(self, limit: int = 100, offset: int = 0) -> list[Portfolio]:
         """
         Find all portfolios with pagination.
 
@@ -182,10 +168,7 @@ class PortfolioRepository:
         """
         with get_db_session() as session:
             portfolios_orm = (
-                session.query(PortfolioORM)
-                .limit(limit)
-                .offset(offset)
-                .all()
+                session.query(PortfolioORM).limit(limit).offset(offset).all()
             )
 
             return [self._orm_to_domain(p) for p in portfolios_orm]
@@ -203,7 +186,7 @@ class PortfolioRepository:
         with get_db_session() as session:
             # Use query with explicit options to avoid loading relationships
             from sqlalchemy.orm import noload
-            
+
             portfolio_orm = (
                 session.query(PortfolioORM)
                 .options(
@@ -250,4 +233,3 @@ class PortfolioRepository:
             )
 
         return portfolio
-

@@ -30,7 +30,7 @@ def render_market_index_card(
         price_str = f"{current_price:,.0f}"
     else:
         price_str = "N/A"
-    
+
     # Only show percentage change, no absolute change, no color
     # change_pct comes as percentage (e.g., 25.34), convert to decimal for formatter
     if change_pct is not None:
@@ -67,4 +67,3 @@ def render_market_index_card(
         """,
         unsafe_allow_html=True,
     )
-

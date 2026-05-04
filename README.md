@@ -7,6 +7,8 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/imnotkeril/WMC_Portfolio_Management/actions/workflows/ci.yml/badge.svg)](https://github.com/imnotkeril/WMC_Portfolio_Management/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/imnotkeril/WMC_Portfolio_Management/graph/badge.svg)](https://codecov.io/gh/imnotkeril/WMC_Portfolio_Management)
 
 ---
 <img width="1581" height="1190" alt="1" src="https://github.com/user-attachments/assets/4a8ebd9a-611c-4e7d-8d81-76232791b85d" />
@@ -102,6 +104,18 @@ pytest --cov=core --cov=services --cov-report=html
 pytest tests/unit/           # Unit tests
 pytest tests/integration/    # Integration tests
 pytest tests/performance/    # Performance tests
+```
+
+### Code quality (local)
+
+Configuration lives in `pyproject.toml`. Install dev tools with `pip install -r requirements-dev.txt`.
+
+```bash
+ruff check .
+black --check .
+isort --check-only .
+mypy core/ services/ api/ config/ models/ database/
+pre-commit install   # optional: run hooks on every commit
 ```
 
 ---

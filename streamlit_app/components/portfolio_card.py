@@ -44,7 +44,7 @@ def render_portfolio_card(
         daily_change_html = (
             f'<p style="color: #D1D4DC; margin: 4px 0;">'
             f'Daily: <strong style="color: {daily_color}">{daily_value}</strong>'
-            f'</p>'
+            f"</p>"
         )
 
     # Card container

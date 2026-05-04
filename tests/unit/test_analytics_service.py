@@ -89,24 +89,39 @@ def test_calculate_portfolio_metrics_success(
     # Mock price data
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     price_df = pd.DataFrame(
-        {"AAPL": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0]},
+        {
+            "AAPL": [
+                100.0,
+                101.0,
+                102.0,
+                103.0,
+                104.0,
+                105.0,
+                106.0,
+                107.0,
+                108.0,
+                109.0,
+            ]
+        },
         index=dates,
     )
 
     # Mock fetch_portfolio_prices
     with patch.object(
         analytics_service, "_fetch_portfolio_prices", return_value=price_df
-    ) as mock_fetch:
+    ):
         # Mock calculate_portfolio_returns
-        returns = pd.Series([0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01], index=dates[1:])
+        returns = pd.Series(
+            [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01], index=dates[1:]
+        )
         with patch.object(
             analytics_service, "_calculate_portfolio_returns", return_value=returns
-        ) as mock_calc_returns:
+        ):
             # Mock calculate_portfolio_values
             values = pd.Series([100000.0] * 10, index=dates)
             with patch.object(
                 analytics_service, "_calculate_portfolio_values", return_value=values
-            ) as mock_calc_values:
+            ):
                 # Mock engine.calculate_all_metrics
                 mock_metrics = {
                     "performance": {"total_return": 0.1},
@@ -115,7 +130,9 @@ def test_calculate_portfolio_metrics_success(
                     "market": {},
                     "metadata": {"data_points": 10},
                 }
-                analytics_service._engine.calculate_all_metrics.return_value = mock_metrics
+                analytics_service._engine.calculate_all_metrics.return_value = (
+                    mock_metrics
+                )
 
                 result = analytics_service.calculate_portfolio_metrics(
                     portfolio_id="test-id",
@@ -141,9 +158,7 @@ def test_calculate_portfolio_metrics_with_benchmark(
     analytics_service._portfolio_service.get_portfolio.return_value = portfolio
 
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
-    price_df = pd.DataFrame(
-        {"AAPL": [100.0] * 10, "SPY": [400.0] * 10}, index=dates
-    )
+    price_df = pd.DataFrame({"AAPL": [100.0] * 10, "SPY": [400.0] * 10}, index=dates)
 
     returns = pd.Series([0.01] * 9, index=dates[1:])
     values = pd.Series([100000.0] * 10, index=dates)
@@ -164,7 +179,9 @@ def test_calculate_portfolio_metrics_with_benchmark(
                     "market": {"beta": 1.2},
                     "metadata": {},
                 }
-                analytics_service._engine.calculate_all_metrics.return_value = mock_metrics
+                analytics_service._engine.calculate_all_metrics.return_value = (
+                    mock_metrics
+                )
 
                 result = analytics_service.calculate_portfolio_metrics(
                     portfolio_id="test-id",
@@ -182,7 +199,20 @@ def test_get_single_ticker_returns(analytics_service: AnalyticsService) -> None:
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     # _fetch_portfolio_prices returns DataFrame with ticker as column
     price_df = pd.DataFrame(
-        {"AAPL": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0]},
+        {
+            "AAPL": [
+                100.0,
+                101.0,
+                102.0,
+                103.0,
+                104.0,
+                105.0,
+                106.0,
+                107.0,
+                108.0,
+                109.0,
+            ]
+        },
         index=dates,
     )
 
@@ -225,7 +255,9 @@ def test_get_portfolio_returns_by_id(analytics_service: AnalyticsService) -> Non
             assert len(result) > 0
 
 
-def test_compute_basic_metrics_from_returns(analytics_service: AnalyticsService) -> None:
+def test_compute_basic_metrics_from_returns(
+    analytics_service: AnalyticsService,
+) -> None:
     """Test computing basic metrics from returns."""
     np.random.seed(42)
     returns = pd.Series(np.random.normal(0.001, 0.02, 252))
@@ -276,14 +308,29 @@ def test_calculate_portfolio_returns(analytics_service: AnalyticsService) -> Non
     """Test calculating portfolio returns from prices."""
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     price_df = pd.DataFrame(
-        {"AAPL": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0]},
+        {
+            "AAPL": [
+                100.0,
+                101.0,
+                102.0,
+                103.0,
+                104.0,
+                105.0,
+                106.0,
+                107.0,
+                108.0,
+                109.0,
+            ]
+        },
         index=dates,
     )
 
     portfolio = Portfolio(name="Test", starting_capital=100000.0)
     portfolio.add_position(ticker="AAPL", shares=100.0)
 
-    result = analytics_service._calculate_portfolio_returns(price_df, portfolio.get_all_positions())
+    result = analytics_service._calculate_portfolio_returns(
+        price_df, portfolio.get_all_positions()
+    )
 
     assert isinstance(result, pd.Series)
     assert len(result) > 0
@@ -293,9 +340,7 @@ def test_calculate_portfolio_values(analytics_service: AnalyticsService) -> None
     """Test calculating portfolio values from prices."""
     dates = pd.date_range("2024-01-01", periods=10, freq="D")
     # Price DataFrame has tickers as columns
-    price_df = pd.DataFrame(
-        {"AAPL": [100.0] * 10}, index=dates
-    )
+    price_df = pd.DataFrame({"AAPL": [100.0] * 10}, index=dates)
 
     portfolio = Portfolio(name="Test", starting_capital=100000.0)
     portfolio.add_position(ticker="AAPL", shares=100.0)
@@ -335,4 +380,3 @@ def test_simulate_buy_and_hold_returns_from_weights(
     v0 = float(np.dot(n, prices.iloc[0].values))
     v1 = float(np.dot(n, prices.iloc[1].values))
     assert abs(ret.iloc[0] - (v1 / v0 - 1.0)) < 1e-10
-

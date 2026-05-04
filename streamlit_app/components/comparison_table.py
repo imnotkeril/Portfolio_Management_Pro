@@ -1,15 +1,16 @@
 """Comparison table component for Portfolio vs Benchmark."""
 
-import streamlit as st
+from typing import Optional
+
 import pandas as pd
-from typing import Dict, Optional
+import streamlit as st
 
 
 def render_comparison_table(
-    portfolio_metrics: Dict[str, float],
-    benchmark_metrics: Optional[Dict[str, float]] = None,
+    portfolio_metrics: dict[str, float],
+    benchmark_metrics: Optional[dict[str, float]] = None,
     title: str = "Portfolio vs Benchmark",
-    categories: Optional[Dict[str, list]] = None,
+    categories: Optional[dict[str, list]] = None,
     height: Optional[int] = None,
 ) -> None:
     """
@@ -61,12 +62,14 @@ def render_comparison_table(
                     )
                     diff_formatted = _format_difference(metric, diff_pct)
 
-            comparison_data.append({
-                "Metric": _format_metric_name(metric),
-                "Portfolio": portfolio_formatted,
-                "Benchmark": benchmark_formatted,
-                "Difference": diff_formatted,
-            })
+            comparison_data.append(
+                {
+                    "Metric": _format_metric_name(metric),
+                    "Portfolio": portfolio_formatted,
+                    "Benchmark": benchmark_formatted,
+                    "Difference": diff_formatted,
+                }
+            )
 
     df = pd.DataFrame(comparison_data)
 
@@ -78,12 +81,8 @@ def render_comparison_table(
         height=height or min(600, 40 * (len(df) + 1)),
         column_config={
             "Metric": st.column_config.TextColumn("Metric", width="medium"),
-            "Portfolio": st.column_config.TextColumn(
-                "Portfolio", width="small"
-            ),
-            "Benchmark": st.column_config.TextColumn(
-                "Benchmark", width="small"
-            ),
+            "Portfolio": st.column_config.TextColumn("Portfolio", width="small"),
+            "Benchmark": st.column_config.TextColumn("Benchmark", width="small"),
             "Difference": st.column_config.TextColumn("Δ", width="small"),
         },
     )
@@ -127,17 +126,31 @@ def _format_metric(metric: str, value) -> str:
 
     # Percentage metrics
     percent_metrics = [
-        "total_return", "annualized_return", "cagr",
-        "best_day", "worst_day", "best_month", "worst_month",
-        "volatility", "downside_deviation", "max_drawdown",
-        "var_95", "cvar_95", "up_capture", "down_capture",
+        "total_return",
+        "annualized_return",
+        "cagr",
+        "best_day",
+        "worst_day",
+        "best_month",
+        "worst_month",
+        "volatility",
+        "downside_deviation",
+        "max_drawdown",
+        "var_95",
+        "cvar_95",
+        "up_capture",
+        "down_capture",
         "alpha",
     ]
 
     # Ratio metrics
     ratio_metrics = [
-        "sharpe_ratio", "sortino_ratio", "calmar_ratio",
-        "information_ratio", "treynor_ratio", "ulcer_index",
+        "sharpe_ratio",
+        "sortino_ratio",
+        "calmar_ratio",
+        "information_ratio",
+        "treynor_ratio",
+        "ulcer_index",
     ]
 
     # Correlation metrics
@@ -191,10 +204,21 @@ def _calculate_percentage_change(
     # Percentage-based metrics (returns, volatility, drawdown, etc.)
     # Stored as decimals: 0.5164 = 51.64%, 4.9405 = 494.05%
     percent_metrics = [
-        "total_return", "annualized_return", "cagr",
-        "best_day", "worst_day", "best_month", "worst_month",
-        "volatility", "downside_deviation", "max_drawdown",
-        "var_95", "cvar_95", "up_capture", "down_capture", "alpha",
+        "total_return",
+        "annualized_return",
+        "cagr",
+        "best_day",
+        "worst_day",
+        "best_month",
+        "worst_month",
+        "volatility",
+        "downside_deviation",
+        "max_drawdown",
+        "var_95",
+        "cvar_95",
+        "up_capture",
+        "down_capture",
+        "alpha",
     ]
 
     if metric in percent_metrics:
@@ -202,16 +226,10 @@ def _calculate_percentage_change(
         # ((B - A) / (1 + A)) * 100 where A=benchmark, B=portfolio
         if abs(1 + benchmark_value) < 1e-9:
             return 0.0
-        return (
-            (portfolio_value - benchmark_value) /
-            (1 + abs(benchmark_value))
-        ) * 100
+        return ((portfolio_value - benchmark_value) / (1 + abs(benchmark_value))) * 100
     else:
         # For ratios/metrics: use standard percentage change
-        return (
-            (portfolio_value - benchmark_value) /
-            abs(benchmark_value)
-        ) * 100
+        return ((portfolio_value - benchmark_value) / abs(benchmark_value)) * 100
 
 
 def _format_difference(metric: str, diff_pct: float) -> str:
@@ -221,18 +239,30 @@ def _format_difference(metric: str, diff_pct: float) -> str:
 
     # Metrics where higher is better
     higher_is_better = [
-        "total_return", "annualized_return", "cagr",
-        "best_day", "best_month",
-        "sharpe_ratio", "sortino_ratio", "calmar_ratio",
-        "information_ratio", "treynor_ratio",
+        "total_return",
+        "annualized_return",
+        "cagr",
+        "best_day",
+        "best_month",
+        "sharpe_ratio",
+        "sortino_ratio",
+        "calmar_ratio",
+        "information_ratio",
+        "treynor_ratio",
         "up_capture",
     ]
 
     # Metrics where lower is better
     lower_is_better = [
-        "volatility", "downside_deviation", "max_drawdown",
-        "var_95", "cvar_95", "ulcer_index",
-        "worst_day", "worst_month", "down_capture",
+        "volatility",
+        "downside_deviation",
+        "max_drawdown",
+        "var_95",
+        "cvar_95",
+        "ulcer_index",
+        "worst_day",
+        "worst_month",
+        "down_capture",
         "max_drawdown_duration",
     ]
 
@@ -255,9 +285,7 @@ def _format_difference(metric: str, diff_pct: float) -> str:
         return f"🔴 {formatted}"
 
 
-def _is_better(
-    metric: str, portfolio_value: float, benchmark_value: float
-):
+def _is_better(metric: str, portfolio_value: float, benchmark_value: float):
     """
     Return True if portfolio better than benchmark,
     False if worse, None if neutral.
@@ -265,17 +293,29 @@ def _is_better(
     try:
         # Metrics where higher is better
         higher_is_better = {
-            "total_return", "annualized_return", "cagr",
-            "best_day", "best_month",
-            "sharpe_ratio", "sortino_ratio", "calmar_ratio",
-            "information_ratio", "treynor_ratio",
+            "total_return",
+            "annualized_return",
+            "cagr",
+            "best_day",
+            "best_month",
+            "sharpe_ratio",
+            "sortino_ratio",
+            "calmar_ratio",
+            "information_ratio",
+            "treynor_ratio",
             "up_capture",
         }
         # Metrics where lower is better
         lower_is_better = {
-            "volatility", "downside_deviation", "max_drawdown",
-            "var_95", "cvar_95", "ulcer_index",
-            "worst_day", "worst_month", "down_capture",
+            "volatility",
+            "downside_deviation",
+            "max_drawdown",
+            "var_95",
+            "cvar_95",
+            "ulcer_index",
+            "worst_day",
+            "worst_month",
+            "down_capture",
             "max_drawdown_duration",
         }
 
@@ -301,7 +341,7 @@ def _is_better(
 
 
 def render_simple_metrics_table(
-    metrics: Dict[str, float],
+    metrics: dict[str, float],
     title: str = "Metrics",
     format_type: str = "auto",
 ) -> None:

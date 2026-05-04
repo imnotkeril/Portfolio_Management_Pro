@@ -1,16 +1,16 @@
 """Integration tests for analytics service."""
 
-import pytest
 from datetime import date
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
-from services.analytics_service import AnalyticsService
-from services.portfolio_service import PortfolioService
-from services.data_service import DataService
 from core.data_manager.portfolio import Portfolio
+from services.analytics_service import AnalyticsService
+from services.data_service import DataService
+from services.portfolio_service import PortfolioService
 
 
 @pytest.fixture
@@ -26,9 +26,7 @@ def mock_data_service() -> DataService:
     service = DataService()
 
     # Mock fetch_historical_prices
-    def mock_fetch(
-        ticker: str, start: date, end: date, **kwargs
-    ) -> pd.DataFrame:
+    def mock_fetch(ticker: str, start: date, end: date, **kwargs) -> pd.DataFrame:
         # Generate mock price data
         dates = pd.date_range(start, end, freq="D")
         np.random.seed(42)
@@ -39,10 +37,12 @@ def mock_data_service() -> DataService:
             prices.append(prices[-1] * (1 + ret))
         prices = prices[1:]  # Remove first base price
 
-        df = pd.DataFrame({
-            "Date": dates,
-            "Adjusted_Close": prices,
-        })
+        df = pd.DataFrame(
+            {
+                "Date": dates,
+                "Adjusted_Close": prices,
+            }
+        )
         return df
 
     service.fetch_historical_prices = MagicMock(side_effect=mock_fetch)
@@ -153,4 +153,3 @@ def test_calculate_portfolio_metrics_invalid_date_range(
                 start_date=start_date,
                 end_date=end_date,
             )
-

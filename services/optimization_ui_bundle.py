@@ -6,14 +6,17 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from core.analytics_engine.performance import calculate_annualized_return
 from core.analytics_engine.ratios import calculate_sharpe_ratio, calculate_sortino_ratio
-from core.analytics_engine.risk_metrics import calculate_max_drawdown, calculate_volatility
+from core.analytics_engine.risk_metrics import (
+    calculate_max_drawdown,
+    calculate_volatility,
+)
 from core.exceptions import CalculationError, InsufficientDataError
 from core.optimization_engine.base import OptimizationResult
 from services.analytics_service import AnalyticsService
@@ -32,7 +35,7 @@ def _optimization_period_bounds(
     end_date: date,
     out_of_sample: bool,
     training_ratio: float,
-) -> Tuple[date, date]:
+) -> tuple[date, date]:
     if out_of_sample:
         analysis_days = (end_date - start_date).days
         training_days = int(analysis_days * training_ratio)
@@ -43,9 +46,9 @@ def _optimization_period_bounds(
 
 
 def _metrics_from_returns(
-    rets: Optional[pd.Series],
+    rets: pd.Series | None,
     risk_free: float = RISK_FREE,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     if rets is None or rets.empty:
         return {
             "total_return": 0.0,
@@ -73,7 +76,7 @@ def _metrics_from_returns(
     }
 
 
-def _interpret_comparison(opt: Dict[str, float], cur: Dict[str, float]) -> str:
+def _interpret_comparison(opt: dict[str, float], cur: dict[str, float]) -> str:
     lines = ["**Optimization Results Analysis:**"]
     sd = opt.get("sharpe_ratio", 0) - cur.get("sharpe_ratio", 0)
     rd = opt.get("annualized_return", 0) - cur.get("annualized_return", 0)
@@ -136,7 +139,9 @@ def _interpret_comparison(opt: Dict[str, float], cur: Dict[str, float]) -> str:
         ]
     )
     if improvements >= 3:
-        lines.append("\n✓ Optimization shows significant improvements across multiple metrics")
+        lines.append(
+            "\n✓ Optimization shows significant improvements across multiple metrics"
+        )
     elif improvements >= 2:
         lines.append("\nOptimization shows moderate improvements")
     elif improvements >= 1:
@@ -148,7 +153,9 @@ def _interpret_comparison(opt: Dict[str, float], cur: Dict[str, float]) -> str:
     return "\n".join(lines)
 
 
-def _interpret_allocation(current_w: Dict[str, float], optimal_w: Dict[str, float]) -> str:
+def _interpret_allocation(
+    current_w: dict[str, float], optimal_w: dict[str, float]
+) -> str:
     if not optimal_w:
         return ""
     lines = ["**Allocation Changes Analysis:**"]
@@ -158,7 +165,9 @@ def _interpret_allocation(current_w: Dict[str, float], optimal_w: Dict[str, floa
         if abs(d) > 0.01:
             changes.append((t, current_w.get(t, 0.0), optimal_w[t], d))
     if not changes:
-        lines.append("No significant weight changes required - portfolio is already close to optimal")
+        lines.append(
+            "No significant weight changes required - portfolio is already close to optimal"
+        )
         return "\n".join(lines)
     changes.sort(key=lambda x: abs(x[3]), reverse=True)
     inc = [c for c in changes if c[3] > 0.01]
@@ -177,7 +186,9 @@ def _interpret_allocation(current_w: Dict[str, float], optimal_w: Dict[str, floa
             lines.append(f"{len(dec)} asset(s) need weight decreases")
     mx = max(optimal_w.values()) if optimal_w else 0
     if mx > 0.5:
-        lines.append(f"⚠ High concentration: Max weight is {mx:.1%} - Consider diversification")
+        lines.append(
+            f"⚠ High concentration: Max weight is {mx:.1%} - Consider diversification"
+        )
     elif mx > 0.3:
         lines.append(f"Moderate concentration: Max weight is {mx:.1%}")
     else:
@@ -192,7 +203,7 @@ def _interpret_allocation(current_w: Dict[str, float], optimal_w: Dict[str, floa
     return "\n".join(lines)
 
 
-def _interpret_trades(trades: List[Dict[str, Any]]) -> str:
+def _interpret_trades(trades: list[dict[str, Any]]) -> str:
     if not trades:
         return ""
     lines = ["**Trade List Analysis:**"]
@@ -201,7 +212,9 @@ def _interpret_trades(trades: List[Dict[str, Any]]) -> str:
     total_value = sum(float(t.get("value", 0) or 0) for t in trades)
     lines.append(f"Total trades: {len(trades)} ({len(buys)} buys, {len(sells)} sells)")
     lines.append(f"Total trade value: ${total_value:,.2f}")
-    sorted_trades = sorted(trades, key=lambda x: abs(float(x.get("value", 0) or 0)), reverse=True)
+    sorted_trades = sorted(
+        trades, key=lambda x: abs(float(x.get("value", 0) or 0)), reverse=True
+    )
     if sorted_trades:
         top = sorted_trades[0]
         lines.append(
@@ -220,13 +233,13 @@ def portfolio_snapshot_rows(
     portfolio_service: PortfolioService,
     data_service: DataService,
     portfolio_id: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     portfolio = portfolio_service.get_portfolio(portfolio_id)
     if not portfolio:
         return []
     positions = portfolio.get_all_positions()
     tickers = [p.ticker for p in positions if p.ticker != "CASH"]
-    prices: Dict[str, float] = {}
+    prices: dict[str, float] = {}
     for t in tickers:
         p = data_service.fetch_current_price(t)
         if p:
@@ -261,14 +274,14 @@ def _current_weights_for_result(
     portfolio_service: PortfolioService,
     data_service: DataService,
     portfolio_id: str,
-    result_tickers: List[str],
-) -> Dict[str, float]:
+    result_tickers: list[str],
+) -> dict[str, float]:
     portfolio = portfolio_service.get_portfolio(portfolio_id)
     if not portfolio:
         return {}
     positions = portfolio.get_all_positions()
     tickers = [p.ticker for p in positions if p.ticker != "CASH"]
-    prices: Dict[str, float] = {}
+    prices: dict[str, float] = {}
     for t in tickers:
         p = data_service.fetch_current_price(t)
         if p:
@@ -276,7 +289,7 @@ def _current_weights_for_result(
     if any(p.ticker == "CASH" for p in positions):
         prices["CASH"] = 1.0
     current_value = portfolio.calculate_current_value(prices)
-    cw: Dict[str, float] = {}
+    cw: dict[str, float] = {}
     for pos in positions:
         if pos.ticker not in result_tickers:
             continue
@@ -296,8 +309,8 @@ def _build_optimized_returns(
     result: OptimizationResult,
     start_date: date,
     end_date: date,
-    current_returns: Optional[pd.Series],
-) -> Tuple[Optional[pd.Series], pd.DataFrame]:
+    current_returns: pd.Series | None,
+) -> tuple[pd.Series | None, pd.DataFrame]:
     """
     Backtest optimal weights using the same buy-and-hold mechanics as the live
     portfolio in AnalyticsService (fixed share counts from day-0 weights).
@@ -307,10 +320,12 @@ def _build_optimized_returns(
     """
     optimal_weights = result.get_weights_dict()
     try:
-        optimized_returns = analytics_service.simulate_buy_and_hold_returns_from_weights(
-            optimal_weights,
-            start_date,
-            end_date,
+        optimized_returns = (
+            analytics_service.simulate_buy_and_hold_returns_from_weights(
+                optimal_weights,
+                start_date,
+                end_date,
+            )
         )
     except Exception:
         logger.exception("simulate_buy_and_hold_returns_from_weights failed")
@@ -334,8 +349,8 @@ def _drawdown_pct(values: pd.Series) -> pd.Series:
 
 def _notebook_constant_weight_returns(
     returns_subset: pd.DataFrame,
-    weights: Dict[str, float],
-    ticker_order: List[str],
+    weights: dict[str, float],
+    ticker_order: list[str],
 ) -> pd.Series:
     """
     Daily portfolio return as r_p = r_matrix @ w (constant weights), notebook-style.
@@ -353,10 +368,10 @@ def _notebook_constant_weight_returns(
     return pd.Series(sub.values @ w, index=sub.index, dtype=float)
 
 
-def _clean_frontier_portfolio_point(p: Any) -> Optional[Dict[str, Any]]:
+def _clean_frontier_portfolio_point(p: Any) -> dict[str, Any] | None:
     if not p or not isinstance(p, dict):
         return None
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for k, v in p.items():
         if isinstance(v, (np.floating, np.integer)):
             out[k] = float(v)
@@ -364,7 +379,11 @@ def _clean_frontier_portfolio_point(p: Any) -> Optional[Dict[str, Any]]:
             out[k] = v
         elif isinstance(v, dict):
             out[k] = {
-                str(kk): float(vv) if isinstance(vv, (np.floating, np.integer, float)) else vv
+                str(kk): (
+                    float(vv)
+                    if isinstance(vv, (np.floating, np.integer, float))
+                    else vv
+                )
                 for kk, vv in v.items()
             }
         elif isinstance(v, np.ndarray):
@@ -377,14 +396,14 @@ def _clean_frontier_portfolio_point(p: Any) -> Optional[Dict[str, Any]]:
 
 
 def _build_frontier_payload_from_fd(
-    fd: Dict[str, Any],
+    fd: dict[str, Any],
     *,
-    frontier_analytics: Dict[str, Any],
-    benchmark_for_charts: Optional[str],
+    frontier_analytics: dict[str, Any],
+    benchmark_for_charts: str | None,
     result: OptimizationResult,
-    current_metrics: Dict[str, float],
+    current_metrics: dict[str, float],
     fallback_validation_period: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     vols = [float(v) for v in (fd.get("volatilities") or [])]
     rets = [float(r) for r in (fd.get("returns") or [])]
     portfolios = fd.get("portfolios") or []
@@ -399,7 +418,7 @@ def _build_frontier_payload_from_fd(
                 cleaned_ports.append(cp)
         if cleaned_ports:
 
-            def _port_sharpe(p: Dict[str, Any]) -> float:
+            def _port_sharpe(p: dict[str, Any]) -> float:
                 r = float(p.get("expected_return") or 0.0)
                 v = float(p.get("volatility") or 0.0)
                 if v <= 1e-12:
@@ -430,7 +449,7 @@ def _build_frontier_payload_from_fd(
         else current_metrics
     )
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "volatilities_pct": [v * 100 for v in vols],
         "returns_pct": [r * 100 for r in rets],
         "tangency_portfolio": tangency_portfolio,
@@ -441,8 +460,10 @@ def _build_frontier_payload_from_fd(
             "sharpe": float(result.sharpe_ratio or 0),
         },
         "current_point": {
-            "volatility_pct": float(frontier_current_metrics.get("volatility", 0)) * 100,
-            "return_pct": float(frontier_current_metrics.get("annualized_return", 0)) * 100,
+            "volatility_pct": float(frontier_current_metrics.get("volatility", 0))
+            * 100,
+            "return_pct": float(frontier_current_metrics.get("annualized_return", 0))
+            * 100,
         },
     }
 
@@ -473,16 +494,16 @@ def _build_notebook_split_bundle(
     method: str,
     start_date: date,
     end_date: date,
-    constraints: Optional[Dict[str, Any]] = None,
-    benchmark_ticker: Optional[str] = None,
-    method_params: Optional[Dict[str, Any]] = None,
-    benchmark_for_charts: Optional[str] = None,
+    constraints: dict[str, Any] | None = None,
+    benchmark_ticker: str | None = None,
+    method_params: dict[str, Any] | None = None,
+    benchmark_for_charts: str | None = None,
     include_efficient_frontier: bool = True,
     frontier_n_points: int = 150,
     include_sensitivity: bool = False,
     sensitivity_analysis_type: str = "returns",
     notebook_train_fraction: float = 0.7,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Row-based train/validation/test split on the user window:
     - train fraction is user-provided (notebook_train_fraction)
@@ -538,9 +559,7 @@ def _build_notebook_split_bundle(
     validation_end_idx = validation_start_idx + validation_len
 
     returns_train = returns_full.iloc[:train_end_idx]
-    returns_validation = returns_full.iloc[
-        validation_start_idx:validation_end_idx
-    ]
+    returns_validation = returns_full.iloc[validation_start_idx:validation_end_idx]
     returns_test = returns_full.iloc[validation_end_idx:]
 
     train_start = returns_train.index.min().date()
@@ -562,7 +581,7 @@ def _build_notebook_split_bundle(
         training_ratio=0.3,
     )
 
-    base: Dict[str, Any] = {
+    base: dict[str, Any] = {
         "optimization": result.to_dict(),
         "success": result.success,
         "message": result.message or "",
@@ -603,7 +622,7 @@ def _build_notebook_split_bundle(
     if not result.success:
         return base
 
-    warnings_list: List[str] = []
+    warnings_list: list[str] = []
     min_ret = (constraints or {}).get("min_return")
     if min_ret is not None and result.expected_return is not None:
         if result.expected_return < min_ret:
@@ -632,7 +651,7 @@ def _build_notebook_split_bundle(
         returns_test, current_w, list(result.tickers)
     )
 
-    validation_metrics: Optional[Dict[str, Dict[str, float]]] = None
+    validation_metrics: dict[str, dict[str, float]] | None = None
     if not returns_validation.empty:
         r_opt_val = _notebook_constant_weight_returns(
             returns_validation, optimal_w, list(result.tickers)
@@ -649,9 +668,9 @@ def _build_notebook_split_bundle(
                 "current": _metrics_from_returns(r_cur_val, RISK_FREE),
             }
 
-    charts: Dict[str, Any] = {"cumulative_returns": [], "drawdown": []}
-    current_metrics: Dict[str, float]
-    optimized_metrics: Dict[str, float]
+    charts: dict[str, Any] = {"cumulative_returns": [], "drawdown": []}
+    current_metrics: dict[str, float]
+    optimized_metrics: dict[str, float]
 
     if not r_opt.empty and not r_cur.empty:
         common_idx = r_opt.index.intersection(r_cur.index)
@@ -661,7 +680,7 @@ def _build_notebook_split_bundle(
         r_o = r_o.reindex(ix)
         r_c = r_c.reindex(ix)
 
-        ba: Optional[pd.Series] = None
+        ba: pd.Series | None = None
         if benchmark_for_charts:
             try:
                 bmp = data_service.fetch_historical_prices(
@@ -671,7 +690,11 @@ def _build_notebook_split_bundle(
                     use_cache=True,
                     save_to_db=False,
                 )
-                if isinstance(bmp, pd.DataFrame) and not bmp.empty and "Date" in bmp.columns:
+                if (
+                    isinstance(bmp, pd.DataFrame)
+                    and not bmp.empty
+                    and "Date" in bmp.columns
+                ):
                     bmp = bmp.set_index("Date")
                     bmp.index = pd.to_datetime(bmp.index, errors="coerce")
                     if bmp.index.tz is not None:
@@ -696,9 +719,9 @@ def _build_notebook_split_bundle(
             if ba is not None and not ba.empty:
                 bench_cum = (1 + ba).cumprod() - 1
 
-            cum_rows: List[Dict[str, Any]] = []
+            cum_rows: list[dict[str, Any]] = []
             for idx in ix:
-                row: Dict[str, Any] = {
+                row: dict[str, Any] = {
                     "x": str(idx)[:10],
                     "current": float(cur_cum.loc[idx]) * 100.0,
                     "optimized": float(opt_cum.loc[idx]) * 100.0,
@@ -722,22 +745,28 @@ def _build_notebook_split_bundle(
                 bv = (1 + ba).cumprod() * init
                 bench_dd_series = _drawdown_pct(bv)
 
-            dd_rows: List[Dict[str, Any]] = []
+            dd_rows: list[dict[str, Any]] = []
             for idx in ix:
                 dd_rows.append(
                     {
                         "x": str(idx)[:10],
-                        "optimized": float(opt_dd.loc[idx])
-                        if idx in opt_dd.index and pd.notna(opt_dd.loc[idx])
-                        else None,
-                        "current": float(cur_dd.loc[idx])
-                        if idx in cur_dd.index and pd.notna(cur_dd.loc[idx])
-                        else None,
-                        "benchmark": float(bench_dd_series.loc[idx])
-                        if bench_dd_series is not None
-                        and idx in bench_dd_series.index
-                        and pd.notna(bench_dd_series.loc[idx])
-                        else None,
+                        "optimized": (
+                            float(opt_dd.loc[idx])
+                            if idx in opt_dd.index and pd.notna(opt_dd.loc[idx])
+                            else None
+                        ),
+                        "current": (
+                            float(cur_dd.loc[idx])
+                            if idx in cur_dd.index and pd.notna(cur_dd.loc[idx])
+                            else None
+                        ),
+                        "benchmark": (
+                            float(bench_dd_series.loc[idx])
+                            if bench_dd_series is not None
+                            and idx in bench_dd_series.index
+                            and pd.notna(bench_dd_series.loc[idx])
+                            else None
+                        ),
                     }
                 )
             charts["drawdown"] = dd_rows
@@ -787,7 +816,7 @@ def _build_notebook_split_bundle(
     base["allocation"] = allocation
     base["interpretation_allocation"] = _interpret_allocation(current_w, optimal_w)
 
-    trades: List[Dict[str, Any]] = []
+    trades: list[dict[str, Any]] = []
     try:
         trades = optimization_service.generate_trade_list(portfolio_id, result)
     except Exception as exc:
@@ -798,8 +827,8 @@ def _build_notebook_split_bundle(
 
     base["charts"] = charts
 
-    frontier_payload: Optional[Dict[str, Any]] = None
-    frontier_analytics: Dict[str, Any] = {}
+    frontier_payload: dict[str, Any] | None = None
+    frontier_analytics: dict[str, Any] = {}
     try:
         frontier_analytics = analytics_service.calculate_portfolio_metrics(
             portfolio_id,
@@ -834,7 +863,7 @@ def _build_notebook_split_bundle(
 
     base["efficient_frontier"] = frontier_payload
 
-    correlation_block: Optional[Dict[str, Any]] = None
+    correlation_block: dict[str, Any] | None = None
     try:
         price_frames = []
         for ticker in result.tickers:
@@ -843,7 +872,11 @@ def _build_notebook_split_bundle(
             prices = data_service.fetch_historical_prices(
                 ticker, train_start, train_end, use_cache=True, save_to_db=False
             )
-            if isinstance(prices, pd.DataFrame) and not prices.empty and "Date" in prices.columns:
+            if (
+                isinstance(prices, pd.DataFrame)
+                and not prices.empty
+                and "Date" in prices.columns
+            ):
                 prices = prices[["Date", "Adjusted_Close"]].copy()
                 prices["Ticker"] = ticker
                 price_frames.append(prices)
@@ -866,18 +899,22 @@ def _build_notebook_split_bundle(
                 correlation_block = {
                     "tickers": labels,
                     "matrix": matrix,
-                    "interpretation": _interpret_corr_block(corr, optimal_w, len(labels)),
+                    "interpretation": _interpret_corr_block(
+                        corr, optimal_w, len(labels)
+                    ),
                 }
     except Exception as exc:
         logger.warning("Correlation block failed (notebook): %s", exc)
 
     base["correlation"] = correlation_block
 
-    sensitivity_block: Optional[Dict[str, Any]] = None
+    sensitivity_block: dict[str, Any] | None = None
     if include_sensitivity:
         try:
             if method in ("min_tracking_error", "max_alpha"):
-                warnings_list.append("Sensitivity skipped: not supported for this method.")
+                warnings_list.append(
+                    "Sensitivity skipped: not supported for this method."
+                )
             else:
                 sensitivity_block = optimization_service.perform_sensitivity_analysis(
                     portfolio_id=portfolio_id,
@@ -912,19 +949,19 @@ def build_optimization_full_bundle(
     method: str,
     start_date: date,
     end_date: date,
-    constraints: Optional[Dict[str, Any]] = None,
-    benchmark_ticker: Optional[str] = None,
-    method_params: Optional[Dict[str, Any]] = None,
+    constraints: dict[str, Any] | None = None,
+    benchmark_ticker: str | None = None,
+    method_params: dict[str, Any] | None = None,
     out_of_sample: bool = False,
     training_ratio: float = 0.3,
-    benchmark_for_charts: Optional[str] = None,
+    benchmark_for_charts: str | None = None,
     include_efficient_frontier: bool = True,
     frontier_n_points: int = 150,
     include_sensitivity: bool = False,
     sensitivity_analysis_type: str = "returns",
     notebook_split: bool = False,
     notebook_train_fraction: float = 0.7,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run optimization and assemble charts, metrics, trades, frontier, correlation.
     """
@@ -966,7 +1003,7 @@ def build_optimization_full_bundle(
         training_ratio=training_ratio,
     )
 
-    base: Dict[str, Any] = {
+    base: dict[str, Any] = {
         "optimization": result.to_dict(),
         "success": result.success,
         "message": result.message or "",
@@ -991,7 +1028,7 @@ def build_optimization_full_bundle(
     if not result.success:
         return base
 
-    warnings_list: List[str] = []
+    warnings_list: list[str] = []
     min_ret = (constraints or {}).get("min_return")
     if min_ret is not None and result.expected_return is not None:
         if result.expected_return < min_ret:
@@ -1000,7 +1037,7 @@ def build_optimization_full_bundle(
                 "Try relaxing constraints."
             )
 
-    current_analytics: Dict[str, Any] = {}
+    current_analytics: dict[str, Any] = {}
     try:
         current_analytics = analytics_service.calculate_portfolio_metrics(
             portfolio_id,
@@ -1069,7 +1106,9 @@ def build_optimization_full_bundle(
             }
 
     base["metrics"] = {"current": current_metrics, "optimized": optimized_metrics}
-    base["interpretation_comparison"] = _interpret_comparison(optimized_metrics, current_metrics)
+    base["interpretation_comparison"] = _interpret_comparison(
+        optimized_metrics, current_metrics
+    )
 
     current_w = _current_weights_for_result(
         portfolio_service, data_service, portfolio_id, list(result.tickers)
@@ -1090,7 +1129,7 @@ def build_optimization_full_bundle(
     base["allocation"] = allocation
     base["interpretation_allocation"] = _interpret_allocation(current_w, optimal_w)
 
-    trades: List[Dict[str, Any]] = []
+    trades: list[dict[str, Any]] = []
     try:
         trades = optimization_service.generate_trade_list(portfolio_id, result)
     except Exception as exc:
@@ -1100,7 +1139,7 @@ def build_optimization_full_bundle(
     base["interpretation_trades"] = _interpret_trades(trades) if trades else ""
 
     # Charts: cumulative returns & drawdowns
-    charts: Dict[str, Any] = {"cumulative_returns": [], "drawdown": []}
+    charts: dict[str, Any] = {"cumulative_returns": [], "drawdown": []}
     benchmark_returns = current_analytics.get("benchmark_returns")
     current_values = current_analytics.get("portfolio_values")
 
@@ -1129,7 +1168,7 @@ def build_optimization_full_bundle(
             if benchmark_returns is not None and not benchmark_returns.empty:
                 bench_al = benchmark_returns.reindex(aligned_idx)
 
-            cum_rows: List[Dict[str, Any]] = []
+            cum_rows: list[dict[str, Any]] = []
             if cur_al is not None and not cur_al.empty:
                 cur_cum = (1 + cur_al).cumprod() - 1
                 opt_cum = (1 + opt_al).cumprod() - 1
@@ -1139,12 +1178,14 @@ def build_optimization_full_bundle(
                     else None
                 )
                 for idx in cur_cum.index:
-                    row: Dict[str, Any] = {
+                    row: dict[str, Any] = {
                         "x": str(idx)[:10],
                         "current": float(cur_cum.loc[idx]) * 100.0,
-                        "optimized": float(opt_cum.loc[idx]) * 100.0
-                        if idx in opt_cum.index
-                        else None,
+                        "optimized": (
+                            float(opt_cum.loc[idx]) * 100.0
+                            if idx in opt_cum.index
+                            else None
+                        ),
                     }
                     if bench_cum is not None and idx in bench_cum.index:
                         row["benchmark"] = float(bench_cum.loc[idx]) * 100.0
@@ -1157,9 +1198,9 @@ def build_optimization_full_bundle(
                     if bench_al is not None and not bench_al.empty
                     else None
                 )
-                only_opt_rows: List[Dict[str, Any]] = []
+                only_opt_rows: list[dict[str, Any]] = []
                 for idx in opt_cum.index:
-                    row_o: Dict[str, Any] = {
+                    row_o: dict[str, Any] = {
                         "x": str(idx)[:10],
                         "current": None,
                         "optimized": float(opt_cum.loc[idx]) * 100.0,
@@ -1170,9 +1211,13 @@ def build_optimization_full_bundle(
                 charts["cumulative_returns"] = only_opt_rows
 
             # Drawdown
-            dd_rows: List[Dict[str, Any]] = []
+            dd_rows: list[dict[str, Any]] = []
             opt_dd = _drawdown_pct(opt_vals)
-            cur_dd = _drawdown_pct(current_values) if current_values is not None else pd.Series()
+            cur_dd = (
+                _drawdown_pct(current_values)
+                if current_values is not None
+                else pd.Series()
+            )
             bench_dd_series = None
             if bench_al is not None and not bench_al.empty and benchmark_for_charts:
                 bv = (1 + bench_al).cumprod()
@@ -1187,20 +1232,25 @@ def build_optimization_full_bundle(
                 dd_rows.append(
                     {
                         "x": str(idx)[:10],
-                        "optimized": float(opt_dd.loc[idx])
-                        if idx in opt_dd.index
-                        and pd.notna(opt_dd.loc[idx])
-                        else None,
-                        "current": float(cur_dd.loc[idx])
-                        if not cur_dd.empty
-                        and idx in cur_dd.index
-                        and pd.notna(cur_dd.loc[idx])
-                        else None,
-                        "benchmark": float(bench_dd_series.loc[idx])
-                        if bench_dd_series is not None
-                        and idx in bench_dd_series.index
-                        and pd.notna(bench_dd_series.loc[idx])
-                        else None,
+                        "optimized": (
+                            float(opt_dd.loc[idx])
+                            if idx in opt_dd.index and pd.notna(opt_dd.loc[idx])
+                            else None
+                        ),
+                        "current": (
+                            float(cur_dd.loc[idx])
+                            if not cur_dd.empty
+                            and idx in cur_dd.index
+                            and pd.notna(cur_dd.loc[idx])
+                            else None
+                        ),
+                        "benchmark": (
+                            float(bench_dd_series.loc[idx])
+                            if bench_dd_series is not None
+                            and idx in bench_dd_series.index
+                            and pd.notna(bench_dd_series.loc[idx])
+                            else None
+                        ),
                     }
                 )
             charts["drawdown"] = dd_rows
@@ -1211,8 +1261,8 @@ def build_optimization_full_bundle(
     base["charts"] = charts
 
     # Efficient frontier
-    frontier_payload: Optional[Dict[str, Any]] = None
-    frontier_analytics: Dict[str, Any] = {}
+    frontier_payload: dict[str, Any] | None = None
+    frontier_analytics: dict[str, Any] = {}
     try:
         frontier_analytics = analytics_service.calculate_portfolio_metrics(
             portfolio_id,
@@ -1268,7 +1318,7 @@ def build_optimization_full_bundle(
     base["efficient_frontier"] = frontier_payload
 
     # Correlation matrix (non-CASH tickers)
-    correlation_block: Optional[Dict[str, Any]] = None
+    correlation_block: dict[str, Any] | None = None
     try:
         price_frames = []
         for ticker in result.tickers:
@@ -1277,7 +1327,11 @@ def build_optimization_full_bundle(
             prices = data_service.fetch_historical_prices(
                 ticker, start_date, end_date, use_cache=True, save_to_db=False
             )
-            if isinstance(prices, pd.DataFrame) and not prices.empty and "Date" in prices.columns:
+            if (
+                isinstance(prices, pd.DataFrame)
+                and not prices.empty
+                and "Date" in prices.columns
+            ):
                 prices = prices[["Date", "Adjusted_Close"]].copy()
                 prices["Ticker"] = ticker
                 price_frames.append(prices)
@@ -1293,22 +1347,29 @@ def build_optimization_full_bundle(
             if not rets.empty and rets.shape[1] >= 2:
                 corr = rets.corr()
                 labels = [str(c) for c in corr.columns]
-                matrix = [[float(corr.iloc[i, j]) for j in range(len(labels))] for i in range(len(labels))]
+                matrix = [
+                    [float(corr.iloc[i, j]) for j in range(len(labels))]
+                    for i in range(len(labels))
+                ]
                 correlation_block = {
                     "tickers": labels,
                     "matrix": matrix,
-                    "interpretation": _interpret_corr_block(corr, optimal_w, len(labels)),
+                    "interpretation": _interpret_corr_block(
+                        corr, optimal_w, len(labels)
+                    ),
                 }
     except Exception as exc:
         logger.warning("Correlation block failed: %s", exc)
 
     base["correlation"] = correlation_block
 
-    sensitivity_block: Optional[Dict[str, Any]] = None
+    sensitivity_block: dict[str, Any] | None = None
     if include_sensitivity:
         try:
             if method in ("min_tracking_error", "max_alpha"):
-                warnings_list.append("Sensitivity skipped: not supported for this method.")
+                warnings_list.append(
+                    "Sensitivity skipped: not supported for this method."
+                )
             else:
                 sensitivity_block = optimization_service.perform_sensitivity_analysis(
                     portfolio_id=portfolio_id,
@@ -1335,7 +1396,9 @@ def build_optimization_full_bundle(
     return base
 
 
-def _interpret_corr_block(corr: pd.DataFrame, optimal_w: Dict[str, float], num_assets: int) -> str:
+def _interpret_corr_block(
+    corr: pd.DataFrame, optimal_w: dict[str, float], num_assets: int
+) -> str:
     lines = ["**Diversification Assessment:**"]
     mask = ~np.eye(len(corr), dtype=bool)
     values = corr.values[mask]
@@ -1343,11 +1406,17 @@ def _interpret_corr_block(corr: pd.DataFrame, optimal_w: Dict[str, float], num_a
     if len(values) > 0:
         avg_corr = float(np.mean(values))
         if avg_corr < 0.3:
-            lines.append(f"✓ Low average correlation ({avg_corr:.2f}) - Excellent diversification")
+            lines.append(
+                f"✓ Low average correlation ({avg_corr:.2f}) - Excellent diversification"
+            )
         elif avg_corr < 0.5:
-            lines.append(f"Moderate average correlation ({avg_corr:.2f}) - Good diversification")
+            lines.append(
+                f"Moderate average correlation ({avg_corr:.2f}) - Good diversification"
+            )
         else:
-            lines.append(f"⚠ High average correlation ({avg_corr:.2f}) - Limited diversification")
+            lines.append(
+                f"⚠ High average correlation ({avg_corr:.2f}) - Limited diversification"
+            )
     mx = max(optimal_w.values()) if optimal_w else 0
     if mx > 0.5:
         lines.append(f"⚠ High concentration: Max weight is {mx:.1%}")
@@ -1356,7 +1425,9 @@ def _interpret_corr_block(corr: pd.DataFrame, optimal_w: Dict[str, float], num_a
     else:
         lines.append(f"✓ Well-diversified weights: Max weight is {mx:.1%}")
     if num_assets >= 10:
-        lines.append(f"✓ Sufficient number of assets ({num_assets}) for diversification")
+        lines.append(
+            f"✓ Sufficient number of assets ({num_assets}) for diversification"
+        )
     elif num_assets >= 5:
         lines.append(f"Moderate number of assets ({num_assets})")
     else:
@@ -1364,7 +1435,7 @@ def _interpret_corr_block(corr: pd.DataFrame, optimal_w: Dict[str, float], num_a
     return "\n".join(lines)
 
 
-def _interpret_sensitivity_block(results: List[Dict[str, Any]]) -> str:
+def _interpret_sensitivity_block(results: list[dict[str, Any]]) -> str:
     if not results:
         return ""
     lines = ["**Sensitivity Analysis:**"]
@@ -1382,7 +1453,9 @@ def _interpret_sensitivity_block(results: List[Dict[str, Any]]) -> str:
     sens.sort(key=lambda x: x["range"], reverse=True)
     if sens:
         top = sens[0]
-        lines.append(f"Most sensitive asset: {top['ticker']} (weight range: {top['range']:.1%})")
+        lines.append(
+            f"Most sensitive asset: {top['ticker']} (weight range: {top['range']:.1%})"
+        )
     avg_range = float(np.mean([s["range"] for s in sens]))
     if avg_range < 0.05:
         lines.append(f"✓ Portfolio weights are stable (avg range: {avg_range:.1%})")

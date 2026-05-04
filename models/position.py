@@ -1,7 +1,7 @@
 """Position ORM model."""
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, Float, ForeignKey, Index, String, UniqueConstraint
@@ -38,15 +38,9 @@ class Position(Base):
     # Attributes
     ticker: Mapped[str] = mapped_column(String(10), nullable=False)
     shares: Mapped[float] = mapped_column(Float, nullable=False)
-    weight_target: Mapped[float | None] = mapped_column(
-        Float, nullable=True
-    )
-    purchase_price: Mapped[float | None] = mapped_column(
-        Float, nullable=True
-    )
-    purchase_date: Mapped[date | None] = mapped_column(
-        Date, nullable=True
-    )
+    weight_target: Mapped[float | None] = mapped_column(Float, nullable=True)
+    purchase_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    purchase_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Relationships
     portfolio: Mapped["Portfolio"] = relationship(
@@ -70,4 +64,3 @@ class Position(Base):
             f"<Position(ticker={self.ticker}, "
             f"shares={self.shares}, portfolio_id={self.portfolio_id})>"
         )
-

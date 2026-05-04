@@ -1,18 +1,17 @@
 """Unit tests for forecasting engine."""
 
-import pytest
 import numpy as np
 import pandas as pd
-from datetime import date, timedelta
+import pytest
 
+from core.exceptions import InsufficientDataError
 from core.forecasting_engine.base import BaseForecaster, ForecastResult
 from core.forecasting_engine.utils import (
-    evaluate_forecast_metrics,
     calculate_confidence_intervals,
-    prepare_features,
     calculate_technical_indicators,
+    evaluate_forecast_metrics,
+    prepare_features,
 )
-from core.exceptions import InsufficientDataError, CalculationError
 
 
 class TestForecastResult:
@@ -112,7 +111,9 @@ class TestConfidenceIntervals:
         forecast = np.array([100.0, 101.0, 102.0, 103.0, 104.0])
         residuals = np.array([0.1, -0.1, 0.2, -0.2, 0.1])
 
-        ci = calculate_confidence_intervals(forecast, residuals=residuals, confidence_level=0.95)
+        ci = calculate_confidence_intervals(
+            forecast, residuals=residuals, confidence_level=0.95
+        )
 
         assert "upper_95" in ci
         assert "lower_95" in ci
@@ -173,7 +174,9 @@ class TestBaseForecaster:
             def forecast(self, horizon: int, **kwargs):
                 return ForecastResult(
                     method="Test",
-                    forecast_dates=pd.date_range("2024-02-01", periods=horizon, freq="D"),
+                    forecast_dates=pd.date_range(
+                        "2024-02-01", periods=horizon, freq="D"
+                    ),
                     forecast_values=np.array([100.0] * horizon),
                     forecast_returns=np.array([0.0] * horizon),
                 )
@@ -209,4 +212,3 @@ class TestBaseForecaster:
 
         change_pct = forecaster._calculate_change_pct(forecast_values, last_price)
         assert change_pct == 20.0  # (120 - 100) / 100 * 100
-

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -11,6 +11,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from core.analytics_engine.chart_data import (
+    get_asset_impact_on_return_data,
+    get_asset_impact_on_risk_data,
+    get_asset_metrics_data,
+    get_average_correlation_to_portfolio_data,
+    get_correlation_matrix_data,
+    get_correlation_statistics_data,
+    get_correlation_with_benchmark_data,
+    get_detailed_asset_analysis_data,
+    get_diversification_coefficient_data,
+    get_risk_vs_weight_comparison_data,
+)
 from core.data_manager.transaction import Transaction
 from core.exceptions import (
     CalculationError,
@@ -20,23 +32,13 @@ from core.exceptions import (
     PortfolioNotFoundError,
     ValidationError,
 )
-from core.scenario_engine.custom_scenarios import create_custom_scenario, validate_scenario
+from core.scenario_engine.custom_scenarios import (
+    create_custom_scenario,
+    validate_scenario,
+)
 from core.scenario_engine.historical_scenarios import get_scenario_by_name
 from core.scenario_engine.scenario_chain import create_scenario_chain
 from database.session import init_db
-from core.analytics_engine.chart_data import (
-    get_asset_metrics_data,
-    get_asset_impact_on_return_data,
-    get_asset_impact_on_risk_data,
-    get_correlation_matrix_data,
-    get_correlation_statistics_data,
-    get_correlation_with_benchmark_data,
-    get_diversification_coefficient_data,
-    get_risk_vs_weight_comparison_data,
-    get_asset_price_dynamics_data,
-    get_detailed_asset_analysis_data,
-    get_average_correlation_to_portfolio_data,
-)
 from services.analytics_service import AnalyticsService
 from services.data_service import DataService
 from services.forecasting_service import ForecastingService
@@ -57,7 +59,6 @@ from services.risk_ui_bundle import (
 from services.schemas import (
     AddPositionRequest,
     CreatePortfolioRequest,
-    PositionSchema,
     UpdatePortfolioRequest,
     UpdatePositionRequest,
 )
@@ -68,12 +69,14 @@ class AddTransactionRequest(BaseModel):
     """API payload for adding a transaction."""
 
     transaction_date: date
-    transaction_type: str = Field(..., examples=["BUY", "SELL", "DEPOSIT", "WITHDRAWAL"])
+    transaction_type: str = Field(
+        ..., examples=["BUY", "SELL", "DEPOSIT", "WITHDRAWAL"]
+    )
     ticker: str
     shares: float
     price: float
     fees: float = 0.0
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class RiskVarRequest(BaseModel):
@@ -128,16 +131,16 @@ class AnalyticsRequest(BaseModel):
     portfolio_id: str
     start_date: date
     end_date: date
-    benchmark_ticker: Optional[str] = None
-    comparison_type: Optional[str] = None
-    comparison_value: Optional[str] = None
+    benchmark_ticker: str | None = None
+    comparison_type: str | None = None
+    comparison_value: str | None = None
 
 
 class AssetsAnalyticsRequest(BaseModel):
     portfolio_id: str
     start_date: date
     end_date: date
-    benchmark_ticker: Optional[str] = None
+    benchmark_ticker: str | None = None
 
 
 class OptimizationRequest(BaseModel):
@@ -145,9 +148,9 @@ class OptimizationRequest(BaseModel):
     method: str
     start_date: date
     end_date: date
-    constraints: Optional[dict[str, Any]] = None
-    benchmark_ticker: Optional[str] = None
-    method_params: Optional[dict[str, Any]] = None
+    constraints: dict[str, Any] | None = None
+    benchmark_ticker: str | None = None
+    method_params: dict[str, Any] | None = None
     out_of_sample: bool = False
     training_ratio: float = 0.3
 
@@ -155,7 +158,7 @@ class OptimizationRequest(BaseModel):
 class OptimizationFullRequest(OptimizationRequest):
     """Optimization + charts, frontier, trades (Streamlit-equivalent bundle)."""
 
-    benchmark_for_charts: Optional[str] = None
+    benchmark_for_charts: str | None = None
     include_efficient_frontier: bool = True
     frontier_n_points: int = 150
     include_sensitivity: bool = False
@@ -170,7 +173,7 @@ class ForecastAssetRequest(BaseModel):
     end_date: date
     horizon: int
     method: str
-    method_params: Optional[dict[str, Any]] = None
+    method_params: dict[str, Any] | None = None
     out_of_sample: bool = False
     training_ratio: float = 0.3
 
@@ -181,7 +184,7 @@ class ForecastPortfolioRequest(BaseModel):
     end_date: date
     horizon: int
     method: str
-    method_params: Optional[dict[str, Any]] = None
+    method_params: dict[str, Any] | None = None
     out_of_sample: bool = False
     training_ratio: float = 0.3
 
@@ -190,8 +193,8 @@ class ForecastBatchRequest(BaseModel):
     """Run multiple methods in one request (Streamlit forecasting page parity)."""
 
     scope: str  # "asset" | "portfolio"
-    ticker: Optional[str] = None
-    portfolio_id: Optional[str] = None
+    ticker: str | None = None
+    portfolio_id: str | None = None
     start_date: date
     end_date: date
     horizon: int
@@ -208,7 +211,9 @@ def _serialize_position(position: Any) -> dict[str, Any]:
         "shares": position.shares,
         "weight_target": position.weight_target,
         "purchase_price": position.purchase_price,
-        "purchase_date": position.purchase_date.isoformat() if position.purchase_date else None,
+        "purchase_date": (
+            position.purchase_date.isoformat() if position.purchase_date else None
+        ),
     }
 
 
@@ -273,7 +278,9 @@ def _to_jsonable(value: Any) -> Any:
 def _handle_error(exc: Exception) -> None:
     if isinstance(exc, PortfolioNotFoundError):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if isinstance(exc, (ValidationError, ValueError, CalculationError, InsufficientDataError)):
+    if isinstance(
+        exc, (ValidationError, ValueError, CalculationError, InsufficientDataError)
+    ):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if isinstance(exc, ConflictError):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -325,7 +332,15 @@ def dashboard_indices() -> list[dict[str, Any]]:
                 save_to_db=True,
             )
             if prices.empty:
-                result.append({**item, "price": None, "change": None, "change_pct": None, "series": []})
+                result.append(
+                    {
+                        **item,
+                        "price": None,
+                        "change": None,
+                        "change_pct": None,
+                        "series": [],
+                    }
+                )
                 continue
             close_col = "Close" if "Close" in prices.columns else "Adjusted_Close"
             latest = float(prices[close_col].iloc[-1])
@@ -334,10 +349,29 @@ def dashboard_indices() -> list[dict[str, Any]]:
             change_pct = (change / prev * 100.0) if prev else 0.0
             series = []
             if "Date" in prices.columns:
-                series = [{"x": str(d), "y": float(v)} for d, v in zip(prices["Date"], prices[close_col])]
-            result.append({**item, "price": latest, "change": change, "change_pct": change_pct, "series": series})
+                series = [
+                    {"x": str(d), "y": float(v)}
+                    for d, v in zip(prices["Date"], prices[close_col])
+                ]
+            result.append(
+                {
+                    **item,
+                    "price": latest,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "series": series,
+                }
+            )
         except Exception:
-            result.append({**item, "price": None, "change": None, "change_pct": None, "series": []})
+            result.append(
+                {
+                    **item,
+                    "price": None,
+                    "change": None,
+                    "change_pct": None,
+                    "series": [],
+                }
+            )
     return result
 
 
@@ -383,9 +417,13 @@ def create_portfolio(payload: CreatePortfolioRequest) -> dict[str, Any]:
 
 
 @app.patch("/portfolios/{portfolio_id}")
-def update_portfolio(portfolio_id: str, payload: UpdatePortfolioRequest) -> dict[str, Any]:
+def update_portfolio(
+    portfolio_id: str, payload: UpdatePortfolioRequest
+) -> dict[str, Any]:
     try:
-        return _serialize_portfolio(portfolio_service.update_portfolio(portfolio_id, payload))
+        return _serialize_portfolio(
+            portfolio_service.update_portfolio(portfolio_id, payload)
+        )
     except Exception as exc:
         _handle_error(exc)
         raise
@@ -403,16 +441,22 @@ def delete_portfolio(portfolio_id: str) -> dict[str, bool]:
 @app.post("/portfolios/{portfolio_id}/positions")
 def add_position(portfolio_id: str, payload: AddPositionRequest) -> dict[str, Any]:
     try:
-        return _serialize_portfolio(portfolio_service.add_position(portfolio_id, payload))
+        return _serialize_portfolio(
+            portfolio_service.add_position(portfolio_id, payload)
+        )
     except Exception as exc:
         _handle_error(exc)
         raise
 
 
 @app.patch("/portfolios/{portfolio_id}/positions/{ticker}")
-def update_position(portfolio_id: str, ticker: str, payload: UpdatePositionRequest) -> dict[str, Any]:
+def update_position(
+    portfolio_id: str, ticker: str, payload: UpdatePositionRequest
+) -> dict[str, Any]:
     try:
-        return _serialize_portfolio(portfolio_service.update_position(portfolio_id, ticker, payload))
+        return _serialize_portfolio(
+            portfolio_service.update_position(portfolio_id, ticker, payload)
+        )
     except Exception as exc:
         _handle_error(exc)
         raise
@@ -421,7 +465,9 @@ def update_position(portfolio_id: str, ticker: str, payload: UpdatePositionReque
 @app.delete("/portfolios/{portfolio_id}/positions/{ticker}")
 def remove_position(portfolio_id: str, ticker: str) -> dict[str, Any]:
     try:
-        return _serialize_portfolio(portfolio_service.remove_position(portfolio_id, ticker))
+        return _serialize_portfolio(
+            portfolio_service.remove_position(portfolio_id, ticker)
+        )
     except Exception as exc:
         _handle_error(exc)
         raise
@@ -429,11 +475,16 @@ def remove_position(portfolio_id: str, ticker: str) -> dict[str, Any]:
 
 @app.get("/portfolios/{portfolio_id}/transactions")
 def get_transactions(portfolio_id: str) -> list[dict[str, Any]]:
-    return [_serialize_transaction(tx) for tx in transaction_service.get_transactions(portfolio_id)]
+    return [
+        _serialize_transaction(tx)
+        for tx in transaction_service.get_transactions(portfolio_id)
+    ]
 
 
 @app.post("/portfolios/{portfolio_id}/transactions")
-def add_transaction(portfolio_id: str, payload: AddTransactionRequest) -> dict[str, Any]:
+def add_transaction(
+    portfolio_id: str, payload: AddTransactionRequest
+) -> dict[str, Any]:
     try:
         tx = transaction_service.add_transaction(
             portfolio_id=portfolio_id,
@@ -488,14 +539,19 @@ def calculate_asset_analytics(payload: AssetsAnalyticsRequest) -> dict[str, Any]
             tickers, payload.start_date, payload.end_date
         )
 
-        benchmark_returns: Optional[pd.Series] = None
+        benchmark_returns: pd.Series | None = None
         if payload.benchmark_ticker:
             try:
                 bm_prices = analytics_service._fetch_portfolio_prices(
                     [payload.benchmark_ticker], payload.start_date, payload.end_date
                 )
-                if not bm_prices.empty and payload.benchmark_ticker in bm_prices.columns:
-                    bm_series = bm_prices[payload.benchmark_ticker].sort_index().ffill().bfill()
+                if (
+                    not bm_prices.empty
+                    and payload.benchmark_ticker in bm_prices.columns
+                ):
+                    bm_series = (
+                        bm_prices[payload.benchmark_ticker].sort_index().ffill().bfill()
+                    )
                     benchmark_returns = bm_series.pct_change().dropna()
             except Exception:
                 pass
@@ -524,14 +580,24 @@ def calculate_asset_analytics(payload: AssetsAnalyticsRequest) -> dict[str, Any]
         )
 
         # 5. Diversification
-        result["diversification"] = get_diversification_coefficient_data(positions, price_data)
+        result["diversification"] = get_diversification_coefficient_data(
+            positions, price_data
+        )
 
         # 6. Correlation matrix
-        corr_data = get_correlation_matrix_data(positions, price_data, benchmark_returns)
+        corr_data = get_correlation_matrix_data(
+            positions, price_data, benchmark_returns
+        )
         if corr_data and corr_data.get("correlation_matrix") is not None:
             corr_matrix = corr_data["correlation_matrix"]
             result["correlations"] = {
-                "matrix": {str(r): {str(c): float(corr_matrix.loc[r, c]) for c in corr_matrix.columns} for r in corr_matrix.index},
+                "matrix": {
+                    str(r): {
+                        str(c): float(corr_matrix.loc[r, c])
+                        for c in corr_matrix.columns
+                    }
+                    for r in corr_matrix.index
+                },
                 "tickers": corr_data["tickers"],
             }
             # 7. Correlation statistics
@@ -549,8 +615,8 @@ def calculate_asset_analytics(payload: AssetsAnalyticsRequest) -> dict[str, Any]
             result["benchmark_correlations"] = None
 
         # 9. Average correlation to portfolio
-        result["avg_correlation_to_portfolio"] = get_average_correlation_to_portfolio_data(
-            positions, price_data
+        result["avg_correlation_to_portfolio"] = (
+            get_average_correlation_to_portfolio_data(positions, price_data)
         )
 
         # 10. Individual asset returns (daily, as { dates: [...], TICKER: [...] })
@@ -599,7 +665,9 @@ def optimize(payload: OptimizationRequest) -> dict[str, Any]:
             out_of_sample=payload.out_of_sample,
             training_ratio=payload.training_ratio,
         )
-        return _to_jsonable(result.to_dict() if hasattr(result, "to_dict") else result.__dict__)
+        return _to_jsonable(
+            result.to_dict() if hasattr(result, "to_dict") else result.__dict__
+        )
     except Exception as exc:
         _handle_error(exc)
         raise
@@ -856,7 +924,9 @@ def forecast_portfolio(payload: ForecastPortfolioRequest) -> Any:
 def forecast_batch(payload: ForecastBatchRequest) -> Any:
     try:
         if payload.scope not in ("asset", "portfolio"):
-            raise HTTPException(status_code=400, detail="scope must be 'asset' or 'portfolio'")
+            raise HTTPException(
+                status_code=400, detail="scope must be 'asset' or 'portfolio'"
+            )
         bundle = build_forecast_batch_bundle(
             forecasting_service,
             data_service,
@@ -879,4 +949,3 @@ def forecast_batch(payload: ForecastBatchRequest) -> Any:
     except Exception as exc:
         _handle_error(exc)
         raise
-

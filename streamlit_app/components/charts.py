@@ -1,7 +1,7 @@
 """Chart components for portfolio visualization using Plotly."""
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def plot_cumulative_returns(
-    data: Dict[str, pd.Series],
+    data: dict[str, pd.Series],
     linear_scale: bool = True,
 ) -> go.Figure:
     """
@@ -69,7 +69,7 @@ def plot_cumulative_returns(
 
 
 def plot_drawdown(
-    data: Dict[str, pd.Series],
+    data: dict[str, pd.Series],
 ) -> go.Figure:
     """
     Plot drawdown chart.
@@ -122,7 +122,7 @@ def plot_drawdown(
 
 
 def plot_rolling_metric(
-    data: Dict[str, pd.Series],
+    data: dict[str, pd.Series],
     metric_name: str,
     threshold: Optional[float] = None,
 ) -> go.Figure:
@@ -172,7 +172,7 @@ def plot_rolling_metric(
 
 
 def plot_return_distribution(
-    data: Dict[str, any],
+    data: dict[str, any],
     bar_color: str = "blue",  # "blue" for daily, "green" for monthly
 ) -> go.Figure:
     """
@@ -227,12 +227,12 @@ def plot_return_distribution(
         var_90 = data.get("var_90")
         var_95 = data.get("var_95")
         var_99 = data.get("var_99")
-        
+
         # Positive VaR (upper tail)
         var_90_pos = data.get("var_90_pos")
         var_95_pos = data.get("var_95_pos")
         var_99_pos = data.get("var_99_pos")
-        
+
         # Negative VaR (lower tail) - percentage at bottom, value at top
         if var_90 is not None:
             var_90_val = var_90 * 100
@@ -296,7 +296,7 @@ def plot_return_distribution(
                 annotation_position="bottom",
                 line_width=1,
             )
-        
+
         # Positive VaR (upper tail) - percentage at bottom, value at top
         if var_90_pos is not None:
             var_90_pos_val = var_90_pos * 100
@@ -370,7 +370,9 @@ def plot_return_distribution(
                     y=y_norm,
                     mode="lines",
                     name="Normal Distribution",
-                    line=dict(color=COLORS["warning"], width=2, dash="dash"),  # Orange #FFCC80
+                    line=dict(
+                        color=COLORS["warning"], width=2, dash="dash"
+                    ),  # Orange #FFCC80
                 )
             )
 
@@ -386,7 +388,7 @@ def plot_return_distribution(
 
 
 def plot_qq_plot(
-    data: Dict[str, np.ndarray],
+    data: dict[str, np.ndarray],
 ) -> go.Figure:
     """
     Plot Q-Q plot (quantile-quantile plot).
@@ -442,7 +444,7 @@ def plot_qq_plot(
 
 
 def plot_monthly_heatmap(
-    data: Dict[str, pd.DataFrame],
+    data: dict[str, pd.DataFrame],
 ) -> go.Figure:
     """
     Plot monthly returns heatmap.
@@ -500,7 +502,7 @@ def plot_monthly_heatmap(
 
 
 def plot_rolling_sharpe(
-    data: Dict[str, pd.Series],
+    data: dict[str, pd.Series],
     window: int = 126,
 ) -> go.Figure:
     """
@@ -560,7 +562,7 @@ def plot_rolling_sharpe(
 
 
 def plot_rolling_beta_alpha(
-    data: Dict[str, pd.Series],
+    data: dict[str, pd.Series],
     window: int = 126,
 ) -> go.Figure:
     """
@@ -629,7 +631,7 @@ def plot_rolling_beta_alpha(
 
 
 def plot_underwater(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot underwater plot (drawdown from peak).
@@ -667,7 +669,9 @@ def plot_underwater(
                 x=benchmark_underwater.index,
                 y=benchmark_underwater.values,
                 mode="lines",
-                line=dict(color=COLORS["warning"], width=2),  # Orange #FFCC80 - benchmark
+                line=dict(
+                    color=COLORS["warning"], width=2
+                ),  # Orange #FFCC80 - benchmark
                 name="Benchmark",
             )
         )
@@ -678,7 +682,7 @@ def plot_underwater(
             y=0,
             line=dict(color="black", width=2),
             annotation_text="Peak",
-            annotation_position="right"
+            annotation_position="right",
         )
 
     # Annotate max drawdown
@@ -694,7 +698,7 @@ def plot_underwater(
             bgcolor="rgba(0,0,0,0)",  # Transparent background
             bordercolor=COLORS["danger"],
             borderwidth=2,
-            font=dict(color="white", size=11)  # White text
+            font=dict(color="white", size=11),  # White text
         )
 
     # Highlight current drawdown (if exists)
@@ -710,7 +714,7 @@ def plot_underwater(
             bgcolor="rgba(0,0,0,0)",  # Transparent background
             bordercolor=COLORS["warning"],
             borderwidth=2,
-            font=dict(color="white", size=11)  # White text
+            font=dict(color="white", size=11),  # White text
         )
 
     layout = get_chart_layout(
@@ -725,7 +729,7 @@ def plot_underwater(
 
 
 def plot_drawdown_periods(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot drawdown periods with shaded zones.
@@ -763,7 +767,7 @@ def plot_drawdown_periods(
             layer="below",
             line_width=0,
         )
-        
+
         # Add label in the middle of the zone
         mid_date = zone["start"] + (zone["end"] - zone["start"]) / 2
         if mid_date in cum_returns.index:
@@ -772,7 +776,7 @@ def plot_drawdown_periods(
             # Find closest date
             closest_idx = cum_returns.index.get_indexer([mid_date], method="nearest")[0]
             mid_value = cum_returns.iloc[closest_idx]
-        
+
         fig.add_annotation(
             x=mid_date,
             y=mid_value,
@@ -781,7 +785,7 @@ def plot_drawdown_periods(
             bgcolor="rgba(220, 53, 69, 0.8)",
             bordercolor=COLORS["danger"],
             borderwidth=2,
-            font=dict(size=11, color="white", family="Arial Black")
+            font=dict(size=11, color="white", family="Arial Black"),
         )
 
     layout = get_chart_layout(
@@ -812,13 +816,13 @@ def plot_drawdown_recovery(
     start = drawdown_data["start_date"]
     bottom = drawdown_data["bottom_date"]
     recovery = drawdown_data["recovery_date"]
-    
+
     # Create timeline points
     dates = [start, bottom]
     values = [0, drawdown_data["depth"] * 100]  # Convert to %
     colors = ["green", "red"]
     labels = ["Peak", f"Trough ({drawdown_data['duration_days']}d)"]
-    
+
     if recovery:
         dates.append(recovery)
         values.append(0)
@@ -849,7 +853,7 @@ def plot_drawdown_recovery(
             bgcolor="rgba(255,255,255,0.9)",
             bordercolor="gray",
             borderwidth=1,
-            font=dict(color="black", size=11)
+            font=dict(color="black", size=11),
         )
 
     # Add zero line
@@ -871,7 +875,7 @@ def plot_drawdown_recovery(
 
 
 def plot_yearly_returns(
-    data: Dict[str, pd.DataFrame],
+    data: dict[str, pd.DataFrame],
 ) -> go.Figure:
     """
     Plot yearly returns comparison bar chart.
@@ -933,7 +937,7 @@ def plot_yearly_returns(
 
 
 def plot_best_worst_periods(
-    data: Dict[str, pd.DataFrame],
+    data: dict[str, pd.DataFrame],
     period_type: str = "days",
 ) -> go.Figure:
     """
@@ -985,7 +989,7 @@ def plot_best_worst_periods(
 
 
 def plot_asset_allocation(
-    asset_data: Dict[str, float],
+    asset_data: dict[str, float],
 ) -> go.Figure:
     """
     Plot asset allocation pie chart.
@@ -1053,7 +1057,7 @@ def plot_asset_allocation(
 
 
 def plot_sector_allocation(
-    sector_data: Dict[str, float],
+    sector_data: dict[str, float],
 ) -> go.Figure:
     """
     Plot sector allocation pie chart.
@@ -1124,24 +1128,24 @@ def plot_active_returns_area(
 ) -> go.Figure:
     """
     Plot daily active returns as area chart.
-    
+
     Args:
         active_returns: Series of active returns (portfolio - benchmark)
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if active_returns.empty:
         return fig
-    
+
     # Separate positive and negative
     positive = active_returns.copy()
     positive[positive < 0] = 0
     negative = active_returns.copy()
     negative[negative > 0] = 0
-    
+
     # Convert hex colors to rgba for transparency
     # #74F174 -> rgba(116, 241, 116, 0.3)
     # #EF5350 -> rgba(239, 83, 80, 0.3)
@@ -1149,7 +1153,7 @@ def plot_active_returns_area(
     danger_rgba = "rgba(239, 83, 80, 0.3)"
     success_line_rgba = "rgba(116, 241, 116, 0.5)"
     danger_line_rgba = "rgba(239, 83, 80, 0.5)"
-    
+
     # Positive area (green) - #74F174
     fig.add_trace(
         go.Scatter(
@@ -1163,7 +1167,7 @@ def plot_active_returns_area(
             showlegend=False,
         )
     )
-    
+
     # Negative area (red) - #EF5350
     fig.add_trace(
         go.Scatter(
@@ -1177,7 +1181,7 @@ def plot_active_returns_area(
             showlegend=False,
         )
     )
-    
+
     # Zero line
     fig.add_hline(
         y=0,
@@ -1185,14 +1189,14 @@ def plot_active_returns_area(
         line_color="white",
         line_width=1,
     )
-    
+
     layout = get_chart_layout(
         title="Daily Active Returns (Portfolio - Benchmark)",
         yaxis=dict(title="Active Return (%)", tickformat=",.2f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
@@ -1202,24 +1206,24 @@ def plot_period_returns_bar(
 ) -> go.Figure:
     """
     Plot period returns comparison as side-by-side bar chart.
-    
+
     Args:
         data: DataFrame with Period, Portfolio, Benchmark columns
         (values should be in decimal format, e.g., 0.15 = 15%)
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if data.empty:
         return fig
-    
+
     periods = data["Period"].values
     # Convert to percentage (values are in decimal format)
     portfolio = data["Portfolio"].fillna(0).values * 100
     benchmark = data["Benchmark"].fillna(0).values * 100
-    
+
     # Portfolio bars
     fig.add_trace(
         go.Bar(
@@ -1231,7 +1235,7 @@ def plot_period_returns_bar(
             textposition="outside",
         )
     )
-    
+
     # Benchmark bars
     fig.add_trace(
         go.Bar(
@@ -1243,7 +1247,7 @@ def plot_period_returns_bar(
             textposition="outside",
         )
     )
-    
+
     layout = get_chart_layout(
         title="Return by Periods",
         yaxis=dict(title="Return (%)", tickformat=",.1f"),
@@ -1251,7 +1255,7 @@ def plot_period_returns_bar(
         hovermode="x unified",
         barmode="group",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
@@ -1262,19 +1266,19 @@ def plot_return_quantiles_box(
 ) -> go.Figure:
     """
     Plot side-by-side box plots for return quantiles.
-    
+
     Args:
         portfolio_returns: Portfolio returns
         benchmark_returns: Optional benchmark returns
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if portfolio_returns.empty:
         return fig
-    
+
     # Portfolio box plot (blue)
     fig.add_trace(
         go.Box(
@@ -1284,7 +1288,7 @@ def plot_return_quantiles_box(
             boxmean="sd",
         )
     )
-    
+
     # Benchmark box plot (orange)
     if benchmark_returns is not None and not benchmark_returns.empty:
         fig.add_trace(
@@ -1295,14 +1299,14 @@ def plot_return_quantiles_box(
                 boxmean="sd",
             )
         )
-    
+
     layout = get_chart_layout(
         title="Return Quantiles - Portfolio vs Benchmark",
         yaxis=dict(title="Return (%)", tickformat=",.2f"),
         xaxis=dict(title=""),
         hovermode="y",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
@@ -1313,22 +1317,22 @@ def plot_seasonal_bar(
 ) -> go.Figure:
     """
     Plot seasonal analysis bar chart (day of week, month, or quarter).
-    
+
     Args:
         data: DataFrame with Portfolio and optionally Benchmark columns
         title: Chart title
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if data.empty:
         return fig
-    
+
     categories = data.index.values
     portfolio = data["Portfolio"].values
-    
+
     # Portfolio bars
     fig.add_trace(
         go.Bar(
@@ -1340,7 +1344,7 @@ def plot_seasonal_bar(
             textposition="outside",
         )
     )
-    
+
     # Benchmark bars if available
     if "Benchmark" in data.columns:
         benchmark = data["Benchmark"].values
@@ -1354,7 +1358,7 @@ def plot_seasonal_bar(
                 textposition="outside",
             )
         )
-    
+
     layout = get_chart_layout(
         title=title,
         yaxis=dict(title="Avg Return (%)", tickformat=",.2f"),
@@ -1362,42 +1366,42 @@ def plot_seasonal_bar(
         hovermode="x unified",
         barmode="group" if "Benchmark" in data.columns else "group",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_outlier_scatter(
     portfolio_returns: pd.Series,
-    outlier_data: Dict[str, any],
+    outlier_data: dict[str, any],
 ) -> go.Figure:
     """
     Plot outlier returns scatter plot with reference bands.
-    
+
     Args:
         portfolio_returns: Portfolio returns
         outlier_data: Dictionary with outliers DataFrame, z_scores, mean, std
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if portfolio_returns.empty:
         return fig
-    
+
     mean = outlier_data.get("mean", 0)
     std = outlier_data.get("std", 0)
-    
+
     if std == 0:
         return fig
-    
+
     # Normal returns (not outliers)
     z_scores = outlier_data.get("z_scores", pd.Series())
     if isinstance(z_scores, pd.Series) and not z_scores.empty:
         normal_mask = abs(z_scores) <= 2.0
         normal_returns = portfolio_returns[normal_mask]
-        
+
         if not normal_returns.empty:
             fig.add_trace(
                 go.Scatter(
@@ -1411,13 +1415,13 @@ def plot_outlier_scatter(
                     name="Normal Returns",
                 )
             )
-    
+
     # Outliers
     outliers_df = outlier_data.get("outliers", pd.DataFrame())
     if not outliers_df.empty:
         positive_outliers = outliers_df[outliers_df["Return"] > 0]
         negative_outliers = outliers_df[outliers_df["Return"] < 0]
-        
+
         if not positive_outliers.empty:
             fig.add_trace(
                 go.Scatter(
@@ -1432,7 +1436,7 @@ def plot_outlier_scatter(
                     name="Positive Outliers",
                 )
             )
-        
+
         if not negative_outliers.empty:
             fig.add_trace(
                 go.Scatter(
@@ -1447,16 +1451,20 @@ def plot_outlier_scatter(
                     name="Negative Outliers",
                 )
             )
-    
+
     # Reference bands (±1σ, ±2σ, ±3σ)
     mean_pct = mean * 100
     std_pct = std * 100
-    
+
     for i, sigma in enumerate([1, 2, 3]):
-        color = ["rgba(255,255,255,0.3)", "rgba(255,255,255,0.5)", "rgba(255,255,255,0.7)"][i]
+        color = [
+            "rgba(255,255,255,0.3)",
+            "rgba(255,255,255,0.5)",
+            "rgba(255,255,255,0.7)",
+        ][i]
         upper = mean_pct + sigma * std_pct
         lower = mean_pct - sigma * std_pct
-        
+
         # Upper band
         fig.add_hline(
             y=upper,
@@ -1465,7 +1473,7 @@ def plot_outlier_scatter(
             line_width=1,
             annotation_text=f"+{sigma}σ",
         )
-        
+
         # Lower band
         fig.add_hline(
             y=lower,
@@ -1474,7 +1482,7 @@ def plot_outlier_scatter(
             line_width=1,
             annotation_text=f"-{sigma}σ",
         )
-    
+
     # Mean line
     fig.add_hline(
         y=mean_pct,
@@ -1483,14 +1491,14 @@ def plot_outlier_scatter(
         line_width=1,
         annotation_text="Mean",
     )
-    
+
     layout = get_chart_layout(
         title="Outlier Returns Analysis",
         yaxis=dict(title="Return (%)", tickformat=",.2f"),
         xaxis=dict(title="Date"),
         hovermode="closest",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
@@ -1501,19 +1509,19 @@ def plot_rolling_win_rate(
 ) -> go.Figure:
     """
     Plot rolling 12-month win rate chart.
-    
+
     Args:
         rolling_data: Series of rolling win rate percentages
         benchmark_rolling: Optional benchmark rolling win rate
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if rolling_data.empty:
         return fig
-    
+
     # Portfolio line
     fig.add_trace(
         go.Scatter(
@@ -1524,7 +1532,7 @@ def plot_rolling_win_rate(
             line=dict(color=COLORS["primary"], width=2),
         )
     )
-    
+
     # Benchmark line if available
     if benchmark_rolling is not None and not benchmark_rolling.empty:
         fig.add_trace(
@@ -1536,7 +1544,7 @@ def plot_rolling_win_rate(
                 line=dict(color=COLORS["secondary"], width=2),
             )
         )
-    
+
     # 50% reference line
     fig.add_hline(
         y=50,
@@ -1545,32 +1553,32 @@ def plot_rolling_win_rate(
         line_width=1,
         annotation_text="50%",
     )
-    
+
     layout = get_chart_layout(
         title="12-Month Rolling Win Rate",
         yaxis=dict(title="Win Rate (%)", tickformat=",.1f", range=[0, 100]),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_capture_ratio(
-    data: Dict[str, float],
+    data: dict[str, float],
 ) -> go.Figure:
     """
     Plot capture ratio horizontal bar chart.
-    
+
     Args:
         data: Dictionary with 'up_capture', 'down_capture', 'capture_ratio'
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data:
         fig.add_annotation(
             text="No data available",
@@ -1581,10 +1589,10 @@ def plot_capture_ratio(
             showarrow=False,
         )
         return fig
-    
+
     up_capture = data.get("up_capture", 0.0) * 100  # Convert to percentage
     down_capture = data.get("down_capture", 0.0) * 100
-    
+
     # Add horizontal bars
     fig.add_trace(
         go.Bar(
@@ -1597,7 +1605,7 @@ def plot_capture_ratio(
             textposition="outside",
         )
     )
-    
+
     fig.add_trace(
         go.Bar(
             y=["Down Capture"],
@@ -1609,7 +1617,7 @@ def plot_capture_ratio(
             textposition="outside",
         )
     )
-    
+
     # Add reference line at 100%
     fig.add_vline(
         x=100,
@@ -1619,7 +1627,7 @@ def plot_capture_ratio(
         annotation_text="100%",
         annotation_position="top",
     )
-    
+
     layout = get_chart_layout(
         title="Capture Ratios - Asymmetry Analysis",
         xaxis=dict(title="Capture (%)", tickformat=",.0f"),
@@ -1627,25 +1635,25 @@ def plot_capture_ratio(
         showlegend=False,
         height=250,
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_risk_return_scatter(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot risk/return scatter chart with CML.
-    
+
     Args:
         data: Dictionary with portfolio, benchmark, and CML data
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "portfolio" not in data:
         fig.add_annotation(
             text="No data available",
@@ -1656,7 +1664,7 @@ def plot_risk_return_scatter(
             showarrow=False,
         )
         return fig
-    
+
     # Portfolio point
     portfolio = data.get("portfolio", {})
     fig.add_trace(
@@ -1671,7 +1679,7 @@ def plot_risk_return_scatter(
             textfont=dict(size=12, color="white"),
         )
     )
-    
+
     # Benchmark point if available
     if "benchmark" in data:
         benchmark = data["benchmark"]
@@ -1687,7 +1695,7 @@ def plot_risk_return_scatter(
                 textfont=dict(size=12, color="white"),
             )
         )
-    
+
     # Capital Market Line (CML)
     if "cml" in data:
         cml = data["cml"]
@@ -1702,7 +1710,7 @@ def plot_risk_return_scatter(
                 line=dict(color=COLORS["success"], width=2, dash="dash"),
             )
         )
-    
+
     # Add risk-free rate point (0 volatility)
     rf_rate = data.get("risk_free_rate", 0.0) * 100
     fig.add_trace(
@@ -1714,17 +1722,19 @@ def plot_risk_return_scatter(
             marker=dict(size=10, color="gray", symbol="diamond"),
         )
     )
-    
+
     # Quadrant labels can be added here if needed in the future
     # For now, chart is clean without annotations
     layout = get_chart_layout(
         title="Risk/Return Scatter",
-        xaxis=dict(title="Volatility (Annual, %)", tickformat=",.1f", rangemode="tozero"),
+        xaxis=dict(
+            title="Volatility (Annual, %)", tickformat=",.1f", rangemode="tozero"
+        ),
         yaxis=dict(title="Annualized Return (%)", tickformat=",.1f"),
         hovermode="closest",
         height=500,
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
@@ -1750,20 +1760,20 @@ def plot_var_distribution(
     """
     # Use the same data preparation as plot_return_distribution
     from core.analytics_engine.chart_data import get_return_distribution_data
-    
+
     dist_data = get_return_distribution_data(returns, bins=50)
-    
+
     # Create clean figure without extra VaR lines
     fig = go.Figure()
-    
+
     counts = dist_data.get("counts", np.array([]))
     edges = dist_data.get("edges", np.array([]))
     mean = dist_data.get("mean", 0.0)
     std = dist_data.get("std", 0.0)
-    
+
     if len(counts) > 0 and len(edges) > 1:
         bin_centers = (edges[:-1] + edges[1:]) / 2 * 100
-        
+
         # Add histogram bars (purple)
         fig.add_trace(
             go.Bar(
@@ -1774,7 +1784,7 @@ def plot_var_distribution(
                 opacity=0.7,
             )
         )
-        
+
         # Mean line (blue dashed)
         mean_pct = mean * 100
         fig.add_vline(
@@ -1784,7 +1794,7 @@ def plot_var_distribution(
             annotation_text=f"Mean: {mean_pct:.2f}%",
             annotation_position="top",
         )
-        
+
         # Normal distribution overlay (orange dashed)
         if std > 0:
             x_norm = np.linspace(edges[0], edges[-1], 100) * 100
@@ -1799,7 +1809,7 @@ def plot_var_distribution(
                     line=dict(color=COLORS["warning"], width=2, dash="dash"),  # Orange
                 )
             )
-    
+
     # Add VaR line (red dotted, thicker)
     var_pct = var_value * 100
     fig.add_vline(
@@ -1864,26 +1874,26 @@ def plot_var_distribution(
 
 
 def plot_rolling_volatility(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot rolling volatility chart with statistics table.
-    
+
     Args:
         data: Dictionary with portfolio/benchmark series and statistics
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "portfolio" not in data:
         return fig
-    
+
     portfolio_vol = data.get("portfolio", pd.Series())
     benchmark_vol = data.get("benchmark", pd.Series())
     window = data.get("window", 63)
-    
+
     # Portfolio line (blue)
     if not portfolio_vol.empty:
         fig.add_trace(
@@ -1895,7 +1905,7 @@ def plot_rolling_volatility(
                 line=dict(color=COLORS["primary"], width=2),
             )
         )
-    
+
     # Benchmark line (blue solid)
     if not benchmark_vol.empty:
         fig.add_trace(
@@ -1907,7 +1917,7 @@ def plot_rolling_volatility(
                 line=dict(color=COLORS["secondary"], width=2),  # Blue - solid line
             )
         )
-    
+
     # Reference line at 20% volatility (white dashed)
     fig.add_hline(
         y=20.0,
@@ -1916,20 +1926,20 @@ def plot_rolling_volatility(
         line_width=1,
         annotation_text="20%",
     )
-    
+
     layout = get_chart_layout(
         title=f"Rolling Volatility ({window} days)",
         yaxis=dict(title="Volatility (annualized %)", tickformat=",.1f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_rolling_var(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot rolling VaR chart.
@@ -1970,16 +1980,13 @@ def plot_rolling_var(
                 y=benchmark_var.values * 100,
                 mode="lines",
                 name="Benchmark VaR",
-                line=dict(
-                    color=COLORS["secondary"], width=2, dash="dash"
-                ),
+                line=dict(color=COLORS["secondary"], width=2, dash="dash"),
             )
         )
 
     layout = get_chart_layout(
         title=(
-            f"Rolling VaR ({window} days, "
-            f"{int(confidence_level*100)}% confidence)"
+            f"Rolling VaR ({window} days, " f"{int(confidence_level*100)}% confidence)"
         ),
         yaxis=dict(title="VaR (%)", tickformat=",.1f"),
         xaxis=dict(title="Date"),
@@ -1991,21 +1998,21 @@ def plot_rolling_var(
 
 
 def plot_rolling_sortino(
-    data: Dict[str, pd.Series],
+    data: dict[str, pd.Series],
     window: int = 63,
 ) -> go.Figure:
     """
     Plot rolling Sortino ratio chart.
-    
+
     Args:
         data: Dictionary with 'portfolio' and optionally 'benchmark' Series
         window: Rolling window size in days
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     # Portfolio line (blue solid)
     if "portfolio" in data and not data["portfolio"].empty:
         fig.add_trace(
@@ -2017,7 +2024,7 @@ def plot_rolling_sortino(
                 line=dict(color=COLORS["primary"], width=2),
             )
         )
-    
+
     # Benchmark line (blue solid)
     if "benchmark" in data and not data["benchmark"].empty:
         fig.add_trace(
@@ -2029,7 +2036,7 @@ def plot_rolling_sortino(
                 line=dict(color=COLORS["secondary"], width=2),  # Blue - solid line
             )
         )
-    
+
     # Zero Sortino reference line (white dashed)
     fig.add_hline(
         y=0,
@@ -2038,41 +2045,41 @@ def plot_rolling_sortino(
         line_width=1,
         annotation_text="Sortino = 0",
     )
-    
+
     layout = get_chart_layout(
         title=f"Rolling Sortino Ratio ({window} days)",
         yaxis=dict(title="Sortino Ratio", tickformat=",.2f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_rolling_beta(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot rolling beta chart with shaded zones.
-    
+
     Args:
         data: Dictionary with 'beta' series and 'window'
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "beta" not in data:
         return fig
-    
+
     beta_series = data.get("beta", pd.Series())
     window = data.get("window", 63)
-    
+
     if beta_series.empty:
         return fig
-    
+
     # Add shaded zones
     # High beta zone (β > 1.2) - light red
     fig.add_hrect(
@@ -2084,7 +2091,7 @@ def plot_rolling_beta(
         annotation_text="High Beta",
         annotation_position="top right",
     )
-    
+
     # Normal zone (0.8 < β < 1.2) - light gray
     fig.add_hrect(
         y0=0.8,
@@ -2095,7 +2102,7 @@ def plot_rolling_beta(
         annotation_text="Normal",
         annotation_position="top right",
     )
-    
+
     # Low beta zone (β < 0.8) - light green
     fig.add_hrect(
         y0=beta_series.min() * 0.9 if beta_series.min() < 0.8 else 0,
@@ -2106,7 +2113,7 @@ def plot_rolling_beta(
         annotation_text="Low Beta",
         annotation_position="top right",
     )
-    
+
     # Beta line (purple)
     fig.add_trace(
         go.Scatter(
@@ -2117,7 +2124,7 @@ def plot_rolling_beta(
             line=dict(color=COLORS["primary"], width=2),  # Purple
         )
     )
-    
+
     # Reference lines
     # Beta = 1.0 (white dashed)
     fig.add_hline(
@@ -2127,7 +2134,7 @@ def plot_rolling_beta(
         line_width=1,
         annotation_text="Beta = 1.0",
     )
-    
+
     # Beta = 0.0 (gray dashed)
     fig.add_hline(
         y=0.0,
@@ -2135,47 +2142,47 @@ def plot_rolling_beta(
         line_color="gray",
         line_width=1,
     )
-    
+
     layout = get_chart_layout(
         title=f"Rolling Beta ({window} days)",
         yaxis=dict(title="Beta", tickformat=",.2f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_rolling_alpha(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot rolling alpha chart with shaded areas.
-    
+
     Args:
         data: Dictionary with 'alpha' series and 'window'
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "alpha" not in data:
         return fig
-    
+
     alpha_series = data.get("alpha", pd.Series())
     window = data.get("window", 63)
-    
+
     if alpha_series.empty:
         return fig
-    
+
     # Separate positive and negative values for different coloring
     positive = alpha_series.copy()
     positive[positive < 0] = 0
     negative = alpha_series.copy()
     negative[negative > 0] = 0
-    
+
     # Positive alpha area (light green)
     fig.add_trace(
         go.Scatter(
@@ -2189,7 +2196,7 @@ def plot_rolling_alpha(
             showlegend=True,
         )
     )
-    
+
     # Negative alpha area (light red)
     fig.add_trace(
         go.Scatter(
@@ -2203,7 +2210,7 @@ def plot_rolling_alpha(
             showlegend=True,
         )
     )
-    
+
     # Alpha = 0 reference line (black dashed)
     fig.add_hline(
         y=0,
@@ -2212,42 +2219,42 @@ def plot_rolling_alpha(
         line_width=2,
         annotation_text="Alpha = 0",
     )
-    
+
     layout = get_chart_layout(
         title=f"Rolling Alpha ({window} days)",
         yaxis=dict(title="Alpha (%)", tickformat=",.2f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_rolling_active_return(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot rolling active return area chart.
-    
+
     Args:
         data: Dictionary with 'active_return' series, 'window', and 'stats'
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "active_return" not in data:
         return fig
-    
+
     active_return = data.get("active_return", pd.Series())
     window = data.get("window", 63)
-    stats = data.get("stats", {})
-    
+    data.get("stats", {})
+
     if active_return.empty:
         return fig
-    
+
     # Active return as single purple line (no positive/negative split)
     fig.add_trace(
         go.Scatter(
@@ -2258,7 +2265,7 @@ def plot_rolling_active_return(
             line=dict(color=COLORS["primary"], width=2),  # Purple - portfolio
         )
     )
-    
+
     # Zero line (black dashed)
     fig.add_hline(
         y=0,
@@ -2266,49 +2273,49 @@ def plot_rolling_active_return(
         line_color="white",
         line_width=2,
     )
-    
+
     layout = get_chart_layout(
         title=f"Rolling Active Return ({window} days) - Portfolio - Benchmark",
         yaxis=dict(title="Active Return (%)", tickformat=",.2f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_bull_bear_returns_comparison(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot bull/bear market returns comparison as side-by-side bars.
-    
+
     Args:
         data: Dictionary with 'bull' and 'bear' market data
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "bull" not in data or "bear" not in data:
         return fig
-    
+
     bull = data.get("bull", {})
     bear = data.get("bear", {})
-    
+
     # Data for plotting
     categories = ["Bullish Market", "Bearish Market"]
     portfolio_returns = [
         bull.get("portfolio_return", 0),
-        bear.get("portfolio_return", 0)
+        bear.get("portfolio_return", 0),
     ]
     benchmark_returns = [
         bull.get("benchmark_return", 0),
-        bear.get("benchmark_return", 0)
+        bear.get("benchmark_return", 0),
     ]
-    
+
     # Portfolio bars
     fig.add_trace(
         go.Bar(
@@ -2320,7 +2327,7 @@ def plot_bull_bear_returns_comparison(
             textposition="outside",
         )
     )
-    
+
     # Benchmark bars
     fig.add_trace(
         go.Bar(
@@ -2332,7 +2339,7 @@ def plot_bull_bear_returns_comparison(
             textposition="outside",
         )
     )
-    
+
     layout = get_chart_layout(
         title="Average Daily Returns in Bull vs Bear Markets",
         yaxis=dict(title="Avg Daily Return (%)", tickformat=",.2f"),
@@ -2340,33 +2347,33 @@ def plot_bull_bear_returns_comparison(
         hovermode="x unified",
         barmode="group",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_bull_bear_rolling_beta(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot rolling beta in different market periods.
-    
+
     Args:
         data: Dictionary with rolling beta for bull/bear markets
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "rolling_beta" not in data:
         return fig
-    
+
     rolling_data = data.get("rolling_beta", {})
     bull_beta = rolling_data.get("bull", pd.Series())
     bear_beta = rolling_data.get("bear", pd.Series())
     window = rolling_data.get("window", 126)
-    
+
     # Bull market beta (green line)
     if not bull_beta.empty:
         fig.add_trace(
@@ -2378,7 +2385,7 @@ def plot_bull_bear_rolling_beta(
                 line=dict(color=COLORS["success"], width=2),
             )
         )
-    
+
     # Bear market beta (red line)
     if not bear_beta.empty:
         fig.add_trace(
@@ -2390,7 +2397,7 @@ def plot_bull_bear_rolling_beta(
                 line=dict(color=COLORS["danger"], width=2),
             )
         )
-    
+
     # Beta = 1.0 reference line (white dashed)
     fig.add_hline(
         y=1.0,
@@ -2399,38 +2406,38 @@ def plot_bull_bear_rolling_beta(
         line_width=1,
         annotation_text="Beta = 1.0",
     )
-    
+
     layout = get_chart_layout(
         title=f"Rolling Beta in Different Market Periods ({window} days)",
         yaxis=dict(title="Beta", tickformat=",.2f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_impact_on_return(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot impact on total return bar chart.
-    
+
     Args:
         data: Dictionary with 'tickers', 'contributions', 'returns', 'weights'
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "tickers" not in data:
         return fig
-    
+
     tickers = data.get("tickers", [])
     contributions = data.get("contributions", [])
-    
+
     # Color scale based on contribution value
     colors = []
     for contrib in contributions:
@@ -2446,7 +2453,7 @@ def plot_impact_on_return(
             colors.append("#FF9800")  # Orange
         else:
             colors.append("#F44336")  # Red
-    
+
     fig.add_trace(
         go.Bar(
             x=tickers,
@@ -2457,7 +2464,7 @@ def plot_impact_on_return(
             hovertemplate="<b>%{x}</b><br>Contribution: %{y:.2f}%<extra></extra>",
         )
     )
-    
+
     # Add zero line
     fig.add_hline(
         y=0,
@@ -2465,38 +2472,38 @@ def plot_impact_on_return(
         line_color=COLORS["text"],
         line_width=1,
     )
-    
+
     layout = get_chart_layout(
         title="Impact of Assets on Total Return",
         yaxis=dict(title="Weighted Return Contribution (%)", tickformat=",.2f"),
         xaxis=dict(title="Assets"),
         showlegend=False,
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_impact_on_risk(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot impact on portfolio risk bar chart.
-    
+
     Args:
         data: Dictionary with 'tickers', 'risk_contributions'
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "tickers" not in data:
         return fig
-    
+
     tickers = data.get("tickers", [])
     risk_contributions = data.get("risk_contributions", [])
-    
+
     # Yellow to Red gradient based on contribution
     colors = []
     max_contrib = max(risk_contributions) if risk_contributions else 1
@@ -2514,7 +2521,7 @@ def plot_impact_on_risk(
             colors.append("#FF9800")  # Orange
         else:
             colors.append("#FFC107")  # Yellow
-    
+
     fig.add_trace(
         go.Bar(
             x=tickers,
@@ -2525,40 +2532,40 @@ def plot_impact_on_risk(
             hovertemplate="<b>%{x}</b><br>Risk Contribution: %{y:.2f}%<extra></extra>",
         )
     )
-    
+
     layout = get_chart_layout(
         title="Impact of Assets on Overall Portfolio Risk",
         yaxis=dict(title="Risk Contribution (%)", tickformat=",.1f"),
         xaxis=dict(title="Assets"),
         showlegend=False,
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_risk_vs_weight_comparison(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot comparison of risk impact, return impact vs asset weight (grouped bar chart).
-    
+
     Args:
         data: Dictionary with 'tickers', 'risk_impact', 'return_impact', 'weights'
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "tickers" not in data:
         return fig
-    
+
     tickers = data.get("tickers", [])
     risk_impact = data.get("risk_impact", [])
     return_impact = data.get("return_impact", [])
     weights = data.get("weights", [])
-    
+
     # Risk Impact bars (red)
     fig.add_trace(
         go.Bar(
@@ -2566,13 +2573,10 @@ def plot_risk_vs_weight_comparison(
             x=tickers,
             y=risk_impact,
             marker=dict(color=COLORS["danger"]),
-            hovertemplate=(
-                "<b>%{x}</b><br>"
-                "Risk Impact: %{y:.2f}%<extra></extra>"
-            ),
+            hovertemplate=("<b>%{x}</b><br>" "Risk Impact: %{y:.2f}%<extra></extra>"),
         )
     )
-    
+
     # Return Impact bars (green)
     if return_impact:
         fig.add_trace(
@@ -2582,12 +2586,11 @@ def plot_risk_vs_weight_comparison(
                 y=return_impact,
                 marker=dict(color=COLORS["success"]),
                 hovertemplate=(
-                    "<b>%{x}</b><br>"
-                    "Return Impact: %{y:.2f}%<extra></extra>"
+                    "<b>%{x}</b><br>" "Return Impact: %{y:.2f}%<extra></extra>"
                 ),
             )
         )
-    
+
     # Weight bars (purple)
     fig.add_trace(
         go.Bar(
@@ -2595,13 +2598,10 @@ def plot_risk_vs_weight_comparison(
             x=tickers,
             y=weights,
             marker=dict(color=COLORS["primary"]),  # Purple
-            hovertemplate=(
-                "<b>%{x}</b><br>"
-                "Weight: %{y:.2f}%<extra></extra>"
-            ),
+            hovertemplate=("<b>%{x}</b><br>" "Weight: %{y:.2f}%<extra></extra>"),
         )
     )
-    
+
     layout = get_chart_layout(
         title="Comparison of Risk & Return Impact and Asset Weighting",
         yaxis=dict(title="Percentage (%)", tickformat=",.1f"),
@@ -2609,7 +2609,7 @@ def plot_risk_vs_weight_comparison(
         barmode="group",
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
@@ -2619,15 +2619,15 @@ def plot_correlation_matrix(
 ) -> go.Figure:
     """
     Plot correlation matrix heatmap.
-    
+
     Args:
         correlation_matrix: Correlation matrix DataFrame
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if correlation_matrix.empty:
         fig.add_annotation(
             text="No data available",
@@ -2638,14 +2638,14 @@ def plot_correlation_matrix(
             showarrow=False,
         )
         return fig
-    
+
     # Create heatmap with custom color scale (green to red through white)
     colorscale = [
         [0.0, COLORS["success"]],  # Green (-1.0)
-        [0.5, "#FFFFFF"],           # White (0.0)
-        [1.0, COLORS["danger"]],    # Red (+1.0)
+        [0.5, "#FFFFFF"],  # White (0.0)
+        [1.0, COLORS["danger"]],  # Red (+1.0)
     ]
-    
+
     fig.add_trace(
         go.Heatmap(
             z=correlation_matrix.values,
@@ -2662,41 +2662,41 @@ def plot_correlation_matrix(
             hovertemplate="<b>%{y}</b> vs <b>%{x}</b><br>Correlation: %{z:.2f}<extra></extra>",
         )
     )
-    
+
     layout = get_chart_layout(
         title="Correlation Matrix - All Assets + Benchmark",
         xaxis=dict(title=""),
         yaxis=dict(title=""),
         height=600,
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_correlation_with_benchmark(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot bar chart of asset correlations with benchmark.
-    
+
     Args:
         data: Dictionary with tickers, correlations, betas
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "tickers" not in data:
         return fig
-    
+
     tickers = data.get("tickers", [])
     correlations = data.get("correlations", [])
-    
+
     if not tickers or not correlations:
         return fig
-    
+
     # Color gradient: Red (high) to Blue (low)
     colors = []
     for corr in correlations:
@@ -2710,7 +2710,7 @@ def plot_correlation_with_benchmark(
             colors.append("#60A5FA")  # Light Blue
         else:
             colors.append("#1E3A8A")  # Dark Blue
-    
+
     fig.add_trace(
         go.Bar(
             x=tickers,
@@ -2721,7 +2721,7 @@ def plot_correlation_with_benchmark(
             hovertemplate="<b>%{x}</b><br>Correlation: %{y:.2f}<extra></extra>",
         )
     )
-    
+
     # Reference line at 0.7 (high correlation threshold)
     fig.add_hline(
         y=0.7,
@@ -2731,14 +2731,14 @@ def plot_correlation_with_benchmark(
         annotation_text="High Correlation (0.7)",
         annotation_position="right",
     )
-    
+
     layout = get_chart_layout(
         title="Asset Correlation with SPY",
         yaxis=dict(title="Correlation Coefficient", tickformat=",.2f", range=[-1, 1]),
         xaxis=dict(title="Assets"),
         showlegend=False,
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
@@ -2748,27 +2748,27 @@ def plot_clustered_correlation_matrix(
 ) -> go.Figure:
     """
     Plot clustered correlation matrix heatmap.
-    
+
     Args:
         clustered_matrix: Reordered correlation matrix DataFrame
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if clustered_matrix.empty:
         return fig
-    
+
     # Same color scale as regular correlation matrix
     colorscale = [
-        [0.0, "#1E3A8A"],      # Dark Blue (-1.0)
-        [0.25, "#3B82F6"],     # Light Blue (-0.5)
-        [0.5, "#FFFFFF"],      # White (0.0)
-        [0.75, "#F87171"],     # Light Red (+0.5)
-        [1.0, "#DC2626"],      # Dark Red (+1.0)
+        [0.0, "#1E3A8A"],  # Dark Blue (-1.0)
+        [0.25, "#3B82F6"],  # Light Blue (-0.5)
+        [0.5, "#FFFFFF"],  # White (0.0)
+        [0.75, "#F87171"],  # Light Red (+0.5)
+        [1.0, "#DC2626"],  # Dark Red (+1.0)
     ]
-    
+
     fig.add_trace(
         go.Heatmap(
             z=clustered_matrix.values,
@@ -2785,14 +2785,14 @@ def plot_clustered_correlation_matrix(
             hovertemplate="<b>%{y}</b> vs <b>%{x}</b><br>Correlation: %{z:.2f}<extra></extra>",
         )
     )
-    
+
     layout = get_chart_layout(
         title="Clustered Correlation Matrix",
         xaxis=dict(title=""),
         yaxis=dict(title=""),
         height=600,
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
@@ -2804,45 +2804,45 @@ def plot_dendrogram(
 ) -> go.Figure:
     """
     Plot horizontal hierarchical clustering dendrogram.
-    
+
     Args:
         linkage_matrix: Linkage matrix from scipy.cluster.hierarchy
         labels: List of asset tickers
         n_clusters: Number of clusters to highlight
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     try:
-        from scipy.cluster.hierarchy import dendrogram, fcluster
         from io import BytesIO
+
         import matplotlib
+        from scipy.cluster.hierarchy import dendrogram, fcluster
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        
+
         # Calculate cluster assignments
-        cluster_assignments = fcluster(
-            linkage_matrix, n_clusters, criterion="maxclust"
-        )
-        
+        fcluster(linkage_matrix, n_clusters, criterion="maxclust")
+
         # Create vertical dendrogram using matplotlib (more standard)
         # Larger figure size for better visibility
         num_assets = len(labels)
         fig_width = 14  # Increased width
         fig_height = max(10, num_assets * 0.8)  # More height per asset
         plt.figure(figsize=(fig_width, fig_height))
-        
+
         # Set dark theme colors
         plt.style.use("dark_background")
         ax = plt.gca()
         ax.set_facecolor("#1E1E1E")
         fig_pyplot = plt.gcf()
         fig_pyplot.patch.set_facecolor("#1E1E1E")
-        
+
         # Create dendrogram (vertical orientation - standard)
-        dendro_data = dendrogram(
+        dendrogram(
             linkage_matrix,
             labels=labels,
             orientation="left",  # Labels on left, tree grows right
@@ -2851,42 +2851,67 @@ def plot_dendrogram(
             ax=ax,
             color_threshold=0.7 * max(linkage_matrix[:, 2]),
         )
-        
+
         # Calculate cut line distance for optimal clusters
         if len(linkage_matrix) >= n_clusters:
             # Get distance at which we get n_clusters
-            cut_dist = linkage_matrix[-n_clusters+1, 2]
+            cut_dist = linkage_matrix[-n_clusters + 1, 2]
         else:
             cut_dist = linkage_matrix[-1, 2] * 0.7
-        
+
         # Add cut line for optimal clusters (vertical line)
-        plt.axvline(x=cut_dist, color="yellow", linestyle="--", linewidth=2.5, 
-                   label=f"Cut line ({n_clusters} clusters)", alpha=0.8)
-        
-        plt.title("Asset Clustering Dendrogram", color="white", fontsize=14, pad=20, fontweight="bold")
+        plt.axvline(
+            x=cut_dist,
+            color="yellow",
+            linestyle="--",
+            linewidth=2.5,
+            label=f"Cut line ({n_clusters} clusters)",
+            alpha=0.8,
+        )
+
+        plt.title(
+            "Asset Clustering Dendrogram",
+            color="white",
+            fontsize=14,
+            pad=20,
+            fontweight="bold",
+        )
         plt.xlabel("Distance", color="white", fontsize=12, fontweight="bold")
         plt.ylabel("Assets", color="white", fontsize=12, fontweight="bold")
         plt.xticks(color="white", fontsize=10)
         plt.yticks(color="white", fontsize=10)
-        plt.legend(loc="upper right", facecolor="#1E1E1E", edgecolor="yellow", 
-                  labelcolor="white", fontsize=10, framealpha=0.9)
+        plt.legend(
+            loc="upper right",
+            facecolor="#1E1E1E",
+            edgecolor="yellow",
+            labelcolor="white",
+            fontsize=10,
+            framealpha=0.9,
+        )
         plt.grid(True, alpha=0.2, color="gray", linestyle=":")
-        ax.spines['top'].set_color('white')
-        ax.spines['bottom'].set_color('white')
-        ax.spines['left'].set_color('white')
-        ax.spines['right'].set_color('white')
-        
+        ax.spines["top"].set_color("white")
+        ax.spines["bottom"].set_color("white")
+        ax.spines["left"].set_color("white")
+        ax.spines["right"].set_color("white")
+
         # Convert to image with higher resolution
         buf = BytesIO()
-        plt.savefig(buf, format="png", bbox_inches="tight", dpi=150, 
-                   facecolor="#1E1E1E", edgecolor="none")
+        plt.savefig(
+            buf,
+            format="png",
+            bbox_inches="tight",
+            dpi=150,
+            facecolor="#1E1E1E",
+            edgecolor="none",
+        )
         plt.close()
         buf.seek(0)
-        
+
         # Add image to plotly
         import base64
+
         img_str = base64.b64encode(buf.read()).decode()
-        
+
         fig.add_layout_image(
             dict(
                 source=f"data:image/png;base64,{img_str}",
@@ -2900,10 +2925,10 @@ def plot_dendrogram(
                 yanchor="top",
             )
         )
-        
+
         fig.update_xaxes(showgrid=False, showticklabels=False, zeroline=False)
         fig.update_yaxes(showgrid=False, showticklabels=False, zeroline=False)
-        
+
     except Exception as e:
         logger.warning(f"Error creating dendrogram: {e}")
         fig.add_annotation(
@@ -2914,42 +2939,42 @@ def plot_dendrogram(
             y=0.5,
             showarrow=False,
         )
-    
+
     # Dynamic height based on number of assets
     num_assets = len(labels) if labels else 8
     chart_height = max(600, num_assets * 80)
-    
+
     layout = get_chart_layout(
         title="Asset Clustering Dendrogram",
         height=chart_height,
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_asset_price_dynamics(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot normalized asset price dynamics (multi-line chart).
-    
+
     Args:
         data: Dictionary with price_series (ticker -> Series)
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "price_series" not in data:
         return fig
-    
+
     price_series = data.get("price_series", {})
-    
+
     if not price_series:
         return fig
-    
+
     # Color palette for assets (portfolio first, then others)
     asset_colors = [
         COLORS["primary"],  # Purple - portfolio
@@ -2959,7 +2984,7 @@ def plot_asset_price_dynamics(
         COLORS["additional"],  # Yellow
         COLORS["danger"],  # Red
     ]
-    
+
     # Plot each asset
     for idx, (ticker, series) in enumerate(price_series.items()):
         if ticker == "SPY":
@@ -2989,7 +3014,7 @@ def plot_asset_price_dynamics(
                     line=dict(color=color, width=2),
                 )
             )
-    
+
     # Add final returns to legend
     for ticker, series in price_series.items():
         if not series.empty:
@@ -3001,39 +3026,39 @@ def plot_asset_price_dynamics(
                 f"Return: %{{y:.2f}}%<br>"
                 f"Final: {final_return:.2f}%<extra></extra>"
             )
-    
+
     layout = get_chart_layout(
         title="Asset Price Change (% from Start Date)",
         yaxis=dict(title="% Change from Start", tickformat=",.1f"),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
 
 def plot_rolling_correlation_with_benchmark(
-    data: Dict[str, any],
+    data: dict[str, any],
 ) -> go.Figure:
     """
     Plot rolling correlation with benchmark for multiple assets.
-    
+
     Args:
         data: Dictionary with rolling_correlations, portfolio_avg_correlation, window
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not data or "rolling_correlations" not in data:
         return fig
-    
+
     rolling_correlations = data.get("rolling_correlations", {})
     portfolio_avg_corr = data.get("portfolio_avg_correlation")
     window = data.get("window", 60)
-    
+
     # Color palette
     asset_colors = [
         COLORS["primary"],  # Purple
@@ -3043,7 +3068,7 @@ def plot_rolling_correlation_with_benchmark(
         COLORS["additional"],  # Yellow
         COLORS["danger"],  # Red
     ]
-    
+
     # Plot each asset's rolling correlation
     for idx, (ticker, series) in enumerate(rolling_correlations.items()):
         color = asset_colors[idx % len(asset_colors)]
@@ -3056,7 +3081,7 @@ def plot_rolling_correlation_with_benchmark(
                 line=dict(color=color, width=1.5),
             )
         )
-    
+
     # Plot portfolio average correlation (thick purple line)
     if portfolio_avg_corr is not None and not portfolio_avg_corr.empty:
         fig.add_trace(
@@ -3068,7 +3093,7 @@ def plot_rolling_correlation_with_benchmark(
                 line=dict(color=COLORS["primary"], width=3),  # Purple - portfolio
             )
         )
-    
+
     # Reference lines
     fig.add_hline(
         y=0.7,
@@ -3077,7 +3102,7 @@ def plot_rolling_correlation_with_benchmark(
         line_width=1,
         annotation_text="High (0.7)",
     )
-    
+
     fig.add_hline(
         y=0.3,
         line_dash="dash",
@@ -3085,14 +3110,14 @@ def plot_rolling_correlation_with_benchmark(
         line_width=1,
         annotation_text="Low (0.3)",
     )
-    
+
     layout = get_chart_layout(
         title=f"Rolling Correlation with SPY (Window: {window} days)",
         yaxis=dict(title="Correlation Coefficient", tickformat=",.2f", range=[-1, 1]),
         xaxis=dict(title="Date"),
         hovermode="x unified",
     )
-    
+
     fig.update_layout(**layout)
     return fig
 
@@ -3106,19 +3131,19 @@ def plot_detailed_asset_price_volume(
 ) -> go.Figure:
     """
     Plot asset price chart with moving averages and volume.
-    
+
     Args:
         prices: Price series
         returns: Returns series (for volume coloring)
         ma50: Optional 50-day moving average
         ma200: Optional 200-day moving average
         ticker: Asset ticker
-        
+
     Returns:
         Plotly Figure with subplots
     """
     from plotly.subplots import make_subplots
-    
+
     fig = make_subplots(
         rows=2,
         cols=1,
@@ -3127,7 +3152,7 @@ def plot_detailed_asset_price_volume(
         row_heights=[0.7, 0.3],
         subplot_titles=(f"{ticker} - Price and Moving Averages", "Volume"),
     )
-    
+
     # Price line (purple)
     fig.add_trace(
         go.Scatter(
@@ -3140,7 +3165,7 @@ def plot_detailed_asset_price_volume(
         row=1,
         col=1,
     )
-    
+
     # Moving averages
     if ma50 is not None and not ma50.empty:
         fig.add_trace(
@@ -3154,7 +3179,7 @@ def plot_detailed_asset_price_volume(
             row=1,
             col=1,
         )
-    
+
     if ma200 is not None and not ma200.empty:
         fig.add_trace(
             go.Scatter(
@@ -3167,18 +3192,20 @@ def plot_detailed_asset_price_volume(
             row=1,
             col=1,
         )
-    
+
     # Volume bars (colored by return direction)
     if not returns.empty:
         # Align returns with prices
         aligned_returns = returns.reindex(prices.index, method="ffill").fillna(0)
-        
+
         # Create volume bars (use returns magnitude as proxy for volume)
         volume = abs(aligned_returns) * 1000  # Scale for visualization
-        
+
         # Green for up days, red for down days (from palette)
-        colors = [COLORS["success"] if r >= 0 else COLORS["danger"] for r in aligned_returns]
-        
+        colors = [
+            COLORS["success"] if r >= 0 else COLORS["danger"] for r in aligned_returns
+        ]
+
         fig.add_trace(
             go.Bar(
                 x=prices.index,
@@ -3191,48 +3218,48 @@ def plot_detailed_asset_price_volume(
             row=2,
             col=1,
         )
-    
+
     # Update layout for subplots (use proper axis references)
     base_layout = get_chart_layout(
         title=f"{ticker} - Price and Volume Chart",
         height=600,
     )
-    
+
     # Update base layout
     fig.update_layout(**base_layout)
-    
+
     # Update axes for subplots
     fig.update_xaxes(title_text="Date", row=2, col=1)
     fig.update_yaxes(title_text="Price", row=1, col=1)
     fig.update_yaxes(title_text="Volume", row=2, col=1)
-    
+
     return fig
 
 
 def plot_asset_correlation_bar(
-    correlations: Dict[str, float],
+    correlations: dict[str, float],
     ticker: str,
 ) -> go.Figure:
     """
     Plot bar chart of asset correlations with other assets.
-    
+
     Args:
         correlations: Dictionary of ticker -> correlation
         ticker: Asset ticker being analyzed
-        
+
     Returns:
         Plotly Figure
     """
     fig = go.Figure()
-    
+
     if not correlations:
         return fig
-    
+
     # Sort by correlation
     sorted_corr = sorted(correlations.items(), key=lambda x: x[1], reverse=True)
     tickers = [t[0] for t in sorted_corr]
     values = [t[1] for t in sorted_corr]
-    
+
     # Color gradient
     colors = []
     for val in values:
@@ -3246,7 +3273,7 @@ def plot_asset_correlation_bar(
             colors.append("#60A5FA")  # Light Blue
         else:
             colors.append("#1E3A8A")  # Dark Blue
-    
+
     fig.add_trace(
         go.Bar(
             x=tickers,
@@ -3257,13 +3284,15 @@ def plot_asset_correlation_bar(
             hovertemplate="<b>%{x}</b><br>Correlation: %{y:.2f}<extra></extra>",
         )
     )
-    
+
     layout = get_chart_layout(
         title=f"Correlations with Other Assets - {ticker}",
-        yaxis=dict(title="Correlation with " + ticker, tickformat=",.2f", range=[-1, 1]),
+        yaxis=dict(
+            title="Correlation with " + ticker, tickformat=",.2f", range=[-1, 1]
+        ),
         xaxis=dict(title="Assets"),
         showlegend=False,
     )
-    
+
     fig.update_layout(**layout)
     return fig

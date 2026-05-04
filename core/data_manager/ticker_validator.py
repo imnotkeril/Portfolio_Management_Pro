@@ -4,11 +4,15 @@ import logging
 import re
 import time
 from datetime import date, datetime, timedelta
-from typing import Dict, Optional
+from typing import Optional
 
 import yfinance as yf
 
-from config.constants import CACHE_TTL_TICKER_VALIDATION, MAX_TICKER_LENGTH, MIN_TICKER_LENGTH
+from config.constants import (
+    CACHE_TTL_TICKER_VALIDATION,
+    MAX_TICKER_LENGTH,
+    MIN_TICKER_LENGTH,
+)
 from core.data_manager.cache import Cache
 from core.exceptions import TickerNotFoundError, ValidationError
 
@@ -60,7 +64,7 @@ class TickerValidator:
             cache: Optional cache instance for validation results
         """
         self._cache = cache or Cache()
-        self._validation_cache: Dict[str, tuple[bool, Optional[datetime]]] = {}
+        self._validation_cache: dict[str, tuple[bool, Optional[datetime]]] = {}
 
     def validate_ticker(self, ticker: str) -> bool:
         """
@@ -105,18 +109,22 @@ class TickerValidator:
         max_retries = 3  # Increased from 2
         retry_delay = 1.0  # Increased from 0.5s
         is_valid = False  # Default to False
-        
+
         for attempt in range(max_retries):
             try:
                 ticker_obj = yf.Ticker(ticker)
-                
+
                 # Try multiple methods to validate ticker
                 # Method 1: Check info dict (fastest, but may fail)
                 try:
                     info = ticker_obj.info
                     if info and isinstance(info, dict) and len(info) > 0:
                         # Check for symbol or other indicators of valid ticker
-                        if "symbol" in info or "longName" in info or "shortName" in info:
+                        if (
+                            "symbol" in info
+                            or "longName" in info
+                            or "shortName" in info
+                        ):
                             is_valid = True
                             break  # Success, exit retry loop
                         else:
@@ -127,14 +135,20 @@ class TickerValidator:
                 except Exception as e:
                     error_str = str(e).lower()
                     # If rate limited or unauthorized, wait and retry
-                    if "401" in error_str or "rate limit" in error_str or "429" in error_str:
+                    if (
+                        "401" in error_str
+                        or "rate limit" in error_str
+                        or "429" in error_str
+                    ):
                         if attempt < max_retries - 1:
-                            logger.warning(f"Rate limit hit for {ticker}, retrying in {retry_delay}s...")
+                            logger.warning(
+                                f"Rate limit hit for {ticker}, retrying in {retry_delay}s..."
+                            )
                             time.sleep(retry_delay)
                             retry_delay *= 2  # Exponential backoff
                             continue
                     is_valid = None
-                
+
                 # Method 2: Check historical data (more reliable, but slower)
                 if is_valid is None:
                     try:
@@ -149,43 +163,57 @@ class TickerValidator:
                             break  # Success, exit retry loop
                     except Exception as e:
                         error_str = str(e).lower()
-                        if "401" in error_str or "rate limit" in error_str or "429" in error_str:
+                        if (
+                            "401" in error_str
+                            or "rate limit" in error_str
+                            or "429" in error_str
+                        ):
                             if attempt < max_retries - 1:
-                                logger.warning(f"Rate limit hit for {ticker} (history), retrying...")
+                                logger.warning(
+                                    f"Rate limit hit for {ticker} (history), retrying..."
+                                )
                                 time.sleep(retry_delay)
                                 retry_delay *= 2
                                 continue
                         is_valid = False
-                
+
                 # Method 3: If still not determined, check if ticker has any data
                 if is_valid is None or is_valid is False:
                     try:
                         # Try getting fast_info as last resort (lightweight)
                         fast_info = ticker_obj.fast_info
-                        if fast_info and hasattr(fast_info, 'lastPrice'):
+                        if fast_info and hasattr(fast_info, "lastPrice"):
                             is_valid = True
                             break  # Success, exit retry loop
                         else:
                             is_valid = False
                     except Exception:
                         is_valid = False
-                
+
                 # If we got here and is_valid is still None, set to False
                 if is_valid is None:
                     is_valid = False
-                    
+
                 break  # Exit retry loop if we got here
-                
+
             except Exception as e:
                 error_str = str(e).lower()
                 # Handle rate limiting and retry
-                if ("401" in error_str or "rate limit" in error_str or "429" in error_str) and attempt < max_retries - 1:
-                    logger.warning(f"API error for {ticker} (attempt {attempt + 1}/{max_retries}): {e}")
+                if (
+                    "401" in error_str
+                    or "rate limit" in error_str
+                    or "429" in error_str
+                ) and attempt < max_retries - 1:
+                    logger.warning(
+                        f"API error for {ticker} (attempt {attempt + 1}/{max_retries}): {e}"
+                    )
                     time.sleep(retry_delay)
                     retry_delay *= 2
                     continue
                 else:
-                    logger.error(f"Error validating ticker {ticker}: {e}", exc_info=True)
+                    logger.error(
+                        f"Error validating ticker {ticker}: {e}", exc_info=True
+                    )
                     is_valid = False
                     break
 
@@ -201,10 +229,10 @@ class TickerValidator:
 
         return is_valid
 
-    def validate_tickers(self, tickers: list[str]) -> Dict[str, bool]:
+    def validate_tickers(self, tickers: list[str]) -> dict[str, bool]:
         """
         Validate multiple tickers with rate limiting protection.
-        
+
         On Streamlit Cloud, rate limiting is more aggressive, so we use
         longer delays and a whitelist of known valid tickers.
 
@@ -214,31 +242,66 @@ class TickerValidator:
         Returns:
             Dictionary mapping ticker to validation result (True/False)
         """
-        results: Dict[str, bool] = {}
-        
+        results: dict[str, bool] = {}
+
         # Known valid tickers (popular stocks/ETFs that are almost always valid)
         # This helps avoid unnecessary API calls on Streamlit Cloud
         known_valid_tickers = {
-            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'AMD', 'CRM',
-            'VUG', 'IWF', 'VTV', 'IWD', 'QUAL', 'USMV', 'SPLV', 'VYM', 'SCHD', 'HDV',
-            'VTI', 'BND', 'GLD', 'VNQ', 'BTC-USD', 'TIP',
-            'BRK-B', 'JPM', 'WMT', 'CVX', 'XOM', 'JNJ', 'PG', 'V', 'MA',
-            'KO', 'VZ', 'T', 'PFE'
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "NVDA",
+            "META",
+            "TSLA",
+            "AMD",
+            "CRM",
+            "VUG",
+            "IWF",
+            "VTV",
+            "IWD",
+            "QUAL",
+            "USMV",
+            "SPLV",
+            "VYM",
+            "SCHD",
+            "HDV",
+            "VTI",
+            "BND",
+            "GLD",
+            "VNQ",
+            "BTC-USD",
+            "TIP",
+            "BRK-B",
+            "JPM",
+            "WMT",
+            "CVX",
+            "XOM",
+            "JNJ",
+            "PG",
+            "V",
+            "MA",
+            "KO",
+            "VZ",
+            "T",
+            "PFE",
         }
-        
+
         # Check known valid tickers first (no API call needed)
         for ticker in tickers:
             ticker_upper = ticker.strip().upper()
             if ticker_upper in known_valid_tickers:
                 results[ticker] = True
                 logger.debug(f"Known valid ticker (whitelist): {ticker_upper}")
-        
+
         # Validate remaining tickers with API calls
         remaining_tickers = [t for t in tickers if t.strip().upper() not in results]
-        
+
         # On Streamlit Cloud, use longer delays to avoid rate limiting
         # Increase delay significantly for cloud deployments
-        delay_between_requests = 0.5  # 500ms delay between requests (increased from 200ms)
+        delay_between_requests = (
+            0.5  # 500ms delay between requests (increased from 200ms)
+        )
         consecutive_failures = 0
         max_consecutive_failures = 3
 
@@ -247,49 +310,65 @@ class TickerValidator:
                 # Add delay before each request (except the first one)
                 if i > 0:
                     time.sleep(delay_between_requests)
-                
+
                 # If we've had consecutive failures, add extra delay
                 if consecutive_failures > 0:
                     extra_delay = consecutive_failures * 0.5
-                    logger.warning(f"Adding extra delay {extra_delay}s due to {consecutive_failures} consecutive failures")
+                    logger.warning(
+                        f"Adding extra delay {extra_delay}s due to {consecutive_failures} consecutive failures"
+                    )
                     time.sleep(extra_delay)
-                
+
                 ticker_upper = ticker.strip().upper()
                 is_valid = self.validate_ticker(ticker_upper)
                 results[ticker] = is_valid
-                
+
                 # Reset failure counter on success
                 if is_valid:
                     consecutive_failures = 0
                 else:
                     consecutive_failures += 1
-                    
+
             except ValidationError as e:
                 logger.warning(f"Validation error for {ticker}: {e.message}")
                 results[ticker] = False
                 consecutive_failures += 1
             except Exception as e:
-                logger.error(f"Unexpected error validating {ticker}: {e}", exc_info=True)
+                logger.error(
+                    f"Unexpected error validating {ticker}: {e}", exc_info=True
+                )
                 results[ticker] = False
                 consecutive_failures += 1
-                
+
                 # If we hit rate limiting, add extra delay before next request
                 error_str = str(e).lower()
-                if "rate limit" in error_str or "429" in error_str or "401" in error_str:
-                    logger.warning(f"Rate limiting detected for {ticker}, adding extra delay...")
-                    time.sleep(2.0)  # Wait 2 seconds before continuing (increased from 1s)
-                    
+                if (
+                    "rate limit" in error_str
+                    or "429" in error_str
+                    or "401" in error_str
+                ):
+                    logger.warning(
+                        f"Rate limiting detected for {ticker}, adding extra delay..."
+                    )
+                    time.sleep(
+                        2.0
+                    )  # Wait 2 seconds before continuing (increased from 1s)
+
                     # If too many failures, assume remaining tickers might fail too
                     # and use format-based validation as fallback
                     if consecutive_failures >= max_consecutive_failures:
-                        logger.warning(f"Too many consecutive failures ({consecutive_failures}), using format-based validation for remaining tickers")
+                        logger.warning(
+                            f"Too many consecutive failures ({consecutive_failures}), using format-based validation for remaining tickers"
+                        )
                         # For remaining tickers, just check format and assume valid if format is correct
-                        for remaining_ticker in remaining_tickers[i+1:]:
+                        for remaining_ticker in remaining_tickers[i + 1 :]:
                             remaining_ticker_upper = remaining_ticker.strip().upper()
                             if TICKER_PATTERN.match(remaining_ticker_upper):
                                 # Format is valid, assume ticker is valid to avoid blocking user
                                 results[remaining_ticker] = True
-                                logger.warning(f"Assuming {remaining_ticker_upper} is valid based on format (API unavailable)")
+                                logger.warning(
+                                    f"Assuming {remaining_ticker_upper} is valid based on format (API unavailable)"
+                                )
                         break
 
         return results
@@ -339,5 +418,6 @@ class TickerValidator:
             raise
         except Exception as e:
             logger.error(f"Error fetching ticker info for {ticker}: {e}", exc_info=True)
-            raise TickerNotFoundError(f"Failed to fetch info for ticker: {ticker}") from e
-
+            raise TickerNotFoundError(
+                f"Failed to fetch info for ticker: {ticker}"
+            ) from e

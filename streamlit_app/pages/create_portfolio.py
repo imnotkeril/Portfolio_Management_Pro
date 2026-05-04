@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -44,9 +44,9 @@ def render_creation_help() -> None:
     with st.expander("How to Create a Portfolio", expanded=False):
         st.markdown("""
         ### Step-by-Step Portfolio Creation
-        
+
         This process guides you through creating a portfolio in 5 steps:
-        
+
         1. **Portfolio Information** - Name, description, currency, and initial investment
         2. **Choose Input Method** - Select how you want to add assets:
            - **Text Input** - Fast entry using natural language formats
@@ -56,15 +56,15 @@ def render_creation_help() -> None:
         3. **Add Assets** - Enter your portfolio assets based on selected method
         4. **Settings & Review** - Configure options and review your portfolio
         5. **Create** - Finalize and create your portfolio
-        
+
         ### Supported Text Input Formats
         ```
         AAPL:40%, MSFT:30%, GOOGL:30%          # Colon with percentages
-        AAPL 0.4, MSFT 0.3, GOOGL 0.3         # Space with decimals  
+        AAPL 0.4, MSFT 0.3, GOOGL 0.3         # Space with decimals
         AAPL 40, MSFT 30, GOOGL 30            # Numbers > 1 (auto %)
         AAPL, MSFT, GOOGL                     # Equal weights
         ```
-        
+
         ### Important Notes
         - Weights are automatically normalized to sum to 100%
         - Use standard ticker symbols (AAPL, MSFT, GOOGL, etc.)
@@ -79,10 +79,10 @@ def render_portfolio_creation() -> None:
     st.subheader("Portfolio Creation")
 
     # Initialize creation state
-    if 'creation_step' not in st.session_state:
+    if "creation_step" not in st.session_state:
         st.session_state.creation_step = 1
 
-    if 'creation_data' not in st.session_state:
+    if "creation_data" not in st.session_state:
         st.session_state.creation_data = {}
 
     # Progress bar
@@ -105,21 +105,21 @@ def render_portfolio_creation() -> None:
 def render_step_1() -> None:
     """Step 1: Portfolio Information."""
     st.write("### Step 1: Portfolio Information")
-    
+
     with st.expander("What information do I need?", expanded=False):
         st.markdown("""
         **Portfolio Name** - A unique name to identify your portfolio (required)
         - Must be unique - cannot match existing portfolio names
         - Use descriptive names like "Tech Growth Portfolio" or "Dividend Income"
-        
+
         **Description** - Optional notes about your investment strategy
         - Helps you remember the purpose of this portfolio
         - Example: "Long-term growth focused on technology stocks"
-        
+
         **Base Currency** - The currency for your portfolio
         - Currently supports: USD, EUR, GBP, JPY, CAD, AUD
         - All values and calculations will be in this currency
-        
+
         **Initial Investment** - Starting capital amount
         - Used to calculate number of shares for each position
         - Can be adjusted later if needed
@@ -131,16 +131,16 @@ def render_step_1() -> None:
     with col1:
         portfolio_name = st.text_input(
             "Portfolio Name *",
-            value=st.session_state.creation_data.get('name', ''),
+            value=st.session_state.creation_data.get("name", ""),
             help="Enter a unique name for your portfolio",
-            key='creation_name'
+            key="creation_name",
         )
 
         portfolio_description = st.text_area(
             "Description",
-            value=st.session_state.creation_data.get('description', ''),
+            value=st.session_state.creation_data.get("description", ""),
             help="Optional description of your investment strategy",
-            key='creation_description'
+            key="creation_description",
         )
 
     with col2:
@@ -148,16 +148,16 @@ def render_step_1() -> None:
             "Base Currency",
             ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"],
             index=0,
-            key='creation_currency'
+            key="creation_currency",
         )
 
         initial_value = st.number_input(
             "Initial Investment ($)",
             min_value=1.0,
-            value=st.session_state.creation_data.get('initial_value', 100000.0),
+            value=st.session_state.creation_data.get("initial_value", 100000.0),
             step=1000.0,
             help="Used to calculate share quantities for each position",
-            key='creation_initial_value'
+            key="creation_initial_value",
         )
 
     # Validation - Level 1: UI validation
@@ -186,13 +186,20 @@ def render_step_1() -> None:
             st.rerun()
 
     with col3:
-        if st.button("Next Step →", use_container_width=True, disabled=not name_valid, type="primary"):
-            st.session_state.creation_data.update({
-                'name': portfolio_name,
-                'description': portfolio_description,
-                'currency': currency,
-                'initial_value': initial_value
-            })
+        if st.button(
+            "Next Step →",
+            use_container_width=True,
+            disabled=not name_valid,
+            type="primary",
+        ):
+            st.session_state.creation_data.update(
+                {
+                    "name": portfolio_name,
+                    "description": portfolio_description,
+                    "currency": currency,
+                    "initial_value": initial_value,
+                }
+            )
             st.session_state.creation_step = 2
             st.rerun()
 
@@ -207,17 +214,17 @@ def render_step_2() -> None:
         - Fastest way to create a portfolio
         - Supports multiple text formats
         - Good for portfolios with 5-20 assets
-        
+
         **Upload File** - Best for existing data
         - Import from CSV or Excel spreadsheets
         - Perfect if you already have a portfolio list
         - Supports column mapping for flexibility
-        
+
         **Manual Entry** - Best for precision
         - Add each asset one by one
         - Full control over each position
         - Real-time ticker validation
-        
+
         **Use Template** - Best for beginners
         - Pre-built investment strategies
         - Factor-based portfolios (Value, Growth, Quality)
@@ -230,27 +237,35 @@ def render_step_2() -> None:
         ["Text Input", "Upload File", "Manual Entry", "Use Template"],
         index=0,
         help="Choose the most convenient method for your data",
-        key='creation_input_method'
+        key="creation_input_method",
     )
 
     # Show preview of selected method
     if method == "Text Input":
         st.info("**Fastest method**: Enter ticker symbols with weights")
         st.code("AAPL 30%, MSFT 25%, GOOGL 20%, AMZN 15%, TSLA 10%")
-        st.markdown("**Supported formats**: `AAPL:30%`, `AAPL 0.3`, `AAPL 30`, `AAPL, MSFT` (equal)")
+        st.markdown(
+            "**Supported formats**: `AAPL:30%`, `AAPL 0.3`, `AAPL 30`, `AAPL, MSFT` (equal)"
+        )
 
     elif method == "Upload File":
         st.info("**From spreadsheet**: Upload CSV or Excel files")
-        st.markdown("**Required columns**: `ticker`, **Optional**: `weight`, `name`, `sector`")
+        st.markdown(
+            "**Required columns**: `ticker`, **Optional**: `weight`, `name`, `sector`"
+        )
         st.markdown("**Example**: ticker,weight -> AAPL,30 -> MSFT,25")
 
     elif method == "Manual Entry":
         st.info("**Full control**: Add each asset individually")
-        st.markdown("**Best for**: Detailed portfolio construction with custom settings")
+        st.markdown(
+            "**Best for**: Detailed portfolio construction with custom settings"
+        )
 
     elif method == "Use Template":
         st.info("**Quick start**: Begin with proven strategies")
-        st.markdown("**Available**: Value Factor, Growth Factor, Quality Factor, 60/40 Portfolio, All Weather, Tech Focus")
+        st.markdown(
+            "**Available**: Value Factor, Growth Factor, Quality Factor, 60/40 Portfolio, All Weather, Tech Focus"
+        )
 
     # Navigation buttons
     col1, col2, col3 = st.columns([1, 1, 2])
@@ -262,7 +277,7 @@ def render_step_2() -> None:
 
     with col3:
         if st.button("Next Step →", use_container_width=True, type="primary"):
-            st.session_state.creation_data['input_method'] = method
+            st.session_state.creation_data["input_method"] = method
             st.session_state.creation_step = 3
             st.rerun()
 
@@ -271,7 +286,7 @@ def render_step_3() -> None:
     """Step 3: Asset Input."""
     st.write("### Step 3: Add Your Assets")
 
-    method = st.session_state.creation_data['input_method']
+    method = st.session_state.creation_data["input_method"]
 
     if method == "Text Input":
         render_text_input()
@@ -286,7 +301,7 @@ def render_step_3() -> None:
 def render_text_input() -> None:
     """Text input for assets."""
     st.markdown("**Enter your portfolio assets** (one of these formats):")
-    
+
     with st.expander("How does text input work?", expanded=False):
         st.markdown("""
         **Supported Formats:**
@@ -294,7 +309,7 @@ def render_text_input() -> None:
         - `AAPL 0.4, MSFT 0.3, GOOGL 0.3` - Space with decimals (0.0 to 1.0)
         - `AAPL 40, MSFT 30, GOOGL 30` - Numbers > 1 (automatically treated as percentages)
         - `AAPL, MSFT, GOOGL` - Equal weights (each asset gets equal allocation)
-        
+
         **Tips:**
         - Weights don't need to sum to exactly 100% - they will be normalized automatically
         - Use standard ticker symbols (AAPL, MSFT, GOOGL, etc.)
@@ -303,7 +318,9 @@ def render_text_input() -> None:
         """)
 
     # Example tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["Percentages", "Decimals", "Numbers", "Equal Weight"])
+    tab1, tab2, tab3, tab4 = st.tabs(
+        ["Percentages", "Decimals", "Numbers", "Equal Weight"]
+    )
 
     with tab1:
         st.code("AAPL:40%, MSFT:30%, GOOGL:30%")
@@ -316,10 +333,10 @@ def render_text_input() -> None:
 
     text_input = st.text_area(
         "Portfolio Assets:",
-        value=st.session_state.creation_data.get('asset_text', ''),
+        value=st.session_state.creation_data.get("asset_text", ""),
         height=120,
         placeholder="Enter tickers and weights here...\nExample: AAPL 30%, MSFT 25%, GOOGL 20%, AMZN 15%, TSLA 10%",
-        key='creation_asset_text'
+        key="creation_asset_text",
     )
 
     parsed_assets = []
@@ -335,32 +352,44 @@ def render_text_input() -> None:
 
                 # Validate tickers - Level 2: Service validation
                 data_service: DataService = st.session_state.data_service
-                tickers = [asset['ticker'] for asset in parsed_assets]
+                tickers = [asset["ticker"] for asset in parsed_assets]
 
                 validation_results = data_service.validate_tickers(tickers)
                 valid_tickers = [t for t, valid in validation_results.items() if valid]
-                invalid_tickers = [t for t, valid in validation_results.items() if not valid]
+                invalid_tickers = [
+                    t for t, valid in validation_results.items() if not valid
+                ]
 
                 if invalid_tickers:
                     st.warning(f"Unknown tickers: {', '.join(invalid_tickers)}")
                     # Filter out invalid tickers
-                    parsed_assets = [asset for asset in parsed_assets if asset['ticker'] in valid_tickers]
+                    parsed_assets = [
+                        asset
+                        for asset in parsed_assets
+                        if asset["ticker"] in valid_tickers
+                    ]
 
                 if parsed_assets:
                     # Show preview table
                     preview_data = []
                     for asset in parsed_assets:
-                        preview_data.append({
-                            'Ticker': asset['ticker'],
-                            'Weight': f"{asset['weight']:.1%}",
-                            'Status': 'Valid' if asset['ticker'] in valid_tickers else 'Invalid'
-                        })
+                        preview_data.append(
+                            {
+                                "Ticker": asset["ticker"],
+                                "Weight": f"{asset['weight']:.1%}",
+                                "Status": (
+                                    "Valid"
+                                    if asset["ticker"] in valid_tickers
+                                    else "Invalid"
+                                ),
+                            }
+                        )
 
                     preview_df = pd.DataFrame(preview_data)
                     st.dataframe(preview_df, use_container_width=True, hide_index=True)
 
                     # Check weight sum
-                    total_weight = sum(asset['weight'] for asset in parsed_assets)
+                    total_weight = sum(asset["weight"] for asset in parsed_assets)
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
@@ -368,10 +397,14 @@ def render_text_input() -> None:
                     with col2:
                         st.metric("Total Weight", f"{total_weight:.1%}")
                     with col3:
-                        weight_status = "Perfect" if abs(total_weight - 1.0) < 0.001 else "Will normalize"
+                        weight_status = (
+                            "Perfect"
+                            if abs(total_weight - 1.0) < 0.001
+                            else "Will normalize"
+                        )
                         st.metric("Status", weight_status)
 
-                    st.session_state.creation_data['parsed_assets'] = parsed_assets
+                    st.session_state.creation_data["parsed_assets"] = parsed_assets
                     validation_passed = True
                 else:
                     st.error("No valid tickers found")
@@ -392,8 +425,13 @@ def render_text_input() -> None:
 
     with col3:
         can_proceed = bool(text_input.strip() and validation_passed)
-        if st.button("Next Step →", use_container_width=True, disabled=not can_proceed, type="primary"):
-            st.session_state.creation_data['asset_text'] = text_input
+        if st.button(
+            "Next Step →",
+            use_container_width=True,
+            disabled=not can_proceed,
+            type="primary",
+        ):
+            st.session_state.creation_data["asset_text"] = text_input
             st.session_state.creation_step = 4
             st.rerun()
 
@@ -401,14 +439,14 @@ def render_text_input() -> None:
 def render_file_upload() -> None:
     """File upload for assets."""
     st.markdown("**Upload a CSV or Excel file** with your portfolio data")
-    
+
     with st.expander("What file format do I need?", expanded=False):
         st.markdown("""
         **File Requirements:**
         - Supported formats: CSV, Excel (.xlsx, .xls)
         - **Required column**: `ticker` (or any column name you can map)
         - **Optional columns**: `weight`, `name`, `sector`
-        
+
         **Example CSV format:**
         ```
         ticker,weight
@@ -416,7 +454,7 @@ def render_file_upload() -> None:
         MSFT,25
         GOOGL,20
         ```
-        
+
         **Example with equal weights:**
         ```
         ticker
@@ -425,7 +463,7 @@ def render_file_upload() -> None:
         GOOGL
         ```
         (Weights will be automatically set to equal)
-        
+
         **Column Mapping:**
         - You can select which column contains tickers
         - You can select which column contains weights (or use equal weights)
@@ -434,15 +472,15 @@ def render_file_upload() -> None:
 
     uploaded_file = st.file_uploader(
         "Choose file",
-        type=['csv', 'xlsx', 'xls'],
+        type=["csv", "xlsx", "xls"],
         help="File should contain ticker symbols and optionally weights",
-        key='creation_file_upload'
+        key="creation_file_upload",
     )
 
     if uploaded_file:
         try:
             # Read file
-            if uploaded_file.name.endswith('.csv'):
+            if uploaded_file.name.endswith(".csv"):
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file)
@@ -463,7 +501,7 @@ def render_file_upload() -> None:
                     "Ticker Column *",
                     df.columns.tolist(),
                     help="Column containing stock symbols",
-                    key='creation_ticker_col'
+                    key="creation_ticker_col",
                 )
 
             with col2:
@@ -472,20 +510,27 @@ def render_file_upload() -> None:
                     "Weight Column",
                     weight_options,
                     help="Column with weights/allocations (optional)",
-                    key='creation_weight_col'
+                    key="creation_weight_col",
                 )
 
             # Preview processed data
             if ticker_col:
                 try:
                     # Extract and process data
-                    tickers = df[ticker_col].astype(str).str.upper().str.strip().tolist()
+                    tickers = (
+                        df[ticker_col].astype(str).str.upper().str.strip().tolist()
+                    )
 
                     # Remove empty/invalid tickers
-                    tickers = [t for t in tickers if t and t != 'NAN' and len(t) > 0]
+                    tickers = [t for t in tickers if t and t != "NAN" and len(t) > 0]
 
                     if weight_col != "Auto (Equal Weight)":
-                        weights = df[weight_col].fillna(0).astype(float).tolist()[:len(tickers)]
+                        weights = (
+                            df[weight_col]
+                            .fillna(0)
+                            .astype(float)
+                            .tolist()[: len(tickers)]
+                        )
                         # Normalize if weights are in percentage format (> 1)
                         # Check if any weight > 1, then assume percentages
                         if any(w > 1.0 for w in weights if w > 0):
@@ -503,34 +548,56 @@ def render_file_upload() -> None:
                     # Create preview
                     processed_data = []
                     for i, (ticker, weight) in enumerate(zip(tickers, weights)):
-                        processed_data.append({
-                            'Ticker': ticker,
-                            'Weight': f"{weight:.1%}",
-                            'Name': df.get('name', df.get('company_name', pd.Series([''] * len(df)))).iloc[
-                                i] if i < len(df) else ''
-                        })
+                        processed_data.append(
+                            {
+                                "Ticker": ticker,
+                                "Weight": f"{weight:.1%}",
+                                "Name": (
+                                    df.get(
+                                        "name",
+                                        df.get(
+                                            "company_name", pd.Series([""] * len(df))
+                                        ),
+                                    ).iloc[i]
+                                    if i < len(df)
+                                    else ""
+                                ),
+                            }
+                        )
 
                     processed_df = pd.DataFrame(processed_data)
 
                     st.subheader("Processed Data Preview")
-                    st.dataframe(processed_df, hide_index=True, use_container_width=True)
+                    st.dataframe(
+                        processed_df, hide_index=True, use_container_width=True
+                    )
 
                     # Validate tickers
                     data_service: DataService = st.session_state.data_service
                     validation_results = data_service.validate_tickers(tickers)
-                    valid_tickers = [t for t, valid in validation_results.items() if valid]
-                    invalid_tickers = [t for t, valid in validation_results.items() if not valid]
+                    valid_tickers = [
+                        t for t, valid in validation_results.items() if valid
+                    ]
+                    invalid_tickers = [
+                        t for t, valid in validation_results.items() if not valid
+                    ]
 
                     if invalid_tickers:
-                        st.warning(f"Unknown tickers will be excluded: {', '.join(invalid_tickers)}")
+                        st.warning(
+                            f"Unknown tickers will be excluded: {', '.join(invalid_tickers)}"
+                        )
 
                     if valid_tickers:
                         st.success(f"{len(valid_tickers)} valid tickers found")
 
                         # Store file data
-                        st.session_state.creation_data['file_data'] = {
-                            'tickers': valid_tickers,
-                            'weights': [weights[tickers.index(t)] for t in valid_tickers if t in tickers]
+                        st.session_state.creation_data["file_data"] = {
+                            "tickers": valid_tickers,
+                            "weights": [
+                                weights[tickers.index(t)]
+                                for t in valid_tickers
+                                if t in tickers
+                            ],
                         }
                     else:
                         st.error("No valid tickers found in file")
@@ -552,8 +619,13 @@ def render_file_upload() -> None:
             st.rerun()
 
     with col3:
-        can_proceed = uploaded_file and 'file_data' in st.session_state.creation_data
-        if st.button("Next Step →", use_container_width=True, disabled=not can_proceed, type="primary"):
+        can_proceed = uploaded_file and "file_data" in st.session_state.creation_data
+        if st.button(
+            "Next Step →",
+            use_container_width=True,
+            disabled=not can_proceed,
+            type="primary",
+        ):
             st.session_state.creation_step = 4
             st.rerun()
 
@@ -561,7 +633,7 @@ def render_file_upload() -> None:
 def render_manual_entry() -> None:
     """Manual entry for assets."""
     st.markdown("**Add assets manually** for full control over your portfolio")
-    
+
     with st.expander("How does manual entry work?", expanded=False):
         st.markdown("""
         **Manual Entry Process:**
@@ -570,14 +642,14 @@ def render_manual_entry() -> None:
         3. Click "Validate Ticker" to check if ticker is valid
         4. Click "Add Asset" to add to portfolio
         5. Repeat for each asset
-        
+
         **Features:**
         - Real-time ticker validation
         - See current price when validating
         - View total weight as you add assets
         - Remove assets from the table
         - Weights are automatically normalized to sum to 100%
-        
+
         **Best for:**
         - Small portfolios (5-10 assets)
         - When you want to validate each ticker individually
@@ -585,8 +657,8 @@ def render_manual_entry() -> None:
         """)
 
     # Initialize manual assets
-    if 'manual_assets' not in st.session_state.creation_data:
-        st.session_state.creation_data['manual_assets'] = []
+    if "manual_assets" not in st.session_state.creation_data:
+        st.session_state.creation_data["manual_assets"] = []
 
     # Asset entry form
     with st.form("creation_asset_entry", clear_on_submit=True):
@@ -599,7 +671,7 @@ def render_manual_entry() -> None:
                 "Ticker *",
                 placeholder="e.g., AAPL",
                 help="Stock symbol",
-                key='creation_manual_ticker'
+                key="creation_manual_ticker",
             )
 
         with col2:
@@ -610,16 +682,20 @@ def render_manual_entry() -> None:
                 value=10.0,
                 step=0.1,
                 help="Percentage allocation (will be normalized to sum to 100%)",
-                key='creation_manual_weight'
+                key="creation_manual_weight",
             )
 
         col1, col2 = st.columns(2)
 
         with col1:
-            add_button = st.form_submit_button("Add Asset", use_container_width=True, type="primary")
+            add_button = st.form_submit_button(
+                "Add Asset", use_container_width=True, type="primary"
+            )
 
         with col2:
-            validate_button = st.form_submit_button("Validate Ticker", use_container_width=True)
+            validate_button = st.form_submit_button(
+                "Validate Ticker", use_container_width=True
+            )
 
         # Validation logic
         if validate_button and ticker:
@@ -634,7 +710,9 @@ def render_manual_entry() -> None:
                 if validation_results.get(ticker.upper(), False):
                     try:
                         price = data_service.fetch_current_price(ticker.upper())
-                        st.success(f"{ticker.upper()} is valid - Current price: ${price:.2f}")
+                        st.success(
+                            f"{ticker.upper()} is valid - Current price: ${price:.2f}"
+                        )
                     except Exception:
                         st.success(f"{ticker.upper()} is valid - Price unavailable")
                 else:
@@ -648,17 +726,22 @@ def render_manual_entry() -> None:
             else:
                 data_service: DataService = st.session_state.data_service
                 validation_results = data_service.validate_tickers([ticker.upper()])
-                
+
                 if validation_results.get(ticker.upper(), False):
                     # Check for duplicates
-                    existing_tickers = [asset['ticker'] for asset in st.session_state.creation_data['manual_assets']]
+                    existing_tickers = [
+                        asset["ticker"]
+                        for asset in st.session_state.creation_data["manual_assets"]
+                    ]
 
                     if ticker.upper() not in existing_tickers:
-                        st.session_state.creation_data['manual_assets'].append({
-                            'ticker': ticker.upper(),
-                            'weight': weight / 100,
-                            'name': ticker.upper()
-                        })
+                        st.session_state.creation_data["manual_assets"].append(
+                            {
+                                "ticker": ticker.upper(),
+                                "weight": weight / 100,
+                                "name": ticker.upper(),
+                            }
+                        )
                         st.success(f"Added {ticker.upper()}")
                         st.rerun()
                     else:
@@ -667,49 +750,55 @@ def render_manual_entry() -> None:
                     st.error(f"{ticker.upper()} is not a valid ticker")
 
     # Show current assets
-    if st.session_state.creation_data['manual_assets']:
+    if st.session_state.creation_data["manual_assets"]:
         st.subheader("Current Assets")
 
         assets_data = []
         total_weight = 0
 
-        for i, asset in enumerate(st.session_state.creation_data['manual_assets']):
-            assets_data.append({
-                'Ticker': asset['ticker'],
-                'Weight': f"{asset['weight']:.1%}",
-                'Remove': False
-            })
-            total_weight += asset['weight']
+        for i, asset in enumerate(st.session_state.creation_data["manual_assets"]):
+            assets_data.append(
+                {
+                    "Ticker": asset["ticker"],
+                    "Weight": f"{asset['weight']:.1%}",
+                    "Remove": False,
+                }
+            )
+            total_weight += asset["weight"]
 
         # Asset management table
         edited_df = st.data_editor(
             pd.DataFrame(assets_data),
             column_config={
-                'Ticker': st.column_config.TextColumn('Ticker', disabled=True),
-                'Weight': st.column_config.TextColumn('Weight', disabled=True),
-                'Remove': st.column_config.CheckboxColumn('Remove')
+                "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
+                "Weight": st.column_config.TextColumn("Weight", disabled=True),
+                "Remove": st.column_config.CheckboxColumn("Remove"),
             },
             hide_index=True,
-            use_container_width=True
+            use_container_width=True,
         )
 
         # Handle removals
         if st.button("Remove Selected", use_container_width=True):
-            indices_to_remove = [i for i, row in edited_df.iterrows() if row['Remove']]
+            indices_to_remove = [i for i, row in edited_df.iterrows() if row["Remove"]]
             if indices_to_remove:
                 for i in reversed(sorted(indices_to_remove)):
-                    st.session_state.creation_data['manual_assets'].pop(i)
+                    st.session_state.creation_data["manual_assets"].pop(i)
                 st.rerun()
 
         # Portfolio metrics
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric("Total Assets", len(st.session_state.creation_data['manual_assets']))
+            st.metric(
+                "Total Assets", len(st.session_state.creation_data["manual_assets"])
+            )
         with col2:
             st.metric("Total Weight", f"{total_weight:.1%}")
         with col3:
-            weight_status = "Perfect" if abs(total_weight - 1.0) < 0.001 else "Will normalize"
+            weight_status = (
+                "Perfect" if abs(total_weight - 1.0) < 0.001 else "Will normalize"
+            )
             st.metric("Status", weight_status)
 
     # Navigation buttons
@@ -721,8 +810,13 @@ def render_manual_entry() -> None:
             st.rerun()
 
     with col3:
-        can_proceed = len(st.session_state.creation_data.get('manual_assets', [])) > 0
-        if st.button("Next Step →", use_container_width=True, disabled=not can_proceed, type="primary"):
+        can_proceed = len(st.session_state.creation_data.get("manual_assets", [])) > 0
+        if st.button(
+            "Next Step →",
+            use_container_width=True,
+            disabled=not can_proceed,
+            type="primary",
+        ):
             st.session_state.creation_step = 4
             st.rerun()
 
@@ -730,23 +824,23 @@ def render_manual_entry() -> None:
 def render_template_selection() -> None:
     """Template selection."""
     st.markdown("**Start with a proven strategy** and customize as needed")
-    
+
     with st.expander("What are portfolio templates?", expanded=False):
         st.markdown("""
         **Portfolio Templates** are pre-built investment strategies based on:
-        
+
         **Factor-Based Strategies:**
         - **Value Factor** - Undervalued companies with low P/E ratios
         - **Quality Factor** - High ROE companies with low debt
         - **Growth Factor** - Fast-growing companies with high revenue growth
         - **Low Volatility** - Stocks with beta < 0.8 for stability
         - **Dividend Factor** - High dividend yield stocks (3%+)
-        
+
         **Classic Strategies:**
         - **60/40 Portfolio** - Classic balanced allocation (60% stocks, 40% bonds)
         - **All Weather Portfolio** - Multi-asset diversification across economic conditions
         - **Tech Focus** - Technology sector concentration
-        
+
         **Customization:**
         - All templates can be customized after selection
         - You can modify weights, add/remove assets
@@ -759,44 +853,44 @@ def render_template_selection() -> None:
         "Value Factor": {
             "description": "Undervalued companies with low P/E and P/B ratios",
             "assets": "VTV 30%, IWD 25%, BRK-B 15%, JPM 10%, WMT 8%, CVX 7%, XOM 5%",
-            "tags": ["Value", "Undervalued", "P/E < 15"]
+            "tags": ["Value", "Undervalued", "P/E < 15"],
         },
         "Quality Factor": {
             "description": "High ROE companies with low debt and stable profits",
             "assets": "QUAL 35%, MSFT 20%, AAPL 15%, JNJ 10%, PG 8%, V 7%, MA 5%",
-            "tags": ["Quality", "ROE > 15%", "Low Debt"]
+            "tags": ["Quality", "ROE > 15%", "Low Debt"],
         },
         "Growth Factor": {
             "description": "Fast-growing companies with high revenue and EPS growth",
             "assets": "VUG 30%, IWF 25%, NVDA 15%, GOOGL 10%, AMZN 8%, TSLA 7%, META 5%",
-            "tags": ["Growth", "Revenue > 10%", "EPS Growth"]
+            "tags": ["Growth", "Revenue > 10%", "EPS Growth"],
         },
         "Low Volatility": {
             "description": "Low volatility stocks with beta < 0.8",
             "assets": "USMV 40%, SPLV 30%, KO 8%, PG 7%, JNJ 6%, VZ 5%, WMT 4%",
-            "tags": ["Low Vol", "Beta < 0.8", "Defensive"]
+            "tags": ["Low Vol", "Beta < 0.8", "Defensive"],
         },
         "Dividend Factor": {
             "description": "High dividend yield stocks with 3%+ yield",
             "assets": "VYM 25%, SCHD 25%, HDV 20%, T 8%, VZ 7%, XOM 6%, KO 5%, PFE 4%",
-            "tags": ["Dividends", "Yield > 3%", "Income"]
+            "tags": ["Dividends", "Yield > 3%", "Income"],
         },
         # Core strategies
         "60/40 Portfolio": {
             "description": "Classic 60% stocks, 40% bonds allocation",
             "assets": "VTI 60%, BND 40%",
-            "tags": ["Balanced", "Classic", "Moderate Risk"]
+            "tags": ["Balanced", "Classic", "Moderate Risk"],
         },
         "All Weather Portfolio": {
             "description": "Multi-asset diversification across all economic conditions",
             "assets": "VTI 30%, BND 25%, GLD 15%, VNQ 15%, BTC-USD 10%, TIP 5%",
-            "tags": ["Multi-Asset", "All Weather", "Diversified"]
+            "tags": ["Multi-Asset", "All Weather", "Diversified"],
         },
         "Tech Focus": {
             "description": "Technology sector concentration with growth leaders",
             "assets": "AAPL 25%, MSFT 20%, GOOGL 15%, NVDA 12%, META 10%, AMZN 8%, TSLA 5%, AMD 3%, CRM 2%",
-            "tags": ["Technology", "Growth", "High Risk"]
-        }
+            "tags": ["Technology", "Growth", "High Risk"],
+        },
     }
 
     # Template selection
@@ -804,7 +898,7 @@ def render_template_selection() -> None:
         "Choose a template:",
         list(templates.keys()),
         help="Select a base strategy to start with",
-        key='creation_template_selection'
+        key="creation_template_selection",
     )
 
     if selected_template:
@@ -815,27 +909,29 @@ def render_template_selection() -> None:
 
         with col1:
             st.info(f"**{selected_template}**: {template_info['description']}")
-            st.code(template_info['assets'])
+            st.code(template_info["assets"])
 
         with col2:
             st.markdown("**Tags:**")
-            for tag in template_info['tags']:
+            for tag in template_info["tags"]:
                 st.markdown(f"• {tag}")
 
         # Customization option
-        customize = st.checkbox("Customize template", help="Modify the template allocation")
+        customize = st.checkbox(
+            "Customize template", help="Modify the template allocation"
+        )
 
         if customize:
             custom_text = st.text_area(
                 "Modify the template:",
-                value=template_info['assets'],
+                value=template_info["assets"],
                 height=100,
                 help="Edit the allocation to suit your needs",
-                key='creation_custom_template'
+                key="creation_custom_template",
             )
             final_template_text = custom_text
         else:
-            final_template_text = template_info['assets']
+            final_template_text = template_info["assets"]
 
         # Validate template
         if final_template_text:
@@ -849,16 +945,26 @@ def render_template_selection() -> None:
                     with st.expander("Template Preview", expanded=False):
                         template_data = []
                         for asset in parsed_template:
-                            template_data.append({
-                                'Ticker': asset['ticker'],
-                                'Weight': f"{asset['weight']:.1%}"
-                            })
+                            template_data.append(
+                                {
+                                    "Ticker": asset["ticker"],
+                                    "Weight": f"{asset['weight']:.1%}",
+                                }
+                            )
 
-                        st.dataframe(pd.DataFrame(template_data), hide_index=True, use_container_width=True)
+                        st.dataframe(
+                            pd.DataFrame(template_data),
+                            hide_index=True,
+                            use_container_width=True,
+                        )
 
-                    st.session_state.creation_data['template_text'] = final_template_text
-                    st.session_state.creation_data['template_name'] = selected_template
-                    st.session_state.creation_data['description'] = template_info['description']
+                    st.session_state.creation_data["template_text"] = (
+                        final_template_text
+                    )
+                    st.session_state.creation_data["template_name"] = selected_template
+                    st.session_state.creation_data["description"] = template_info[
+                        "description"
+                    ]
                 else:
                     st.error("Could not parse template")
 
@@ -875,8 +981,15 @@ def render_template_selection() -> None:
             st.rerun()
 
     with col3:
-        can_proceed = selected_template and 'template_text' in st.session_state.creation_data
-        if st.button("Next Step →", use_container_width=True, disabled=not can_proceed, type="primary"):
+        can_proceed = (
+            selected_template and "template_text" in st.session_state.creation_data
+        )
+        if st.button(
+            "Next Step →",
+            use_container_width=True,
+            disabled=not can_proceed,
+            type="primary",
+        ):
             st.session_state.creation_step = 4
             st.rerun()
 
@@ -884,7 +997,7 @@ def render_template_selection() -> None:
 def render_step_4() -> None:
     """Step 4: Options and Settings."""
     st.write("### Step 4: Portfolio Settings & Review")
-    
+
     with st.expander("What settings should I configure?", expanded=False):
         st.markdown("""
         **Portfolio Options:**
@@ -892,13 +1005,13 @@ def render_step_4() -> None:
         - **Auto-normalize weights** - Automatically adjust weights to sum to 100%
         - **Update current prices** - Fetch latest market prices for all assets
         - **Calculate share quantities** - Calculate number of shares based on initial investment
-        
+
         **Cash Management:**
         - **Planned Cash Allocation** - Percentage to intentionally keep in cash
         - Useful for maintaining liquidity or waiting for better entry points
         - Remaining percentage will be allocated to your assets
         - Example: 10% cash means 90% goes to your selected assets
-        
+
         **Review:**
         - Check all your portfolio details before creation
         - Verify asset count and total weight
@@ -914,26 +1027,26 @@ def render_step_4() -> None:
         fetch_info = st.checkbox(
             "Fetch company information",
             value=True,
-            help="Automatically get company names, sectors, and market data"
+            help="Automatically get company names, sectors, and market data",
         )
 
         auto_normalize = st.checkbox(
             "Auto-normalize weights",
             value=True,
-            help="Automatically adjust weights to sum to 100%"
+            help="Automatically adjust weights to sum to 100%",
         )
 
     with col2:
         update_prices = st.checkbox(
             "Update current prices",
             value=True,
-            help="Fetch latest market prices for all assets"
+            help="Fetch latest market prices for all assets",
         )
 
         calculate_shares = st.checkbox(
             "Calculate share quantities",
             value=True,
-            help="Calculate number of shares based on initial investment"
+            help="Calculate number of shares based on initial investment",
         )
 
     # Cash allocation section
@@ -948,47 +1061,51 @@ def render_step_4() -> None:
             max_value=50,
             value=0,
             step=1,
-            help="Percentage to intentionally keep in cash"
+            help="Percentage to intentionally keep in cash",
         )
 
     with col2:
         if cash_allocation > 0:
-            cash_amount = st.session_state.creation_data.get('initial_value', 100000) * (cash_allocation / 100)
+            cash_amount = st.session_state.creation_data.get(
+                "initial_value", 100000
+            ) * (cash_allocation / 100)
             st.metric("Cash Amount", f"${cash_amount:,.0f}")
             st.info(f"Remaining for investments: {100 - cash_allocation}%")
 
     # Portfolio Mode selection
     st.markdown("---")
     st.subheader("Portfolio Mode")
-    
+
     portfolio_mode = st.radio(
         "How do you want to manage this portfolio?",
-        options=['Buy-and-Hold', 'With Transactions'],
+        options=["Buy-and-Hold", "With Transactions"],
         index=0,
         help="""
         **Buy-and-Hold**: Simple mode - positions remain fixed throughout the analysis period.
         - Fast analysis
         - Best for quick backtests and strategy testing
         - Can still use strategies for backtesting (strategies generate simulated transactions)
-        
+
         **With Transactions**: Advanced mode - track all real trades over time.
         - More accurate performance tracking
         - Accounts for all purchases, sales, deposits, and withdrawals
         - Can also use strategies for backtesting
         """,
-        key='creation_portfolio_mode'
+        key="creation_portfolio_mode",
     )
-    
-    st.session_state.creation_data['portfolio_mode'] = portfolio_mode
-    
-    if portfolio_mode == 'With Transactions':
+
+    st.session_state.creation_data["portfolio_mode"] = portfolio_mode
+
+    if portfolio_mode == "With Transactions":
         create_initial_transactions = st.checkbox(
             "Create initial transactions from positions",
             value=True,
             help="If checked, initial BUY transactions will be created for each position when portfolio is created",
-            key='create_initial_txns'
+            key="create_initial_txns",
         )
-        st.session_state.creation_data['create_initial_transactions'] = create_initial_transactions
+        st.session_state.creation_data["create_initial_transactions"] = (
+            create_initial_transactions
+        )
         st.info("""
         💡 **Tip**: Initial transactions will be created from your positions above.
         Each position will become a BUY transaction with the purchase price you specify.
@@ -1008,42 +1125,51 @@ def render_step_4() -> None:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("Name", st.session_state.creation_data.get('name', 'N/A'))
-        st.metric("Currency", st.session_state.creation_data.get('currency', 'USD'))
+        st.metric("Name", st.session_state.creation_data.get("name", "N/A"))
+        st.metric("Currency", st.session_state.creation_data.get("currency", "USD"))
 
     with col2:
-        st.metric("Initial Value", f"${st.session_state.creation_data.get('initial_value', 0):,.0f}")
-        method_display = st.session_state.creation_data.get('input_method', 'N/A')
+        st.metric(
+            "Initial Value",
+            f"${st.session_state.creation_data.get('initial_value', 0):,.0f}",
+        )
+        method_display = st.session_state.creation_data.get("input_method", "N/A")
         st.metric("Method", method_display)
 
     with col3:
         # Count assets based on method
         asset_count = 0
-        if 'parsed_assets' in st.session_state.creation_data:
-            asset_count = len(st.session_state.creation_data['parsed_assets'])
-        elif 'manual_assets' in st.session_state.creation_data:
-            asset_count = len(st.session_state.creation_data['manual_assets'])
-        elif 'file_data' in st.session_state.creation_data:
-            asset_count = len(st.session_state.creation_data['file_data']['tickers'])
-        elif 'template_text' in st.session_state.creation_data:
+        if "parsed_assets" in st.session_state.creation_data:
+            asset_count = len(st.session_state.creation_data["parsed_assets"])
+        elif "manual_assets" in st.session_state.creation_data:
+            asset_count = len(st.session_state.creation_data["manual_assets"])
+        elif "file_data" in st.session_state.creation_data:
+            asset_count = len(st.session_state.creation_data["file_data"]["tickers"])
+        elif "template_text" in st.session_state.creation_data:
             try:
                 parsed_template = parse_ticker_weights_text(
-                    st.session_state.creation_data['template_text'])
+                    st.session_state.creation_data["template_text"]
+                )
                 asset_count = len(parsed_template)
             except Exception:
                 asset_count = 0
 
         st.metric("Assets", asset_count)
-        description = st.session_state.creation_data.get('description', 'No description')
-        st.metric("Description", description[:15] + "..." if len(description) > 15 else description)
+        description = st.session_state.creation_data.get(
+            "description", "No description"
+        )
+        st.metric(
+            "Description",
+            description[:15] + "..." if len(description) > 15 else description,
+        )
 
     # Save settings
-    st.session_state.creation_data['settings'] = {
-        'fetch_info': fetch_info,
-        'auto_normalize': auto_normalize,
-        'update_prices': update_prices,
-        'calculate_shares': calculate_shares,
-        'cash_allocation': cash_allocation
+    st.session_state.creation_data["settings"] = {
+        "fetch_info": fetch_info,
+        "auto_normalize": auto_normalize,
+        "update_prices": update_prices,
+        "calculate_shares": calculate_shares,
+        "cash_allocation": cash_allocation,
     }
 
     # Navigation buttons
@@ -1075,13 +1201,13 @@ def render_step_5() -> None:
 
         result = create_portfolio_from_creation_data()
 
-        if result['success']:
+        if result["success"]:
             progress_bar.progress(1.0, "Portfolio created successfully!")
             status_container.success("Portfolio creation completed!")
 
             st.success("Portfolio created successfully!")
 
-            portfolio = result['portfolio']
+            portfolio = result["portfolio"]
 
             # Show results
             st.subheader("Portfolio Created")
@@ -1098,9 +1224,13 @@ def render_step_5() -> None:
                 try:
                     portfolio_positions = portfolio.get_all_positions()
                     data_service = st.session_state.data_service
-                    tickers = [pos.ticker for pos in portfolio_positions if pos.ticker != "CASH"]
+                    tickers = [
+                        pos.ticker
+                        for pos in portfolio_positions
+                        if pos.ticker != "CASH"
+                    ]
                     prices = data_service.get_latest_prices(tickers) if tickers else {}
-                    
+
                     total_value = 0.0
                     for pos in portfolio_positions:
                         if pos.ticker == "CASH":
@@ -1109,7 +1239,7 @@ def render_step_5() -> None:
                             price = prices.get(pos.ticker, pos.purchase_price or 0.0)
                             if price > 0:
                                 total_value += pos.shares * price
-                    
+
                     # Fallback to starting_capital if calculation fails
                     if total_value <= 0:
                         total_value = portfolio.starting_capital
@@ -1150,19 +1280,15 @@ def render_step_5() -> None:
                             # Get company names (if available)
                             for ticker in tickers:
                                 try:
-                                    ticker_info = data_service.get_ticker_info(
-                                        ticker
-                                    )
+                                    ticker_info = data_service.get_ticker_info(ticker)
                                     company_names[ticker] = (
-                                        ticker_info.name
-                                        if ticker_info.name
-                                        else ticker
+                                        ticker_info.name if ticker_info.name else ticker
                                     )
                                 except Exception:
                                     company_names[ticker] = ticker
                         except Exception as e:
                             logger.warning(f"Error fetching prices: {e}")
-                    
+
                     # Calculate total value first
                     total_value = 0.0
                     position_values = {}
@@ -1176,12 +1302,12 @@ def render_step_5() -> None:
                             value = pos.shares * price if price > 0 else 0.0
                         position_values[ticker] = value
                         total_value += value
-                    
+
                     # Prepare table data with correct weights
                     for pos in portfolio_positions:
                         ticker = pos.ticker
                         value = position_values[ticker]
-                        
+
                         if ticker == "CASH":
                             price = 1.0
                             company_name = "Cash Position"
@@ -1190,27 +1316,29 @@ def render_step_5() -> None:
                             price = prices.get(ticker, pos.purchase_price or 0.0)
                             company_name = company_names.get(ticker, ticker)
                             shares_display = f"{pos.shares:,.2f}"
-                        
+
                         # Calculate weight based on actual value
-                        weight = (value / total_value) if total_value > 0 else (pos.weight_target or 0.0)
-                        
-                        positions_data.append({
-                            "Ticker": ticker,
-                            "Name": company_name,
-                            "Weight": f"{weight:.1%}",
-                            "Shares": shares_display,
-                            "Price": f"${price:,.2f}",
-                            "Value": f"${value:,.2f}"
-                        })
-                    
+                        weight = (
+                            (value / total_value)
+                            if total_value > 0
+                            else (pos.weight_target or 0.0)
+                        )
+
+                        positions_data.append(
+                            {
+                                "Ticker": ticker,
+                                "Name": company_name,
+                                "Weight": f"{weight:.1%}",
+                                "Shares": shares_display,
+                                "Price": f"${price:,.2f}",
+                                "Value": f"${value:,.2f}",
+                            }
+                        )
+
                     # Display table
                     if positions_data:
                         df = pd.DataFrame(positions_data)
-                        st.dataframe(
-                            df,
-                            hide_index=True,
-                            use_container_width=True
-                        )
+                        st.dataframe(df, hide_index=True, use_container_width=True)
                     else:
                         st.info("No positions to display")
                 else:
@@ -1225,7 +1353,9 @@ def render_step_5() -> None:
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                if st.button("Analyze Portfolio", use_container_width=True, type="primary"):
+                if st.button(
+                    "Analyze Portfolio", use_container_width=True, type="primary"
+                ):
                     st.session_state.selected_portfolio_id = portfolio.id
                     reset_creation()
                     st.switch_page("pages/portfolio_analysis.py")
@@ -1269,7 +1399,7 @@ def render_step_5() -> None:
             st.rerun()
 
 
-def create_portfolio_from_creation_data() -> Dict[str, Any]:
+def create_portfolio_from_creation_data() -> dict[str, Any]:
     """Create portfolio from creation data."""
     try:
         creation_data = st.session_state.creation_data
@@ -1277,56 +1407,62 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
         data_service: DataService = st.session_state.data_service
 
         # Prepare positions based on input method
-        positions: List[PositionSchema] = []
+        positions: list[PositionSchema] = []
 
-        if 'parsed_assets' in creation_data:
+        if "parsed_assets" in creation_data:
             # From text input
-            for asset in creation_data['parsed_assets']:
+            for asset in creation_data["parsed_assets"]:
                 # Ensure weight is normalized (0.0 to 1.0)
-                weight = asset['weight']
+                weight = asset["weight"]
                 if weight > 1.0:
                     weight = weight / 100.0
                 weight = max(0.0, min(1.0, weight))  # Clamp to [0.0, 1.0]
-                positions.append(PositionSchema(
-                    ticker=asset['ticker'],
-                    shares=None,  # Will be calculated
-                    weight_target=weight
-                ))
+                positions.append(
+                    PositionSchema(
+                        ticker=asset["ticker"],
+                        shares=None,  # Will be calculated
+                        weight_target=weight,
+                    )
+                )
 
-        elif 'manual_assets' in creation_data:
+        elif "manual_assets" in creation_data:
             # From manual entry
-            for asset in creation_data['manual_assets']:
+            for asset in creation_data["manual_assets"]:
                 # Ensure weight is normalized (0.0 to 1.0)
-                weight = asset['weight']
+                weight = asset["weight"]
                 if weight > 1.0:
                     weight = weight / 100.0
                 weight = max(0.0, min(1.0, weight))  # Clamp to [0.0, 1.0]
-                positions.append(PositionSchema(
-                    ticker=asset['ticker'],
-                    shares=None,  # Will be calculated
-                    weight_target=weight
-                ))
+                positions.append(
+                    PositionSchema(
+                        ticker=asset["ticker"],
+                        shares=None,  # Will be calculated
+                        weight_target=weight,
+                    )
+                )
 
-        elif 'template_text' in creation_data:
+        elif "template_text" in creation_data:
             # From template
-            parsed_template = parse_ticker_weights_text(creation_data['template_text'])
+            parsed_template = parse_ticker_weights_text(creation_data["template_text"])
             for asset in parsed_template:
                 # Ensure weight is normalized (0.0 to 1.0)
-                weight = asset['weight']
+                weight = asset["weight"]
                 if weight > 1.0:
                     weight = weight / 100.0
                 weight = max(0.0, min(1.0, weight))  # Clamp to [0.0, 1.0]
-                positions.append(PositionSchema(
-                    ticker=asset['ticker'],
-                    shares=None,  # Will be calculated
-                    weight_target=weight
-                ))
+                positions.append(
+                    PositionSchema(
+                        ticker=asset["ticker"],
+                        shares=None,  # Will be calculated
+                        weight_target=weight,
+                    )
+                )
 
-        elif 'file_data' in creation_data:
+        elif "file_data" in creation_data:
             # From file upload
-            file_data = creation_data['file_data']
-            tickers = file_data['tickers']
-            weights = file_data['weights']
+            file_data = creation_data["file_data"]
+            tickers = file_data["tickers"]
+            weights = file_data["weights"]
 
             for ticker, weight in zip(tickers, weights):
                 # Ensure weight is normalized (0.0 to 1.0)
@@ -1334,26 +1470,31 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
                 if normalized_weight > 1.0:
                     normalized_weight = normalized_weight / 100.0
                 normalized_weight = max(0.0, min(1.0, normalized_weight))  # Clamp
-                positions.append(PositionSchema(
-                    ticker=ticker,
-                    shares=None,  # Will be calculated
-                    weight_target=normalized_weight
-                ))
+                positions.append(
+                    PositionSchema(
+                        ticker=ticker,
+                        shares=None,  # Will be calculated
+                        weight_target=normalized_weight,
+                    )
+                )
 
         if not positions:
-            return {'success': False, 'error': 'No asset data provided'}
+            return {"success": False, "error": "No asset data provided"}
 
         # Check for duplicate name - Level 2: Service validation
         existing_portfolios = portfolio_service.list_portfolios()
         existing_names = [p.name for p in existing_portfolios]
 
-        if creation_data['name'] in existing_names:
-            return {'success': False, 'error': f"Portfolio '{creation_data['name']}' already exists"}
+        if creation_data["name"] in existing_names:
+            return {
+                "success": False,
+                "error": f"Portfolio '{creation_data['name']}' already exists",
+            }
 
         # Get initial value and calculate shares
-        initial_value = creation_data.get('initial_value', 100000.0)
-        settings = creation_data.get('settings', {})
-        cash_allocation = settings.get('cash_allocation', 0)
+        initial_value = creation_data.get("initial_value", 100000.0)
+        settings = creation_data.get("settings", {})
+        cash_allocation = settings.get("cash_allocation", 0)
 
         # Adjust asset weights if cash allocation is planned
         if cash_allocation > 0:
@@ -1366,20 +1507,22 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
             for pos in positions:
                 if pos.weight_target:
                     scaled_weight = pos.weight_target * investment_weight
-                    scaled_positions.append(PositionSchema(
-                        ticker=pos.ticker,
-                        shares=pos.shares,
-                        weight_target=scaled_weight,
-                        purchase_price=pos.purchase_price,
-                        purchase_date=pos.purchase_date
-                    ))
+                    scaled_positions.append(
+                        PositionSchema(
+                            ticker=pos.ticker,
+                            shares=pos.shares,
+                            weight_target=scaled_weight,
+                            purchase_price=pos.purchase_price,
+                            purchase_date=pos.purchase_date,
+                        )
+                    )
                 else:
                     scaled_positions.append(pos)
             positions = scaled_positions
 
         # If calculate_shares is enabled, fetch prices and calculate shares
-        prices: Dict[str, float] = {}
-        if settings.get('calculate_shares', True):
+        prices: dict[str, float] = {}
+        if settings.get("calculate_shares", True):
             tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
             try:
                 prices = data_service.get_latest_prices(tickers)
@@ -1391,27 +1534,33 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
                         calculated_shares = 0.0
                         if pos.weight_target:
                             position_value = initial_value * pos.weight_target
-                            calculated_shares = max(0.01, position_value / prices[pos.ticker])
-                        
+                            calculated_shares = max(
+                                0.01, position_value / prices[pos.ticker]
+                            )
+
                         # Create new PositionSchema with calculated shares
-                        updated_positions.append(PositionSchema(
-                            ticker=pos.ticker,
-                            shares=calculated_shares,
-                            weight_target=pos.weight_target,
-                            purchase_price=pos.purchase_price,
-                            purchase_date=pos.purchase_date
-                        ))
+                        updated_positions.append(
+                            PositionSchema(
+                                ticker=pos.ticker,
+                                shares=calculated_shares,
+                                weight_target=pos.weight_target,
+                                purchase_price=pos.purchase_price,
+                                purchase_date=pos.purchase_date,
+                            )
+                        )
                     else:
                         # Keep original position if price not available
                         # Use minimum shares if not calculated
                         if pos.shares is None:
-                            updated_positions.append(PositionSchema(
-                                ticker=pos.ticker,
-                                shares=0.01,  # Minimum value
-                                weight_target=pos.weight_target,
-                                purchase_price=pos.purchase_price,
-                                purchase_date=pos.purchase_date
-                            ))
+                            updated_positions.append(
+                                PositionSchema(
+                                    ticker=pos.ticker,
+                                    shares=0.01,  # Minimum value
+                                    weight_target=pos.weight_target,
+                                    purchase_price=pos.purchase_price,
+                                    purchase_date=pos.purchase_date,
+                                )
+                            )
                         else:
                             updated_positions.append(pos)
                 positions = updated_positions
@@ -1430,7 +1579,9 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
                 # If cash_allocation > 0, include planned cash, otherwise just remainder
                 if cash_allocation > 0:
                     planned_cash = initial_value * (cash_allocation / 100)
-                    remainder_cash = max(0, initial_value - total_invested - planned_cash)
+                    remainder_cash = max(
+                        0, initial_value - total_invested - planned_cash
+                    )
                     total_cash = planned_cash + remainder_cash
                 else:
                     total_cash = max(0, initial_value - total_invested)
@@ -1440,7 +1591,7 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
                     cash_position = PositionSchema(
                         ticker="CASH",
                         shares=total_cash,  # Cash amount in shares field
-                        weight_target=total_cash / initial_value
+                        weight_target=total_cash / initial_value,
                     )
                     positions.append(cash_position)
 
@@ -1458,13 +1609,15 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
                             if pos.weight_target
                             else None
                         )
-                        normalized_positions.append(PositionSchema(
-                            ticker=pos.ticker,
-                            shares=pos.shares,
-                            weight_target=normalized_weight,
-                            purchase_price=pos.purchase_price,
-                            purchase_date=pos.purchase_date
-                        ))
+                        normalized_positions.append(
+                            PositionSchema(
+                                ticker=pos.ticker,
+                                shares=pos.shares,
+                                weight_target=normalized_weight,
+                                purchase_price=pos.purchase_price,
+                                purchase_date=pos.purchase_date,
+                            )
+                        )
                     positions = normalized_positions
 
             except Exception as e:
@@ -1476,7 +1629,7 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
                         cash_position = PositionSchema(
                             ticker="CASH",
                             shares=planned_cash,
-                            weight_target=cash_allocation / 100
+                            weight_target=cash_allocation / 100,
                         )
                         positions.append(cash_position)
 
@@ -1484,24 +1637,26 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
         final_positions = []
         for pos in positions:
             if pos.shares is None or pos.shares <= 0:
-                final_positions.append(PositionSchema(
-                    ticker=pos.ticker,
-                    shares=0.01,  # Minimum value
-                    weight_target=pos.weight_target,
-                    purchase_price=pos.purchase_price,
-                    purchase_date=pos.purchase_date
-                ))
+                final_positions.append(
+                    PositionSchema(
+                        ticker=pos.ticker,
+                        shares=0.01,  # Minimum value
+                        weight_target=pos.weight_target,
+                        purchase_price=pos.purchase_price,
+                        purchase_date=pos.purchase_date,
+                    )
+                )
             else:
                 final_positions.append(pos)
         positions = final_positions
 
         # Create portfolio - Level 3: Model validation via Service
         request = CreatePortfolioRequest(
-            name=creation_data['name'],
-            description=creation_data.get('description', ''),
+            name=creation_data["name"],
+            description=creation_data.get("description", ""),
             starting_capital=initial_value,
-            base_currency=creation_data.get('currency', 'USD'),
-            positions=positions
+            base_currency=creation_data.get("currency", "USD"),
+            positions=positions,
         )
 
         portfolio = portfolio_service.create_portfolio(request)
@@ -1511,31 +1666,36 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
         # The portfolio is created with correct shares already
 
         # Create initial transactions if mode is "With Transactions"
-        portfolio_mode = creation_data.get('portfolio_mode', 'Buy-and-Hold')
-        if portfolio_mode == 'With Transactions' and creation_data.get('create_initial_transactions', False):
-            from services.transaction_service import TransactionService
+        portfolio_mode = creation_data.get("portfolio_mode", "Buy-and-Hold")
+        if portfolio_mode == "With Transactions" and creation_data.get(
+            "create_initial_transactions", False
+        ):
             from datetime import date
-            
+
+            from services.transaction_service import TransactionService
+
             transaction_service = TransactionService()
             creation_date = date.today()
-            
+
             portfolio_positions = portfolio.get_all_positions()
             for pos in portfolio_positions:
-                if pos.ticker == 'CASH':
+                if pos.ticker == "CASH":
                     # CASH position = DEPOSIT transaction
                     if pos.shares > 0:
                         try:
                             transaction_service.add_transaction(
                                 portfolio_id=portfolio.id,
                                 transaction_date=creation_date,
-                                transaction_type='DEPOSIT',
-                                ticker='CASH',
+                                transaction_type="DEPOSIT",
+                                ticker="CASH",
                                 shares=pos.shares,
                                 price=1.0,
-                                notes='Initial cash allocation',
+                                notes="Initial cash allocation",
                             )
                         except Exception as e:
-                            logger.warning(f"Failed to create initial DEPOSIT transaction: {e}")
+                            logger.warning(
+                                f"Failed to create initial DEPOSIT transaction: {e}"
+                            )
                 else:
                     # Stock position = BUY transaction
                     purchase_price = pos.purchase_price
@@ -1544,35 +1704,39 @@ def create_portfolio_from_creation_data() -> Dict[str, Any]:
                         try:
                             purchase_price = prices.get(pos.ticker)
                             if not purchase_price:
-                                purchase_price = data_service.fetch_current_price(pos.ticker)
+                                purchase_price = data_service.fetch_current_price(
+                                    pos.ticker
+                                )
                         except Exception:
                             purchase_price = 1.0  # Fallback
-                    
+
                     if purchase_price and purchase_price > 0:
                         try:
                             transaction_service.add_transaction(
                                 portfolio_id=portfolio.id,
                                 transaction_date=creation_date,
-                                transaction_type='BUY',
+                                transaction_type="BUY",
                                 ticker=pos.ticker,
                                 shares=pos.shares,
                                 price=purchase_price,
-                                notes='Initial position',
+                                notes="Initial position",
                             )
                         except Exception as e:
-                            logger.warning(f"Failed to create initial BUY transaction for {pos.ticker}: {e}")
+                            logger.warning(
+                                f"Failed to create initial BUY transaction for {pos.ticker}: {e}"
+                            )
 
-        return {'success': True, 'portfolio': portfolio}
+        return {"success": True, "portfolio": portfolio}
 
     except ConflictError as e:
         logger.error(f"Portfolio creation conflict: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     except ValidationError as e:
         logger.error(f"Portfolio creation validation error: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     except Exception as e:
         logger.error(f"Error creating portfolio from creation data: {e}", exc_info=True)
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
 
 
 def reset_creation() -> None:

@@ -1,12 +1,12 @@
 """Utilities for comparing portfolio metrics with benchmark."""
 
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 
 def compare_metrics(
     portfolio_value: Optional[float],
     benchmark_value: Optional[float],
-) -> Dict[str, any]:
+) -> dict[str, any]:
     """
     Compare portfolio metric with benchmark metric.
 
@@ -179,7 +179,7 @@ def get_comparison_color(
 def calculate_outperformance(
     portfolio_return: Optional[float],
     benchmark_return: Optional[float],
-) -> Tuple[Optional[float], Optional[str]]:
+) -> tuple[Optional[float], Optional[str]]:
     """
     Calculate outperformance vs benchmark.
 

@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Float, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -29,18 +29,10 @@ class Portfolio(Base):
     )
 
     # Attributes
-    name: Mapped[str] = mapped_column(
-        String(100), nullable=False, index=True
-    )
-    description: Mapped[str | None] = mapped_column(
-        String(500), nullable=True
-    )
-    starting_capital: Mapped[float] = mapped_column(
-        Float, nullable=False
-    )
-    base_currency: Mapped[str] = mapped_column(
-        String(3), default="USD", nullable=False
-    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    starting_capital: Mapped[float] = mapped_column(Float, nullable=False)
+    base_currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -56,13 +48,13 @@ class Portfolio(Base):
     )
 
     # Relationships
-    positions: Mapped[List["Position"]] = relationship(  # noqa: F821
+    positions: Mapped[list["Position"]] = relationship(  # noqa: F821
         "Position",
         back_populates="portfolio",
         cascade="all, delete-orphan",
         lazy="selectin",  # Eager load positions
     )
-    transactions: Mapped[List["Transaction"]] = relationship(  # noqa: F821
+    transactions: Mapped[list["Transaction"]] = relationship(  # noqa: F821
         "Transaction",
         back_populates="portfolio",
         cascade="all, delete-orphan",

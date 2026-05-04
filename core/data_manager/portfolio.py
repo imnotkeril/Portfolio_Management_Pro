@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Dict, List, Optional
+from typing import Optional
 
 from core.exceptions import ValidationError
 
@@ -33,12 +33,8 @@ class Position:
         if shares <= 0:
             raise ValidationError("Shares must be greater than 0")
 
-        if weight_target is not None and (
-            weight_target < 0 or weight_target > 1
-        ):
-            raise ValidationError(
-                "Weight target must be between 0.0 and 1.0"
-            )
+        if weight_target is not None and (weight_target < 0 or weight_target > 1):
+            raise ValidationError("Weight target must be between 0.0 and 1.0")
 
         self.ticker = ticker.strip().upper()
         self.shares = shares
@@ -91,7 +87,7 @@ class Portfolio:
         self.description = description
         self.starting_capital = starting_capital
         self.base_currency = base_currency
-        self._positions: List[Position] = []
+        self._positions: list[Position] = []
 
     def add_position(
         self,
@@ -117,9 +113,7 @@ class Portfolio:
         ticker = ticker.strip().upper()
 
         if self._position_exists(ticker):
-            raise ValidationError(
-                f"Position {ticker} already exists in portfolio"
-            )
+            raise ValidationError(f"Position {ticker} already exists in portfolio")
 
         position = Position(
             ticker=ticker,
@@ -149,9 +143,7 @@ class Portfolio:
             self._positions.remove(position)
             logger.debug(f"Removed position {ticker} from portfolio {self.name}")
         else:
-            raise ValidationError(
-                f"Position {ticker} not found in portfolio"
-            )
+            raise ValidationError(f"Position {ticker} not found in portfolio")
 
     def update_position(
         self,
@@ -178,9 +170,7 @@ class Portfolio:
         position = self.get_position(ticker)
 
         if not position:
-            raise ValidationError(
-                f"Position {ticker} not found in portfolio"
-            )
+            raise ValidationError(f"Position {ticker} not found in portfolio")
 
         if shares is not None:
             if shares <= 0:
@@ -189,16 +179,12 @@ class Portfolio:
 
         if weight_target is not None:
             if weight_target < 0 or weight_target > 1:
-                raise ValidationError(
-                    "Weight target must be between 0.0 and 1.0"
-                )
+                raise ValidationError("Weight target must be between 0.0 and 1.0")
             position.weight_target = weight_target
 
         if purchase_price is not None:
             if purchase_price <= 0:
-                raise ValidationError(
-                    "Purchase price must be greater than 0"
-                )
+                raise ValidationError("Purchase price must be greater than 0")
             position.purchase_price = purchase_price
 
         if purchase_date is not None:
@@ -222,7 +208,7 @@ class Portfolio:
                 return position
         return None
 
-    def get_all_positions(self) -> List[Position]:
+    def get_all_positions(self) -> list[Position]:
         """
         Get all positions in portfolio.
 
@@ -231,9 +217,7 @@ class Portfolio:
         """
         return list(self._positions)
 
-    def calculate_current_weights(
-        self, prices: Dict[str, float]
-    ) -> Dict[str, float]:
+    def calculate_current_weights(self, prices: dict[str, float]) -> dict[str, float]:
         """
         Calculate current weights based on current prices.
 
@@ -251,7 +235,7 @@ class Portfolio:
 
         # Calculate total value
         total_value = 0.0
-        position_values: Dict[str, float] = {}
+        position_values: dict[str, float] = {}
 
         for position in self._positions:
             if position.ticker not in prices:
@@ -268,13 +252,13 @@ class Portfolio:
             return {pos.ticker: 0.0 for pos in self._positions}
 
         # Calculate weights
-        weights: Dict[str, float] = {}
+        weights: dict[str, float] = {}
         for ticker, value in position_values.items():
             weights[ticker] = value / total_value
 
         return weights
 
-    def calculate_current_value(self, prices: Dict[str, float]) -> float:
+    def calculate_current_value(self, prices: dict[str, float]) -> float:
         """
         Calculate current portfolio value.
 
@@ -321,9 +305,7 @@ class Portfolio:
         Returns:
             True if weights sum to 1.0 ± tolerance
         """
-        total_weight = sum(
-            pos.weight_target or 0.0 for pos in self._positions
-        )
+        total_weight = sum(pos.weight_target or 0.0 for pos in self._positions)
         return abs(total_weight - 1.0) <= tolerance
 
     def __repr__(self) -> str:
@@ -332,4 +314,3 @@ class Portfolio:
             f"capital={self.starting_capital}, "
             f"positions={len(self._positions)})>"
         )
-

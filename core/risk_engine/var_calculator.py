@@ -5,13 +5,12 @@ This module provides comprehensive VaR calculation methods including
 Historical, Parametric, Monte Carlo, and Cornish-Fisher approaches.
 """
 
+from typing import Any, Optional
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Dict, Any
 
-from core.analytics_engine.risk_metrics import (
-    calculate_var as calculate_var_base,
-)
+from core.analytics_engine.risk_metrics import calculate_var as calculate_var_base
 from core.exceptions import InsufficientDataError
 
 
@@ -46,9 +45,7 @@ def calculate_var(
         raise InsufficientDataError("Returns series is empty")
 
     if confidence_level not in [0.90, 0.95, 0.99]:
-        raise ValueError(
-            "Confidence level must be 0.90, 0.95, or 0.99"
-        )
+        raise ValueError("Confidence level must be 0.90, 0.95, or 0.99")
 
     # Use existing methods for historical, parametric, cornish_fisher
     if method in ["historical", "parametric", "cornish_fisher"]:
@@ -98,14 +95,10 @@ def calculate_var_monte_carlo(
         raise InsufficientDataError("Returns series is empty")
 
     if confidence_level not in [0.90, 0.95, 0.99]:
-        raise ValueError(
-            "Confidence level must be 0.90, 0.95, or 0.99"
-        )
+        raise ValueError("Confidence level must be 0.90, 0.95, or 0.99")
 
     if num_simulations < 1000:
-        raise ValueError(
-            "Number of simulations must be at least 1,000"
-        )
+        raise ValueError("Number of simulations must be at least 1,000")
 
     if time_horizon < 1:
         raise ValueError("Time horizon must be at least 1 day")
@@ -124,11 +117,7 @@ def calculate_var_monte_carlo(
 
     for _ in range(num_simulations):
         # Generate random returns for each day in horizon
-        daily_returns = np.random.normal(
-            mean_return,
-            std_return,
-            size=time_horizon
-        )
+        daily_returns = np.random.normal(mean_return, std_return, size=time_horizon)
         # Calculate cumulative return over horizon
         cumulative_return = np.prod(1 + daily_returns) - 1
         simulated_returns.append(cumulative_return)
@@ -170,16 +159,12 @@ def calculate_var_all_methods(
     results = {}
 
     try:
-        results["historical"] = calculate_var(
-            returns, confidence_level, "historical"
-        )
+        results["historical"] = calculate_var(returns, confidence_level, "historical")
     except Exception:
         results["historical"] = None
 
     try:
-        results["parametric"] = calculate_var(
-            returns, confidence_level, "parametric"
-        )
+        results["parametric"] = calculate_var(returns, confidence_level, "parametric")
     except Exception:
         results["parametric"] = None
 
@@ -205,7 +190,7 @@ def calculate_portfolio_var_covariance(
     weights: np.ndarray,
     confidence_level: float = 0.95,
     time_horizon: int = 1,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Calculate Portfolio VaR using covariance matrix.
 
@@ -228,9 +213,7 @@ def calculate_portfolio_var_covariance(
         raise InsufficientDataError("Returns DataFrame is empty")
 
     if confidence_level not in [0.90, 0.95, 0.99]:
-        raise ValueError(
-            "Confidence level must be 0.90, 0.95, or 0.99"
-        )
+        raise ValueError("Confidence level must be 0.90, 0.95, or 0.99")
 
     # Normalize weights
     weights = np.array(weights)
@@ -247,13 +230,12 @@ def calculate_portfolio_var_covariance(
 
     # Z-score for confidence level
     from scipy import stats
+
     alpha = 1.0 - confidence_level
     z_score = abs(stats.norm.ppf(alpha))
 
     # Portfolio VaR (annualized, then scaled to time_horizon)
-    portfolio_var = (
-        -z_score * portfolio_volatility * np.sqrt(time_horizon / 252)
-    )
+    portfolio_var = -z_score * portfolio_volatility * np.sqrt(time_horizon / 252)
 
     # Calculate Marginal VaR (derivative of VaR w.r.t. weight)
     # Marginal VaR = -Z_α × (Σ × w) / σ_portfolio × √(time_horizon/252)
@@ -281,17 +263,13 @@ def calculate_portfolio_var_covariance(
         "portfolio_var": float(portfolio_var),
         "portfolio_volatility": float(portfolio_volatility),
         "marginal_var": {
-            asset_names[i]: float(marginal_var[i])
-            for i in range(len(asset_names))
+            asset_names[i]: float(marginal_var[i]) for i in range(len(asset_names))
         },
         "component_var": {
-            asset_names[i]: float(component_var[i])
-            for i in range(len(asset_names))
+            asset_names[i]: float(component_var[i]) for i in range(len(asset_names))
         },
         "var_contribution_pct": {
             asset_names[i]: float(var_contribution_pct[i])
             for i in range(len(asset_names))
         },
     }
-
-

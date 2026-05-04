@@ -1,25 +1,25 @@
 """Unit tests for risk-adjusted ratios."""
 
-import pytest
 import numpy as np
 import pandas as pd
+import pytest
 
 from core.analytics_engine.ratios import (
-    calculate_sharpe_ratio,
-    calculate_sortino_ratio,
-    calculate_calmar_ratio,
-    calculate_sterling_ratio,
     calculate_burke_ratio,
-    calculate_treynor_ratio,
+    calculate_calmar_ratio,
+    calculate_common_sense_ratio,
+    calculate_gain_pain_ratio,
     calculate_information_ratio,
+    calculate_kappa_3,
+    calculate_martin_ratio,
     calculate_modigliani_m2,
     calculate_omega_ratio,
-    calculate_kappa_3,
-    calculate_gain_pain_ratio,
-    calculate_martin_ratio,
-    calculate_tail_ratio,
-    calculate_common_sense_ratio,
     calculate_rachev_ratio,
+    calculate_sharpe_ratio,
+    calculate_sortino_ratio,
+    calculate_sterling_ratio,
+    calculate_tail_ratio,
+    calculate_treynor_ratio,
 )
 from core.exceptions import InsufficientDataError
 
@@ -330,4 +330,3 @@ def test_calculate_rachev_ratio_identical_returns() -> None:
     rachev = calculate_rachev_ratio(portfolio, benchmark, alpha=0.05)
 
     assert rachev is None or np.isfinite(rachev)
-

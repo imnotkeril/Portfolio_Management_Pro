@@ -14,7 +14,6 @@ except ImportError:
 
 from core.exceptions import CalculationError
 from core.forecasting_engine.base import BaseForecaster, ForecastResult
-from core.forecasting_engine.utils import calculate_confidence_intervals
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +88,7 @@ class GARCHForecaster(BaseForecaster):
 
             # Validate returns data
             if returns_data.isna().any() or np.any(np.isinf(returns_data)):
-                logger.warning(
-                    "GARCH: Returns contain NaN or Inf values, filtering..."
-                )
+                logger.warning("GARCH: Returns contain NaN or Inf values, filtering...")
                 returns_data = returns_data[
                     ~(returns_data.isna() | np.isinf(returns_data))
                 ]
@@ -113,19 +110,13 @@ class GARCHForecaster(BaseForecaster):
                 )
                 model_fit = model.fit(disp="off")
             except Exception as e:
-                raise CalculationError(
-                    f"GARCH model fitting failed: {e}"
-                ) from e
+                raise CalculationError(f"GARCH model fitting failed: {e}") from e
 
             # Forecast volatility
             try:
-                forecast_result = model_fit.forecast(
-                    horizon=horizon, reindex=False
-                )
+                forecast_result = model_fit.forecast(horizon=horizon, reindex=False)
             except Exception as e:
-                raise CalculationError(
-                    f"GARCH volatility forecast failed: {e}"
-                ) from e
+                raise CalculationError(f"GARCH volatility forecast failed: {e}") from e
 
             # Extract forecasted volatility (standard deviation)
             # forecast_result.variance is a DataFrame with forecasted variance
@@ -157,21 +148,20 @@ class GARCHForecaster(BaseForecaster):
                             forecast_variance = forecast_variance[:horizon]
                         else:
                             # Pad with last value
-                            last_val = forecast_variance[-1] if len(
-                                forecast_variance
-                            ) > 0 else 0.01
+                            last_val = (
+                                forecast_variance[-1]
+                                if len(forecast_variance) > 0
+                                else 0.01
+                            )
                             forecast_variance = np.append(
                                 forecast_variance,
-                                np.full(
-                                    horizon - len(forecast_variance), last_val
-                                ),
+                                np.full(horizon - len(forecast_variance), last_val),
                             )
 
                     forecast_volatility = np.sqrt(forecast_variance)
                 except Exception as e:
                     logger.warning(
-                        f"Error extracting forecast variance: {e}, "
-                        "using fallback"
+                        f"Error extracting forecast variance: {e}, " "using fallback"
                     )
                     forecast_volatility = None
 
@@ -187,8 +177,7 @@ class GARCHForecaster(BaseForecaster):
                     forecast_volatility = np.full(horizon, avg_vol)
                 except Exception as e:
                     logger.warning(
-                        f"Could not use conditional volatility: {e}, "
-                        "using default"
+                        f"Could not use conditional volatility: {e}, " "using default"
                     )
                     # Last resort: use historical returns volatility
                     hist_vol = float(returns_data.std())
@@ -354,4 +343,3 @@ class GARCHForecaster(BaseForecaster):
         except Exception as e:
             logger.error(f"GARCH forecast failed: {e}", exc_info=True)
             raise CalculationError(f"GARCH forecast failed: {e}") from e
-

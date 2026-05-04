@@ -9,9 +9,9 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-import streamlit as st
+import streamlit as st  # noqa: E402
 
-from streamlit_app.utils.chart_config import COLORS
+from streamlit_app.utils.chart_config import COLORS  # noqa: E402
 
 # Initialize logging
 logging.basicConfig(
@@ -25,11 +25,10 @@ logger = logging.getLogger(__name__)
 if "db_initialized" not in st.session_state:
     try:
         # Import all models to ensure they are registered with SQLAlchemy
-        from models import Portfolio, Position, PriceHistory, Transaction  # noqa: F401
-        
         # Initialize database tables
         from database.session import init_db
-        
+        from models import Portfolio, Position, PriceHistory, Transaction  # noqa: F401
+
         init_db()
         st.session_state.db_initialized = True
         logger.info("Database initialized successfully")
@@ -46,12 +45,10 @@ st.set_page_config(
 )
 
 # Apply custom CSS
-from pathlib import Path
-
 css_path = Path(__file__).parent / "styles.css"
 if css_path.exists():
     try:
-        with open(css_path, "r", encoding="utf-8") as f:
+        with open(css_path, encoding="utf-8") as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
     except Exception as e:
         logger.warning(f"Could not load CSS file: {e}")
@@ -103,13 +100,12 @@ with st.sidebar:
         st.session_state.api_status = None
 
     # Check API status (only once per session or on refresh)
-    refresh_button = st.button(
-        "Refresh Status", use_container_width=True
-    )
+    refresh_button = st.button("Refresh Status", use_container_width=True)
     if st.session_state.api_status is None or refresh_button:
         try:
-            from services.data_service import DataService
             import time
+
+            from services.data_service import DataService
 
             start_time = time.time()
             data_service = DataService()
@@ -119,34 +115,34 @@ with st.sidebar:
             if test_result:
                 st.session_state.api_status = {
                     "status": "online",
-                    "response_time": response_time
+                    "response_time": response_time,
                 }
             else:
                 st.session_state.api_status = {
                     "status": "limited",
-                    "response_time": response_time
+                    "response_time": response_time,
                 }
         except (ImportError, AttributeError) as e:
             logger.warning(f"API check failed due to import/attribute error: {e}")
             st.session_state.api_status = {
                 "status": "offline",
-                "error": "Service unavailable"
+                "error": "Service unavailable",
             }
         except Exception as e:
             logger.error(f"Unexpected error during API check: {e}", exc_info=True)
             st.session_state.api_status = {
                 "status": "unknown",
-                "error": "Unexpected error"
+                "error": "Unexpected error",
             }
 
     # Display status
     status = st.session_state.api_status
     if status:
         if status["status"] == "online":
-            rt = status['response_time']
+            rt = status["response_time"]
             st.success(f"API: Online ({rt:.0f}ms)")
         elif status["status"] == "limited":
-            rt = status['response_time']
+            rt = status["response_time"]
             st.warning(f"API: Limited ({rt:.0f}ms)")
         else:
             st.error("API: Offline")
@@ -155,7 +151,8 @@ with st.sidebar:
 
     # About section
     st.subheader("About")
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <div style="
         background-color: #1A1E29;
         padding: 12px;
@@ -177,7 +174,9 @@ with st.sidebar:
             <li>Price forecasting</li>
         </ul>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown("<br>", unsafe_allow_html=True)
 

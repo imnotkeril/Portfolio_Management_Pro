@@ -40,6 +40,7 @@ env/
 # IDE and Editors
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~

@@ -1,7 +1,7 @@
 """Portfolio service for orchestrating portfolio operations."""
 
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 
 from core.data_manager.portfolio import Portfolio
 from core.data_manager.portfolio_repository import PortfolioRepository
@@ -41,9 +41,7 @@ class PortfolioService:
         self._repository = repository or PortfolioRepository()
         self._data_service = data_service or DataService()
 
-    def create_portfolio(
-        self, request: CreatePortfolioRequest
-    ) -> Portfolio:
+    def create_portfolio(self, request: CreatePortfolioRequest) -> Portfolio:
         """
         Create a new portfolio.
 
@@ -60,9 +58,7 @@ class PortfolioService:
         # Check for duplicate name
         existing = self._repository.find_by_name(request.name)
         if existing:
-            raise ConflictError(
-                f"Portfolio name '{request.name}' already exists"
-            )
+            raise ConflictError(f"Portfolio name '{request.name}' already exists")
 
         # Validate tickers (skip CASH - it's a special position)
         tickers = [pos.ticker for pos in request.positions if pos.ticker != "CASH"]
@@ -73,9 +69,7 @@ class PortfolioService:
                 ticker for ticker, valid in validation_results.items() if not valid
             ]
             if invalid_tickers:
-                raise ValidationError(
-                    f"Invalid tickers: {', '.join(invalid_tickers)}"
-                )
+                raise ValidationError(f"Invalid tickers: {', '.join(invalid_tickers)}")
 
         # Create domain model
         portfolio = Portfolio(
@@ -113,15 +107,14 @@ class PortfolioService:
 
         # Save to database
         saved_portfolio = self._repository.save(portfolio)
-        
+
         logger.info(
             f"Portfolio saved with {len(saved_portfolio.get_all_positions())} "
             f"positions after save"
         )
 
         logger.info(
-            f"Created portfolio: {saved_portfolio.id} "
-            f"({saved_portfolio.name})"
+            f"Created portfolio: {saved_portfolio.id} " f"({saved_portfolio.name})"
         )
 
         return saved_portfolio
@@ -141,14 +134,10 @@ class PortfolioService:
         """
         portfolio = self._repository.find_by_id(portfolio_id)
         if not portfolio:
-            raise PortfolioNotFoundError(
-                f"Portfolio not found: {portfolio_id}"
-            )
+            raise PortfolioNotFoundError(f"Portfolio not found: {portfolio_id}")
         return portfolio
 
-    def list_portfolios(
-        self, limit: int = 100, offset: int = 0
-    ) -> List[Portfolio]:
+    def list_portfolios(self, limit: int = 100, offset: int = 0) -> list[Portfolio]:
         """
         List all portfolios with pagination.
 
@@ -186,9 +175,7 @@ class PortfolioService:
         if request.name and request.name != portfolio.name:
             existing = self._repository.find_by_name(request.name)
             if existing and existing.id != portfolio_id:
-                raise ConflictError(
-                    f"Portfolio name '{request.name}' already exists"
-                )
+                raise ConflictError(f"Portfolio name '{request.name}' already exists")
 
         # Update attributes
         if request.name is not None:
@@ -258,9 +245,7 @@ class PortfolioService:
         # Save changes
         updated = self._repository.save(portfolio)
 
-        logger.info(
-            f"Added position {request.ticker} to portfolio {portfolio_id}"
-        )
+        logger.info(f"Added position {request.ticker} to portfolio {portfolio_id}")
         return updated
 
     def remove_position(self, portfolio_id: str, ticker: str) -> Portfolio:
@@ -322,14 +307,10 @@ class PortfolioService:
         # Save changes
         updated = self._repository.save(portfolio)
 
-        logger.info(
-            f"Updated position {ticker} in portfolio {portfolio_id}"
-        )
+        logger.info(f"Updated position {ticker} in portfolio {portfolio_id}")
         return updated
 
-    def clone_portfolio(
-        self, portfolio_id: str, new_name: str
-    ) -> Portfolio:
+    def clone_portfolio(self, portfolio_id: str, new_name: str) -> Portfolio:
         """
         Clone portfolio with new name.
 
@@ -350,9 +331,7 @@ class PortfolioService:
         # Check name conflict
         existing = self._repository.find_by_name(new_name)
         if existing:
-            raise ConflictError(
-                f"Portfolio name '{new_name}' already exists"
-            )
+            raise ConflictError(f"Portfolio name '{new_name}' already exists")
 
         # Create new portfolio with same attributes
         cloned = Portfolio(
@@ -375,15 +354,11 @@ class PortfolioService:
         # Save cloned portfolio
         saved = self._repository.save(cloned)
 
-        logger.info(
-            f"Cloned portfolio {portfolio_id} as {saved.id} ({new_name})"
-        )
+        logger.info(f"Cloned portfolio {portfolio_id} as {saved.id} ({new_name})")
 
         return saved
 
-    def calculate_portfolio_metrics(
-        self, portfolio_id: str
-    ) -> Dict[str, float]:
+    def calculate_portfolio_metrics(self, portfolio_id: str) -> dict[str, float]:
         """
         Calculate current portfolio value and weights.
 
@@ -401,7 +376,7 @@ class PortfolioService:
 
         # Get current prices for all tickers
         tickers = [pos.ticker for pos in portfolio.get_all_positions()]
-        prices: Dict[str, float] = {}
+        prices: dict[str, float] = {}
 
         for ticker in tickers:
             try:
@@ -413,8 +388,7 @@ class PortfolioService:
                 )
             except Exception as e:
                 logger.error(
-                    f"Unexpected error fetching price for {ticker}: {e}",
-                    exc_info=True
+                    f"Unexpected error fetching price for {ticker}: {e}", exc_info=True
                 )
                 # Continue with other tickers
                 continue
@@ -428,4 +402,3 @@ class PortfolioService:
             "weights": weights,
             "positions_count": len(portfolio.get_all_positions()),
         }
-

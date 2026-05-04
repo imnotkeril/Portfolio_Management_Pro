@@ -1,2 +1,1 @@
 """Machine learning forecasting models."""
-

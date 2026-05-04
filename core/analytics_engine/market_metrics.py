@@ -1,7 +1,7 @@
 """Market-related metrics calculation (15 metrics)."""
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -37,10 +37,12 @@ def calculate_beta(
 
     try:
         # Align by date
-        aligned = pd.DataFrame({
-            "portfolio": portfolio_returns,
-            "benchmark": benchmark_returns,
-        }).dropna()
+        aligned = pd.DataFrame(
+            {
+                "portfolio": portfolio_returns,
+                "benchmark": benchmark_returns,
+            }
+        ).dropna()
 
         if len(aligned) < 2:
             return None
@@ -91,21 +93,15 @@ def calculate_alpha(
             calculate_annualized_return,
         )
 
-        portfolio_return = calculate_annualized_return(
-            portfolio_returns
-        )
-        benchmark_return = calculate_annualized_return(
-            benchmark_returns
-        )
+        portfolio_return = calculate_annualized_return(portfolio_returns)
+        benchmark_return = calculate_annualized_return(benchmark_returns)
 
         beta = calculate_beta(portfolio_returns, benchmark_returns)
         if beta is None:
             return None
 
         # CAPM: Expected return = Rf + Beta × (Rm - Rf)
-        expected_return = risk_free_rate + beta * (
-            benchmark_return - risk_free_rate
-        )
+        expected_return = risk_free_rate + beta * (benchmark_return - risk_free_rate)
         alpha = portfolio_return - expected_return
 
         if not np.isfinite(alpha):
@@ -140,9 +136,7 @@ def calculate_r_squared(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        correlation = calculate_correlation(
-            portfolio_returns, benchmark_returns
-        )
+        correlation = calculate_correlation(portfolio_returns, benchmark_returns)
 
         if correlation is None:
             return None
@@ -179,17 +173,17 @@ def calculate_correlation(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        aligned = pd.DataFrame({
-            "portfolio": portfolio_returns,
-            "benchmark": benchmark_returns,
-        }).dropna()
+        aligned = pd.DataFrame(
+            {
+                "portfolio": portfolio_returns,
+                "benchmark": benchmark_returns,
+            }
+        ).dropna()
 
         if len(aligned) < 2:
             return None
 
-        correlation = float(
-            aligned["portfolio"].corr(aligned["benchmark"])
-        )
+        correlation = float(aligned["portfolio"].corr(aligned["benchmark"]))
 
         if not np.isfinite(correlation):
             return None
@@ -223,18 +217,18 @@ def calculate_tracking_error(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        aligned = pd.DataFrame({
-            "portfolio": portfolio_returns,
-            "benchmark": benchmark_returns,
-        }).dropna()
+        aligned = pd.DataFrame(
+            {
+                "portfolio": portfolio_returns,
+                "benchmark": benchmark_returns,
+            }
+        ).dropna()
 
         if aligned.empty:
             return None
 
         active_returns = aligned["portfolio"] - aligned["benchmark"]
-        tracking_error = float(
-            active_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
-        )
+        tracking_error = float(active_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR))
 
         if not np.isfinite(tracking_error):
             return None
@@ -272,12 +266,8 @@ def calculate_active_return(
             calculate_annualized_return,
         )
 
-        portfolio_return = calculate_annualized_return(
-            portfolio_returns
-        )
-        benchmark_return = calculate_annualized_return(
-            benchmark_returns
-        )
+        portfolio_return = calculate_annualized_return(portfolio_returns)
+        benchmark_return = calculate_annualized_return(benchmark_returns)
 
         active_return = portfolio_return - benchmark_return
 
@@ -314,10 +304,12 @@ def calculate_up_capture(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        aligned = pd.DataFrame({
-            "portfolio": portfolio_returns,
-            "benchmark": benchmark_returns,
-        }).dropna()
+        aligned = pd.DataFrame(
+            {
+                "portfolio": portfolio_returns,
+                "benchmark": benchmark_returns,
+            }
+        ).dropna()
 
         # Up markets: benchmark return > 0
         up_markets = aligned[aligned["benchmark"] > 0]
@@ -366,10 +358,12 @@ def calculate_down_capture(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        aligned = pd.DataFrame({
-            "portfolio": portfolio_returns,
-            "benchmark": benchmark_returns,
-        }).dropna()
+        aligned = pd.DataFrame(
+            {
+                "portfolio": portfolio_returns,
+                "benchmark": benchmark_returns,
+            }
+        ).dropna()
 
         # Down markets: benchmark return < 0
         down_markets = aligned[aligned["benchmark"] < 0]
@@ -416,12 +410,8 @@ def calculate_capture_ratio(
     if portfolio_returns.empty or benchmark_returns.empty:
         raise InsufficientDataError("Returns series are empty")
 
-    up_capture = calculate_up_capture(
-        portfolio_returns, benchmark_returns
-    )
-    down_capture = calculate_down_capture(
-        portfolio_returns, benchmark_returns
-    )
+    up_capture = calculate_up_capture(portfolio_returns, benchmark_returns)
+    down_capture = calculate_down_capture(portfolio_returns, benchmark_returns)
 
     if up_capture is None or down_capture is None:
         return None
@@ -458,14 +448,12 @@ def calculate_jensens_alpha(
     Raises:
         InsufficientDataError: If returns series are empty
     """
-    return calculate_alpha(
-        portfolio_returns, benchmark_returns, risk_free_rate
-    )
+    return calculate_alpha(portfolio_returns, benchmark_returns, risk_free_rate)
 
 
 def calculate_active_share(
-    portfolio_weights: Dict[str, float],
-    benchmark_weights: Dict[str, float],
+    portfolio_weights: dict[str, float],
+    benchmark_weights: dict[str, float],
 ) -> Optional[float]:
     """
     Calculate Active Share (% of holdings different from benchmark).
@@ -487,9 +475,7 @@ def calculate_active_share(
 
     try:
         # Get union of all tickers
-        all_tickers = set(portfolio_weights.keys()) | set(
-            benchmark_weights.keys()
-        )
+        all_tickers = set(portfolio_weights.keys()) | set(benchmark_weights.keys())
 
         total_diff = 0.0
         for ticker in all_tickers:
@@ -531,17 +517,17 @@ def calculate_batting_average(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        aligned = pd.DataFrame({
-            "portfolio": portfolio_returns,
-            "benchmark": benchmark_returns,
-        }).dropna()
+        aligned = pd.DataFrame(
+            {
+                "portfolio": portfolio_returns,
+                "benchmark": benchmark_returns,
+            }
+        ).dropna()
 
         if aligned.empty:
             return None
 
-        beats_count = int(
-            (aligned["portfolio"] > aligned["benchmark"]).sum()
-        )
+        beats_count = int((aligned["portfolio"] > aligned["benchmark"]).sum())
         total_periods = len(aligned)
 
         batting_avg = beats_count / total_periods
@@ -578,10 +564,12 @@ def calculate_benchmark_relative_return(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        aligned = pd.DataFrame({
-            "portfolio": portfolio_returns,
-            "benchmark": benchmark_returns,
-        }).dropna()
+        aligned = pd.DataFrame(
+            {
+                "portfolio": portfolio_returns,
+                "benchmark": benchmark_returns,
+            }
+        ).dropna()
 
         if aligned.empty:
             return None
@@ -596,9 +584,7 @@ def calculate_benchmark_relative_return(
 
         return float(relative_return)
     except Exception as e:
-        logger.warning(
-            f"Error calculating Benchmark Relative Return: {e}"
-        )
+        logger.warning(f"Error calculating Benchmark Relative Return: {e}")
         return None
 
 
@@ -625,10 +611,12 @@ def calculate_rolling_beta(
         raise InsufficientDataError("Returns series are empty")
 
     try:
-        aligned = pd.DataFrame({
-            "portfolio": portfolio_returns,
-            "benchmark": benchmark_returns,
-        }).dropna()
+        aligned = pd.DataFrame(
+            {
+                "portfolio": portfolio_returns,
+                "benchmark": benchmark_returns,
+            }
+        ).dropna()
 
         if len(aligned) < window:
             return None
@@ -636,10 +624,8 @@ def calculate_rolling_beta(
         # Calculate rolling betas
         rolling_betas = []
         for i in range(window, len(aligned) + 1):
-            window_data = aligned.iloc[i - window:i]
-            cov = float(
-                window_data["portfolio"].cov(window_data["benchmark"])
-            )
+            window_data = aligned.iloc[i - window : i]
+            cov = float(window_data["portfolio"].cov(window_data["benchmark"]))
             benchmark_var = float(window_data["benchmark"].var())
 
             if benchmark_var > 0:
@@ -684,4 +670,3 @@ def calculate_market_timing_ratio(
     """
     # Market Timing Ratio is same as Capture Ratio
     return calculate_capture_ratio(portfolio_returns, benchmark_returns)
-

@@ -1,7 +1,7 @@
 """Market indices comparison chart component."""
 
 from datetime import date, timedelta
-from typing import Dict, List, Optional
+from typing import Optional
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -10,7 +10,7 @@ from services.data_service import DataService
 
 
 def get_market_indices_data(
-    indices: List[Dict[str, str]],
+    indices: list[dict[str, str]],
     period_days: int = 30,
     data_service: Optional[DataService] = None,
 ) -> Optional[pd.DataFrame]:
@@ -134,6 +134,7 @@ def plot_market_indices_comparison(
 
     # Color palette for indices (using unified colors)
     from streamlit_app.utils.chart_config import COLORS
+
     colors = [
         COLORS["primary"],  # Purple
         COLORS["secondary"],  # Blue
@@ -190,4 +191,3 @@ def plot_market_indices_comparison(
     )
 
     return fig
-

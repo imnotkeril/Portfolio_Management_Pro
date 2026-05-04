@@ -5,11 +5,12 @@ This module provides Monte Carlo simulation capabilities for portfolio
 path forecasting, percentile analysis, and distribution generation.
 """
 
+from dataclasses import dataclass
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 from scipy import stats
-from typing import Dict, Optional
-from dataclasses import dataclass
 
 from core.exceptions import InsufficientDataError
 
@@ -20,8 +21,8 @@ class MonteCarloResult:
 
     simulated_paths: np.ndarray  # Shape: (num_simulations, time_horizon)
     final_values: np.ndarray  # Shape: (num_simulations,)
-    percentiles: Dict[float, float]  # Percentile -> value mapping
-    statistics: Dict[str, float]  # Mean, median, std, min, max, etc.
+    percentiles: dict[float, float]  # Percentile -> value mapping
+    statistics: dict[str, float]  # Mean, median, std, min, max, etc.
 
 
 class MonteCarloSimulator:
@@ -104,9 +105,7 @@ class MonteCarloSimulator:
 
         # Generate random paths
         # Shape: (num_simulations, time_horizon)
-        random_shocks = np.random.normal(
-            0, 1, size=(num_simulations, time_horizon)
-        )
+        random_shocks = np.random.normal(0, 1, size=(num_simulations, time_horizon))
 
         # Calculate daily returns for each path
         # GBM: dS = S * (mu * dt + sigma * dW)
@@ -182,9 +181,7 @@ class MonteCarloSimulator:
         jump_std = 0.05  # Jump size std
 
         # Generate random paths
-        random_shocks = np.random.normal(
-            0, 1, size=(num_simulations, time_horizon)
-        )
+        random_shocks = np.random.normal(0, 1, size=(num_simulations, time_horizon))
         jump_events = np.random.binomial(
             1, jump_intensity, size=(num_simulations, time_horizon)
         )
@@ -194,9 +191,7 @@ class MonteCarloSimulator:
 
         # Calculate daily returns with jumps
         daily_returns = (
-            mean_return
-            + std_return * random_shocks
-            + jump_events * jump_sizes
+            mean_return + std_return * random_shocks + jump_events * jump_sizes
         )
 
         # Calculate cumulative returns and values
@@ -267,7 +262,4 @@ def simulate_portfolio_paths(
         MonteCarloResult with paths, final values, and statistics
     """
     simulator = MonteCarloSimulator(model=model, random_seed=random_seed)
-    return simulator.simulate(
-        returns, time_horizon, num_simulations, initial_value
-    )
-
+    return simulator.simulate(returns, time_horizon, num_simulations, initial_value)

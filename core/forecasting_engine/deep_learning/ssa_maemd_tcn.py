@@ -8,25 +8,25 @@ Combines:
 
 import logging
 import time
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 try:
     import tensorflow as tf
+    from sklearn.preprocessing import MinMaxScaler
     from tensorflow import keras
-    from tensorflow.keras.models import Model
+    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
     from tensorflow.keras.layers import (
-        Input,
-        Conv1D,
         Activation,
         Add,
-        Dropout,
+        Conv1D,
         Dense,
+        Dropout,
+        Input,
     )
-    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-    from sklearn.preprocessing import MinMaxScaler
+    from tensorflow.keras.models import Model
 except ImportError:
     tf = None
     keras = None
@@ -82,9 +82,7 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
             )
 
         if EMD is None:
-            raise ImportError(
-                "PyEMD not installed. Install with: pip install PyEMD"
-            )
+            raise ImportError("PyEMD not installed. Install with: pip install PyEMD")
 
         super().__init__(prices, returns)
 
@@ -93,7 +91,7 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
         data: np.ndarray,
         window_size: Optional[int] = None,
         n_components: Optional[int] = None,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Perform Singular Spectrum Analysis (SSA) decomposition.
 
@@ -197,7 +195,7 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
         self,
         data: np.ndarray,
         max_imf: int = 10,
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         """
         Perform Empirical Mode Decomposition (EMD).
 
@@ -293,7 +291,7 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
 
     def _build_tcn_model(
         self,
-        input_shape: Tuple[int, int],
+        input_shape: tuple[int, int],
         num_filters: int,
         kernel_size: int,
         num_blocks: int,
@@ -307,7 +305,7 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
 
         # Build TCN blocks
         for i in range(num_blocks):
-            dilation_rate = 2 ** i
+            dilation_rate = 2**i
             x = self._tcn_block(
                 x,
                 filters=num_filters,
@@ -334,7 +332,7 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
         self,
         data: np.ndarray,
         lookback: int,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Create sequences for TCN training."""
         X, y = [], []
         for i in range(lookback, len(data)):
@@ -438,7 +436,9 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
 
             # Prepare all components for forecasting
             components = [trend, seasonal] + imfs
-            component_names = ["trend", "seasonal"] + [f"imf_{i}" for i in range(len(imfs))]
+            component_names = ["trend", "seasonal"] + [
+                f"imf_{i}" for i in range(len(imfs))
+            ]
 
             # Normalize each component
             scalers = []
@@ -479,7 +479,9 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
                             y_train, y_val = y[:split_idx], y[split_idx:]
 
                         # Reshape for TCN
-                        X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
+                        X_train = X_train.reshape(
+                            (X_train.shape[0], X_train.shape[1], 1)
+                        )
                         if len(X_val) > 0:
                             X_val = X_val.reshape((X_val.shape[0], X_val.shape[1], 1))
 
@@ -507,9 +509,7 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
                             )
 
                         # Train
-                        validation_data = (
-                            (X_val, y_val) if len(X_val) > 0 else None
-                        )
+                        validation_data = (X_val, y_val) if len(X_val) > 0 else None
                         model.fit(
                             X_train,
                             y_train,
@@ -561,9 +561,7 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
                 forecast_values = np.array(forecast_prices[1:])
 
             # Ensure positive prices
-            forecast_values = np.maximum(
-                forecast_values, 0.01 * self.prices.iloc[-1]
-            )
+            forecast_values = np.maximum(forecast_values, 0.01 * self.prices.iloc[-1])
 
             # Create forecast dates
             last_date = self.prices.index[-1]
@@ -573,13 +571,13 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
             if len(forecast_values) > 1:
                 forecast_returns = np.diff(forecast_values) / forecast_values[:-1]
                 first_return = (
-                    (forecast_values[0] - self.prices.iloc[-1]) / self.prices.iloc[-1]
-                )
+                    forecast_values[0] - self.prices.iloc[-1]
+                ) / self.prices.iloc[-1]
                 forecast_returns = np.insert(forecast_returns, 0, first_return)
             else:
                 first_return = (
-                    (forecast_values[0] - self.prices.iloc[-1]) / self.prices.iloc[-1]
-                )
+                    forecast_values[0] - self.prices.iloc[-1]
+                ) / self.prices.iloc[-1]
                 forecast_returns = np.array([first_return])
 
             # Calculate change percentage
@@ -647,4 +645,3 @@ class SSAMAEEMDTCNForecaster(BaseForecaster):
         except Exception as e:
             logger.error(f"SSA-MAEMD-TCN forecast failed: {e}", exc_info=True)
             raise CalculationError(f"SSA-MAEMD-TCN forecast failed: {e}") from e
-

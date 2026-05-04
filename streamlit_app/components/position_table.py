@@ -1,6 +1,6 @@
 """Position table component for displaying portfolio positions."""
 
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
@@ -12,7 +12,7 @@ from streamlit_app.utils.formatters import (
 
 
 def render_position_table(
-    positions: List[dict],
+    positions: list[dict],
     show_actions: bool = True,
 ) -> Optional[str]:
     """
@@ -41,7 +41,7 @@ def render_position_table(
         # Handle both dict and Position object
         if isinstance(pos, dict):
             ticker = pos.get("ticker", "-")
-            shares = pos.get('shares', 0)
+            shares = pos.get("shares", 0)
             current_price = pos.get("current_price")
             current_value = pos.get("current_value")
             weight = pos.get("weight")
@@ -55,13 +55,13 @@ def render_position_table(
             current_value = None
             weight = getattr(pos, "weight_target", None)
             gain_loss = None
-        
+
         # For cash, show shares as dollar amount
         if ticker == "CASH":
             shares_display = format_currency(shares)
         else:
             shares_display = f"{shares:.2f}"
-        
+
         row = {
             "Ticker": ticker,
             "Shares": shares_display,
@@ -70,21 +70,9 @@ def render_position_table(
                 if current_price
                 else ("$1.00" if ticker == "CASH" else "-")
             ),
-            "Value": (
-                format_currency(current_value)
-                if current_value
-                else "-"
-            ),
-            "Weight": (
-                format_percentage(weight)
-                if weight is not None
-                else "-"
-            ),
-            "P&L": (
-                format_currency(gain_loss)
-                if gain_loss is not None
-                else "-"
-            ),
+            "Value": (format_currency(current_value) if current_value else "-"),
+            "Weight": (format_percentage(weight) if weight is not None else "-"),
+            "P&L": (format_currency(gain_loss) if gain_loss is not None else "-"),
         }
         data.append(row)
 

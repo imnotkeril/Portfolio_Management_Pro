@@ -2,24 +2,24 @@
 
 import numpy as np
 import pandas as pd
-
 import pytest
+
 from core.analytics_engine.risk_metrics import (
-    calculate_volatility,
-    calculate_max_drawdown,
-    calculate_current_drawdown,
     calculate_average_drawdown,
-    calculate_drawdown_duration,
-    calculate_recovery_time,
-    calculate_ulcer_index,
-    calculate_pain_index,
-    calculate_var,
+    calculate_current_drawdown,
     calculate_cvar,
     calculate_downside_deviation,
+    calculate_drawdown_duration,
+    calculate_kurtosis,
+    calculate_max_drawdown,
+    calculate_pain_index,
+    calculate_recovery_time,
     calculate_semi_deviation,
     calculate_skewness,
-    calculate_kurtosis,
     calculate_top_drawdowns,
+    calculate_ulcer_index,
+    calculate_var,
+    calculate_volatility,
 )
 from core.exceptions import InsufficientDataError
 
@@ -46,9 +46,7 @@ def test_calculate_max_drawdown() -> None:
     returns.iloc[10:30] = -0.15  # 15% decline
     returns.index = pd.date_range("2024-01-01", periods=50, freq="D")
 
-    max_dd, peak_date, trough_date, duration = (
-        calculate_max_drawdown(returns)
-    )
+    max_dd, peak_date, trough_date, duration = calculate_max_drawdown(returns)
 
     assert max_dd < 0
     assert abs(max_dd) > 0.10  # Should be around 15%
@@ -305,7 +303,9 @@ def test_calculate_var_confidence_levels() -> None:
 def test_calculate_cvar_extreme_losses() -> None:
     """Test CVaR with extreme loss scenarios."""
     # Create returns with extreme losses
-    returns = pd.Series([0.01] * 900 + [-0.20, -0.15, -0.10] * 33)  # Mix with extreme losses
+    returns = pd.Series(
+        [0.01] * 900 + [-0.20, -0.15, -0.10] * 33
+    )  # Mix with extreme losses
 
     cvar_95 = calculate_cvar(returns, 0.95)
 
@@ -359,4 +359,3 @@ def test_calculate_top_drawdowns_no_drawdowns() -> None:
     # Should return empty list if no drawdowns
     assert isinstance(top_dds, list)
     assert len(top_dds) == 0
-

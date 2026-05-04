@@ -1,10 +1,10 @@
 """Validation utilities for UI input."""
 
 import re
-from typing import List, Optional, Tuple
+from typing import Optional
 
 
-def validate_ticker_format(ticker: str) -> Tuple[bool, Optional[str]]:
+def validate_ticker_format(ticker: str) -> tuple[bool, Optional[str]]:
     """
     Validate ticker format.
 
@@ -28,7 +28,7 @@ def validate_ticker_format(ticker: str) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def validate_shares(shares: Optional[float]) -> Tuple[bool, Optional[str]]:
+def validate_shares(shares: Optional[float]) -> tuple[bool, Optional[str]]:
     """
     Validate shares value.
 
@@ -51,8 +51,8 @@ def validate_shares(shares: Optional[float]) -> Tuple[bool, Optional[str]]:
 
 
 def validate_weights_sum(
-    weights: List[float], tolerance: float = 0.0001
-) -> Tuple[bool, Optional[str]]:
+    weights: list[float], tolerance: float = 0.0001
+) -> tuple[bool, Optional[str]]:
     """
     Validate that weights sum to approximately 1.0.
 
@@ -77,7 +77,7 @@ def validate_weights_sum(
     return True, None
 
 
-def validate_portfolio_name(name: str) -> Tuple[bool, Optional[str]]:
+def validate_portfolio_name(name: str) -> tuple[bool, Optional[str]]:
     """
     Validate portfolio name.
 
@@ -103,7 +103,7 @@ def validate_portfolio_name(name: str) -> Tuple[bool, Optional[str]]:
 
 def validate_starting_capital(
     capital: Optional[float],
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, Optional[str]]:
     """
     Validate starting capital.
 

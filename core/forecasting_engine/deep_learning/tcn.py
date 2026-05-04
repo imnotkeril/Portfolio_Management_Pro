@@ -2,26 +2,26 @@
 
 import logging
 import time
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 try:
     import tensorflow as tf
+    from sklearn.preprocessing import StandardScaler
     from tensorflow import keras
-    from tensorflow.keras.models import Model
+    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
     from tensorflow.keras.layers import (
-        Input,
-        Conv1D,
         Activation,
         Add,
-        Dropout,
+        Conv1D,
         Dense,
+        Dropout,
         GlobalAveragePooling1D,
+        Input,
     )
-    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-    from sklearn.preprocessing import StandardScaler
+    from tensorflow.keras.models import Model
 except ImportError:
     tf = None
     keras = None
@@ -77,7 +77,7 @@ class TCNForecaster(BaseForecaster):
         data: np.ndarray,
         lookback: int,
         forecast_horizon: int = 1,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Create sequences for TCN training.
 
@@ -91,10 +91,10 @@ class TCNForecaster(BaseForecaster):
         """
         X, y = [], []
         for i in range(len(data) - lookback - forecast_horizon + 1):
-            X.append(data[i:(i + lookback)])
+            X.append(data[i : (i + lookback)])
             y.append(data[i + lookback + forecast_horizon - 1])
         return np.array(X), np.array(y)
-    
+
     def _calculate_directional_accuracy(
         self,
         y_true: np.ndarray,
@@ -102,52 +102,56 @@ class TCNForecaster(BaseForecaster):
     ) -> dict:
         """
         Calculate directional accuracy metrics.
-        
+
         Important for trading: predicts if price will go up or down,
         which is often more important than exact value.
-        
+
         Args:
             y_true: Actual values
             y_pred: Predicted values
-            
+
         Returns:
             Dictionary with directional accuracy metrics
         """
         if len(y_true) < 2 or len(y_pred) < 2:
             return {
-                'directional_accuracy': 0.0,
-                'precision': 0.0,
-                'recall': 0.0,
-                'f1_score': 0.0,
+                "directional_accuracy": 0.0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1_score": 0.0,
             }
-        
+
         # Calculate directions
         true_direction = np.diff(y_true) > 0  # True if price increased
         pred_direction = np.diff(y_pred) > 0
-        
+
         # Directional accuracy
         directional_accuracy = np.mean(true_direction == pred_direction)
-        
+
         # Confusion matrix
-        tp = np.sum((true_direction == True) & (pred_direction == True))
-        tn = np.sum((true_direction == False) & (pred_direction == False))
-        fp = np.sum((true_direction == False) & (pred_direction == True))
-        fn = np.sum((true_direction == True) & (pred_direction == False))
-        
+        tp = np.sum((true_direction) & (pred_direction))
+        tn = np.sum((not true_direction) & (not pred_direction))
+        fp = np.sum((not true_direction) & (pred_direction))
+        fn = np.sum((true_direction) & (not pred_direction))
+
         # Precision, recall, F1
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-        
+        f1 = (
+            2 * (precision * recall) / (precision + recall)
+            if (precision + recall) > 0
+            else 0.0
+        )
+
         return {
-            'directional_accuracy': float(directional_accuracy),
-            'precision': float(precision),
-            'recall': float(recall),
-            'f1_score': float(f1),
-            'tp': int(tp),
-            'tn': int(tn),
-            'fp': int(fp),
-            'fn': int(fn),
+            "directional_accuracy": float(directional_accuracy),
+            "precision": float(precision),
+            "recall": float(recall),
+            "f1_score": float(f1),
+            "tp": int(tp),
+            "tn": int(tn),
+            "fp": int(fp),
+            "fn": int(fn),
         }
 
     def _tcn_block(
@@ -215,7 +219,7 @@ class TCNForecaster(BaseForecaster):
 
     def _build_tcn_model(
         self,
-        input_shape: Tuple[int, int],
+        input_shape: tuple[int, int],
         num_filters: int,
         kernel_size: int,
         num_blocks: int,
@@ -243,7 +247,7 @@ class TCNForecaster(BaseForecaster):
         # Build TCN blocks with increasing dilation rates
         # Dilation rates: 1, 2, 4, 8, 16, ... (powers of 2)
         for i in range(num_blocks):
-            dilation_rate = 2 ** i
+            dilation_rate = 2**i
             x = self._tcn_block(
                 x,
                 filters=num_filters,
@@ -258,9 +262,9 @@ class TCNForecaster(BaseForecaster):
         x = GlobalAveragePooling1D(name="tcn_pooling")(x)
 
         # Dense layers before output
-        x = Dense(64, activation='relu', name="tcn_dense1")(x)
+        x = Dense(64, activation="relu", name="tcn_dense1")(x)
         x = Dropout(0.1, name="tcn_dropout_final")(x)
-        
+
         # Output layer
         outputs = Dense(1, name="tcn_output")(x)
 
@@ -270,7 +274,7 @@ class TCNForecaster(BaseForecaster):
         # This is critical for stable training
         optimizer = keras.optimizers.Adam(
             learning_rate=learning_rate,
-            clipnorm=1.0  # Clip gradients to prevent explosion
+            clipnorm=1.0,  # Clip gradients to prevent explosion
         )
         model.compile(optimizer=optimizer, loss="mse", metrics=["mae"])
 
@@ -342,7 +346,7 @@ class TCNForecaster(BaseForecaster):
                     "Auto-enabling log returns for better stability."
                 )
                 use_log_returns = True
-            
+
             # Adapt lookback based on horizon (rule: lookback ≈ horizon for long forecasts)
             # But cap at reasonable limits
             if horizon > 60:
@@ -353,7 +357,7 @@ class TCNForecaster(BaseForecaster):
                         f"for long forecast horizon ({horizon} days)"
                     )
                     lookback = adapted_lookback
-            
+
             # Prepare data - CRITICAL: Split BEFORE scaling to avoid data leakage
             if use_log_returns:
                 # Calculate log returns: log(p_t / p_{t-1})
@@ -365,9 +369,7 @@ class TCNForecaster(BaseForecaster):
             elif use_returns:
                 data = self.returns.dropna().values
                 if len(data) < lookback + 10:
-                    logger.warning(
-                        "Insufficient returns data, falling back to prices"
-                    )
+                    logger.warning("Insufficient returns data, falling back to prices")
                     use_returns = False
                     use_log_returns = False
                     data = self.prices.values
@@ -393,7 +395,7 @@ class TCNForecaster(BaseForecaster):
             # 3. Preserves distribution properties
             scaler = StandardScaler()
             train_scaled = scaler.fit_transform(train_data.reshape(-1, 1)).ravel()
-            
+
             # Transform test data using training statistics (no fit!)
             if len(test_data) > 0:
                 test_scaled = scaler.transform(test_data.reshape(-1, 1)).ravel()
@@ -402,7 +404,7 @@ class TCNForecaster(BaseForecaster):
 
             # Create sequences from scaled data
             X_train, y_train = self._create_sequences(train_scaled, lookback)
-            
+
             if len(test_scaled) > 0:
                 # For validation, use test data
                 X_val, y_val = self._create_sequences(test_scaled, lookback)
@@ -473,9 +475,7 @@ class TCNForecaster(BaseForecaster):
                 )
 
             # Train model
-            validation_data = (
-                (X_val, y_val) if len(X_val) > 0 else None
-            )
+            validation_data = (X_val, y_val) if len(X_val) > 0 else None
             val_split = validation_split if validation_data is None else 0.0
 
             history = model.fit(
@@ -500,9 +500,7 @@ class TCNForecaster(BaseForecaster):
             train_pred = scaler.inverse_transform(
                 train_pred_scaled.reshape(-1, 1)
             ).ravel()
-            train_actual = scaler.inverse_transform(
-                y_train.reshape(-1, 1)
-            ).ravel()
+            train_actual = scaler.inverse_transform(y_train.reshape(-1, 1)).ravel()
 
             train_rmse = np.sqrt(np.mean((train_actual - train_pred) ** 2))
             val_rmse = None
@@ -513,16 +511,14 @@ class TCNForecaster(BaseForecaster):
                 val_pred = scaler.inverse_transform(
                     val_pred_scaled.reshape(-1, 1)
                 ).ravel()
-                val_actual = scaler.inverse_transform(
-                    y_val.reshape(-1, 1)
-                ).ravel()
+                val_actual = scaler.inverse_transform(y_val.reshape(-1, 1)).ravel()
                 val_rmse = np.sqrt(np.mean((val_actual - val_pred) ** 2))
-                
+
                 # Calculate directional accuracy (important for trading)
                 directional_metrics = self._calculate_directional_accuracy(
                     val_actual, val_pred
                 )
-                
+
                 logger.debug(
                     f"TCN: Train RMSE={train_rmse:.6f}, "
                     f"Val RMSE={val_rmse:.6f}, "
@@ -542,7 +538,7 @@ class TCNForecaster(BaseForecaster):
             # Use last sequence from training data (properly scaled)
             forecast_scaled = []
             last_sequence = train_scaled[-lookback:].copy()
-            
+
             # Log initial sequence for debugging
             logger.debug(
                 f"TCN: Starting forecast with last_sequence range: "
@@ -553,14 +549,14 @@ class TCNForecaster(BaseForecaster):
             # Track recent predictions to detect if model is stuck
             recent_predictions = []
             max_recent = min(10, horizon // 10)
-            
+
             for step in range(horizon):
                 # Reshape for prediction
                 X_pred = last_sequence.reshape((1, lookback, 1))
 
                 # Predict next value
                 next_value_raw = model.predict(X_pred, verbose=0)[0, 0]
-                
+
                 # Log raw prediction
                 if step < 3 or step == horizon - 1 or step % 50 == 0:
                     logger.debug(
@@ -568,21 +564,21 @@ class TCNForecaster(BaseForecaster):
                         f"sequence range: [{last_sequence.min():.4f}, "
                         f"{last_sequence.max():.4f}]"
                     )
-                
+
                 # Apply stability check: if predictions are too similar, add small variation
                 # This prevents the model from getting stuck in a constant prediction
                 if len(recent_predictions) >= max_recent:
                     recent_std = np.std(recent_predictions[-max_recent:])
                     if recent_std < 0.01:  # Very low variation - model might be stuck
                         # Add small random variation based on historical volatility
-                        hist_std = np.std(train_scaled[-min(60, len(train_scaled)):])
+                        hist_std = np.std(train_scaled[-min(60, len(train_scaled)) :])
                         noise = np.random.normal(0, hist_std * 0.1)
                         next_value_raw = next_value_raw + noise
                         logger.debug(
                             f"TCN: Step {step}, detected low variation, "
                             f"adding stability noise: {noise:.6f}"
                         )
-                
+
                 # StandardScaler doesn't have hard bounds like MinMaxScaler
                 # But we can still apply reasonable clipping to prevent extreme values
                 # For log returns, clip to reasonable range (±5% per day is extreme)
@@ -590,16 +586,14 @@ class TCNForecaster(BaseForecaster):
                     next_value_scaled = np.clip(next_value_raw, -0.05, 0.05)
                 else:
                     next_value_scaled = next_value_raw
-                
+
                 forecast_scaled.append(next_value_scaled)
                 recent_predictions.append(next_value_scaled)
 
                 # Update sequence (shift and append)
                 # Use the predicted value directly for next prediction
-                last_sequence = np.append(
-                    last_sequence[1:], next_value_scaled
-                )
-            
+                last_sequence = np.append(last_sequence[1:], next_value_scaled)
+
             # Log forecast statistics
             forecast_array = np.array(forecast_scaled)
             logger.debug(
@@ -612,10 +606,8 @@ class TCNForecaster(BaseForecaster):
 
             # Inverse transform forecast
             forecast_scaled_array = np.array(forecast_scaled).reshape(-1, 1)
-            forecast_unscaled = scaler.inverse_transform(
-                forecast_scaled_array
-            ).ravel()
-            
+            forecast_unscaled = scaler.inverse_transform(forecast_scaled_array).ravel()
+
             # Convert log returns or returns to prices if needed
             # According to guides: BEST APPROACH for trading - forecast log returns
             if use_log_returns:
@@ -624,46 +616,46 @@ class TCNForecaster(BaseForecaster):
                 # As shown in guide: pred_prices = prices[split:-1] * np.exp(pred_returns)
                 last_price = float(self.prices.iloc[-1])
                 forecast_prices = [last_price]
-                
+
                 for log_ret in forecast_unscaled:
                     # Log return: log(p_t / p_{t-1}) = log(p_t) - log(p_{t-1})
                     # So: p_t = p_{t-1} * exp(log_ret)
                     next_price = forecast_prices[-1] * np.exp(log_ret)
-                    
+
                     # Only apply minimal safety checks - don't clip too aggressively
                     # This allows natural price evolution
                     if not np.isfinite(next_price) or next_price <= 0:
                         next_price = forecast_prices[-1]
-                    
+
                     forecast_prices.append(float(next_price))
-                
+
                 forecast_values = np.array(forecast_prices[1:])
-                
+
             elif use_returns:
                 # forecast_unscaled contains returns (unscaled)
                 last_price = float(self.prices.iloc[-1])
                 forecast_prices = [last_price]
-                
+
                 for ret in forecast_unscaled:
                     # Limit returns to reasonable range (±10% per period)
                     ret = np.clip(ret, -0.10, 0.10)
-                    
+
                     if np.isfinite(forecast_prices[-1]) and np.isfinite(ret):
                         next_price = forecast_prices[-1] * (1 + ret)
-                        
+
                         if not np.isfinite(next_price) or next_price <= 0:
                             next_price = forecast_prices[-1]
-                        
+
                         forecast_prices.append(float(next_price))
                     else:
                         forecast_prices.append(forecast_prices[-1])
-                
+
                 forecast_values = np.array(forecast_prices[1:])
-                
+
             else:
                 # forecast_unscaled contains prices (unscaled)
                 forecast_values = forecast_unscaled
-                
+
                 # Apply minimal bounds only for safety, not to restrict variation
                 if len(self.prices) > 0:
                     last_price = float(self.prices.iloc[-1])
@@ -671,13 +663,15 @@ class TCNForecaster(BaseForecaster):
                     price_range = float(self.prices.max() - self.prices.min())
                     max_allowed = last_price + 3 * price_range
                     min_allowed = max(last_price - 3 * price_range, 0.01 * last_price)
-                    
+
                     forecast_values = np.clip(forecast_values, min_allowed, max_allowed)
-                    
+
                     # Additional check: remove any inf/nan values
                     valid_mask = np.isfinite(forecast_values)
                     if not np.all(valid_mask):
-                        logger.warning("TCN: Found invalid forecast values, replacing with last price")
+                        logger.warning(
+                            "TCN: Found invalid forecast values, replacing with last price"
+                        )
                         forecast_values[~valid_mask] = last_price
 
             # Create forecast dates
@@ -688,15 +682,13 @@ class TCNForecaster(BaseForecaster):
             if len(forecast_values) > 1:
                 forecast_returns = np.diff(forecast_values) / forecast_values[:-1]
                 first_return = (
-                    (forecast_values[0] - self.prices.iloc[-1])
-                    / self.prices.iloc[-1]
-                )
+                    forecast_values[0] - self.prices.iloc[-1]
+                ) / self.prices.iloc[-1]
                 forecast_returns = np.insert(forecast_returns, 0, first_return)
             else:
                 first_return = (
-                    (forecast_values[0] - self.prices.iloc[-1])
-                    / self.prices.iloc[-1]
-                )
+                    forecast_values[0] - self.prices.iloc[-1]
+                ) / self.prices.iloc[-1]
                 forecast_returns = np.array([first_return])
 
             # Calculate change percentage
@@ -711,13 +703,9 @@ class TCNForecaster(BaseForecaster):
                 residuals = train_actual - train_pred
 
             # Filter out NaN/Inf residuals
-            valid_residuals = residuals[
-                np.isfinite(residuals) & ~np.isnan(residuals)
-            ]
+            valid_residuals = residuals[np.isfinite(residuals) & ~np.isnan(residuals)]
             if len(valid_residuals) == 0:
-                logger.warning(
-                    "No valid residuals, using default confidence intervals"
-                )
+                logger.warning("No valid residuals, using default confidence intervals")
                 valid_residuals = None
 
             # Calculate confidence intervals
@@ -755,13 +743,15 @@ class TCNForecaster(BaseForecaster):
                     "learning_rate": learning_rate,
                     "train_rmse": float(train_rmse),
                     "val_rmse": float(val_rmse) if val_rmse is not None else None,
-                    "directional_accuracy": directional_metrics['directional_accuracy'] if directional_metrics else None,
+                    "directional_accuracy": (
+                        directional_metrics["directional_accuracy"]
+                        if directional_metrics
+                        else None
+                    ),
                     "total_params": total_params,
                     "training_time": training_time,
                 },
-                residuals=valid_residuals
-                if valid_residuals is not None
-                else residuals,
+                residuals=valid_residuals if valid_residuals is not None else residuals,
                 success=True,
                 message=(
                     f"TCN forecast completed "
@@ -774,4 +764,3 @@ class TCNForecaster(BaseForecaster):
         except Exception as e:
             logger.error(f"TCN forecast failed: {e}", exc_info=True)
             raise CalculationError(f"TCN forecast failed: {e}") from e
-

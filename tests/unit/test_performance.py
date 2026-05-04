@@ -1,18 +1,18 @@
 """Unit tests for performance metrics."""
 
-import pytest
 import pandas as pd
+import pytest
 
 from core.analytics_engine.performance import (
-    calculate_total_return,
-    calculate_cagr,
     calculate_annualized_return,
-    calculate_period_returns,
     calculate_best_worst_periods,
-    calculate_win_rate,
-    calculate_payoff_ratio,
-    calculate_profit_factor,
+    calculate_cagr,
     calculate_expectancy,
+    calculate_payoff_ratio,
+    calculate_period_returns,
+    calculate_profit_factor,
+    calculate_total_return,
+    calculate_win_rate,
 )
 from core.exceptions import InsufficientDataError
 
@@ -132,9 +132,9 @@ def test_calculate_expectancy() -> None:
 
 def test_calculate_period_returns() -> None:
     """Test period returns calculation."""
-    from datetime import date
+
     import numpy as np
-    
+
     # Create portfolio values over 2 years
     dates = pd.date_range("2023-01-01", periods=504, freq="D")  # 2 years
     np.random.seed(42)
@@ -168,9 +168,9 @@ def test_calculate_period_returns_empty() -> None:
 
 def test_calculate_best_worst_periods() -> None:
     """Test best/worst periods calculation."""
+
     import numpy as np
-    from datetime import date
-    
+
     # Create returns with known best/worst months
     dates = pd.date_range("2024-01-01", periods=252, freq="D")
     returns = pd.Series(np.random.normal(0.001, 0.02, 252), index=dates)
@@ -196,4 +196,3 @@ def test_calculate_best_worst_periods_empty() -> None:
 
     assert result["best_month"] is None
     assert result["worst_month"] is None
-

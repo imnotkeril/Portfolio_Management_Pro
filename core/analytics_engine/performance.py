@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 import pandas as pd
 
@@ -14,9 +14,7 @@ logger = logging.getLogger(__name__)
 TRADING_DAYS_PER_YEAR = 252
 
 
-def calculate_total_return(
-    start_value: float, end_value: float
-) -> float:
+def calculate_total_return(start_value: float, end_value: float) -> float:
     """
     Calculate total return over period.
 
@@ -38,9 +36,7 @@ def calculate_total_return(
     return (end_value - start_value) / start_value
 
 
-def calculate_cagr(
-    start_value: float, end_value: float, years: float
-) -> float:
+def calculate_cagr(start_value: float, end_value: float, years: float) -> float:
     """
     Calculate Compound Annual Growth Rate (CAGR).
 
@@ -58,14 +54,12 @@ def calculate_cagr(
         InsufficientDataError: If years <= 0 or start_value <= 0
     """
     if years <= 0:
-        raise InsufficientDataError(
-            "Years must be greater than 0 for CAGR"
-        )
+        raise InsufficientDataError("Years must be greater than 0 for CAGR")
     if start_value <= 0:
         raise ValueError("Start value must be greater than 0")
 
     if end_value <= 0:
-        return float(-1.0)  # Total loss
+        return -1.0  # Total loss
 
     return float((end_value / start_value) ** (1.0 / years) - 1.0)
 
@@ -90,9 +84,7 @@ def calculate_annualized_return(
         InsufficientDataError: If returns series is empty
     """
     if returns.empty:
-        raise InsufficientDataError(
-            "Returns series is empty"
-        )
+        raise InsufficientDataError("Returns series is empty")
 
     mean_return = float(returns.mean())
     return float((1.0 + mean_return) ** periods_per_year - 1.0)
@@ -100,8 +92,8 @@ def calculate_annualized_return(
 
 def calculate_period_returns(
     portfolio_values: pd.Series,
-    periods: Optional[Dict[str, date]] = None,
-) -> Dict[str, Optional[float]]:
+    periods: Optional[dict[str, date]] = None,
+) -> dict[str, Optional[float]]:
     """
     Calculate returns for various periods.
 
@@ -127,12 +119,12 @@ def calculate_period_returns(
             "5y": None,
         }
 
-    results: Dict[str, Optional[float]] = {}
+    results: dict[str, Optional[float]] = {}
     end_date_raw = portfolio_values.index[-1]
     # Normalize end_date to date
-    if hasattr(end_date_raw, 'date'):
+    if hasattr(end_date_raw, "date"):
         end_date = end_date_raw.date()
-    elif hasattr(end_date_raw, 'to_pydatetime'):
+    elif hasattr(end_date_raw, "to_pydatetime"):
         end_date = end_date_raw.to_pydatetime().date()
     else:
         end_date = pd.to_datetime(end_date_raw).date()
@@ -145,9 +137,7 @@ def calculate_period_returns(
         mask = portfolio_values.index >= pd.Timestamp(ytd_start)
         if mask.any():
             start_value = float(portfolio_values[mask].iloc[0])
-            results["ytd"] = calculate_total_return(
-                start_value, end_value
-            )
+            results["ytd"] = calculate_total_return(start_value, end_value)
         else:
             results["ytd"] = None
     except Exception:
@@ -160,9 +150,7 @@ def calculate_period_returns(
         mask = portfolio_values.index >= pd.Timestamp(mtd_start)
         if mask.any():
             start_value = float(portfolio_values[mask].iloc[0])
-            results["mtd"] = calculate_total_return(
-                start_value, end_value
-            )
+            results["mtd"] = calculate_total_return(start_value, end_value)
         else:
             results["mtd"] = None
     except Exception:
@@ -176,9 +164,7 @@ def calculate_period_returns(
         mask = portfolio_values.index >= pd.Timestamp(qtd_start)
         if mask.any():
             start_value = float(portfolio_values[mask].iloc[0])
-            results["qtd"] = calculate_total_return(
-                start_value, end_value
-            )
+            results["qtd"] = calculate_total_return(start_value, end_value)
         else:
             results["qtd"] = None
     except Exception:
@@ -203,9 +189,7 @@ def calculate_period_returns(
 
             if len(period_data) >= 2:
                 start_value = float(period_data.iloc[0])
-                results[period_name] = calculate_total_return(
-                    start_value, end_value
-                )
+                results[period_name] = calculate_total_return(start_value, end_value)
             else:
                 results[period_name] = None
         except Exception:
@@ -216,7 +200,7 @@ def calculate_period_returns(
 
 def calculate_best_worst_periods(
     returns: pd.Series,
-) -> Dict[str, Optional[Tuple[float, str]]]:
+) -> dict[str, Optional[tuple[float, str]]]:
     """
     Calculate best and worst periods.
 
@@ -233,9 +217,7 @@ def calculate_best_worst_periods(
 
     try:
         # Resample to monthly
-        monthly_returns = returns.resample("ME").apply(
-            lambda x: (1 + x).prod() - 1
-        )
+        monthly_returns = returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
 
         if monthly_returns.empty:
             return {"best_month": None, "worst_month": None}
@@ -372,4 +354,3 @@ def calculate_expectancy(returns: pd.Series) -> float:
     expectancy = (win_rate * avg_win) - (loss_rate * abs(avg_loss))
 
     return float(expectancy)
-

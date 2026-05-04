@@ -6,7 +6,7 @@ analyze cumulative portfolio impacts.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Optional
 
 from core.scenario_engine.historical_scenarios import HistoricalScenario
 
@@ -22,14 +22,14 @@ class ScenarioChain:
 
     name: str
     description: str
-    scenarios: List[HistoricalScenario]  # Ordered list of scenarios
+    scenarios: list[HistoricalScenario]  # Ordered list of scenarios
     cumulative_impact: Optional[float] = None  # Calculated cumulative impact
 
 
 def create_scenario_chain(
     name: str,
     description: str,
-    scenarios: List[HistoricalScenario],
+    scenarios: list[HistoricalScenario],
 ) -> ScenarioChain:
     """
     Create a scenario chain from a list of scenarios.
@@ -59,10 +59,10 @@ def create_scenario_chain(
 
 
 def apply_scenario_chain(
-    portfolio_positions: Dict[str, float],  # ticker -> weight
+    portfolio_positions: dict[str, float],  # ticker -> weight
     current_portfolio_value: float,
     chain: ScenarioChain,
-) -> Dict[str, any]:
+) -> dict[str, any]:
     """
     Apply scenario chain to portfolio and calculate cumulative impact.
 
@@ -119,13 +119,15 @@ def apply_scenario_chain(
             total_recovery_days += scenario.recovery_period_days
 
         # Store scenario result
-        scenario_results.append({
-            "scenario_name": scenario.name,
-            "impact_pct": scenario_impact,
-            "impact_value": portfolio_value * scenario_impact,
-            "cumulative_impact_pct": cumulative_impact,
-            "position_impacts": position_impacts,
-        })
+        scenario_results.append(
+            {
+                "scenario_name": scenario.name,
+                "impact_pct": scenario_impact,
+                "impact_value": portfolio_value * scenario_impact,
+                "cumulative_impact_pct": cumulative_impact,
+                "position_impacts": position_impacts,
+            }
+        )
 
     return {
         "cumulative_impact_pct": cumulative_impact,
@@ -137,4 +139,3 @@ def apply_scenario_chain(
         "total_recovery_days": total_recovery_days,
         "num_scenarios": len(chain.scenarios),
     }
-

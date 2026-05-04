@@ -91,4 +91,3 @@ class Transaction:
             and abs(self.shares - other.shares) < 0.0001
             and abs(self.price - other.price) < 0.01
         )
-

@@ -1,13 +1,10 @@
 """Unit tests for portfolio repository."""
 
-from datetime import date
-
 import pytest
 
 from core.data_manager.portfolio import Portfolio
 from core.data_manager.portfolio_repository import PortfolioRepository
-from core.exceptions import PortfolioNotFoundError
-from database.session import Base, engine, init_db
+from database.session import Base
 
 
 @pytest.fixture(scope="function")
@@ -39,7 +36,7 @@ def test_save_new_portfolio(test_db) -> None:
 
     # Repository uses get_db_session which needs proper setup
     # For unit test, we'll test the conversion logic
-    repository = PortfolioRepository()
+    PortfolioRepository()
 
     # This would normally save to DB
     # In unit test, we focus on domain logic
@@ -78,4 +75,3 @@ def test_delete_nonexistent() -> None:
 
     result = repository.delete("nonexistent-id")
     assert result is False
-

@@ -1,11 +1,9 @@
 """Integration tests for portfolio service."""
 
-from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.data_manager.cache import Cache
 from core.exceptions import ConflictError, PortfolioNotFoundError
 from services.data_service import DataService
 from services.portfolio_service import PortfolioService
@@ -36,6 +34,7 @@ def portfolio_service(mock_data_service: DataService) -> PortfolioService:
 def test_create_portfolio(portfolio_service: PortfolioService) -> None:
     """Test creating a portfolio."""
     import uuid
+
     unique_name = f"Test Portfolio {uuid.uuid4().hex[:8]}"
     request = CreatePortfolioRequest(
         name=unique_name,
@@ -70,9 +69,7 @@ def test_create_portfolio_duplicate_name(
     )
 
     # Mock repository to return existing portfolio
-    with patch.object(
-        portfolio_service._repository, "find_by_name"
-    ) as mock_find:
+    with patch.object(portfolio_service._repository, "find_by_name") as mock_find:
         mock_portfolio = MagicMock()
         mock_portfolio.id = "existing-id"
         mock_find.return_value = mock_portfolio
@@ -104,9 +101,7 @@ def test_get_portfolio_not_found(
     portfolio_service: PortfolioService,
 ) -> None:
     """Test getting non-existent portfolio."""
-    with patch.object(
-        portfolio_service._repository, "find_by_id"
-    ) as mock_find:
+    with patch.object(portfolio_service._repository, "find_by_id") as mock_find:
         mock_find.return_value = None
 
         with pytest.raises(PortfolioNotFoundError):
@@ -120,11 +115,10 @@ def test_update_portfolio(portfolio_service: PortfolioService) -> None:
     portfolio.id = "test-id"
     portfolio.name = "Original Name"
 
-    with patch.object(
-        portfolio_service._repository, "find_by_id"
-    ) as mock_find, patch.object(
-        portfolio_service._repository, "save"
-    ) as mock_save:
+    with (
+        patch.object(portfolio_service._repository, "find_by_id") as mock_find,
+        patch.object(portfolio_service._repository, "save") as mock_save,
+    ):
         mock_find.return_value = portfolio
         mock_save.return_value = portfolio
 
@@ -139,13 +133,13 @@ def test_add_position(portfolio_service: PortfolioService) -> None:
     portfolio = MagicMock()
     portfolio.id = "test-id"
 
-    with patch.object(
-        portfolio_service._repository, "find_by_id"
-    ) as mock_find, patch.object(
-        portfolio_service._data_service, "validate_ticker"
-    ) as mock_validate, patch.object(
-        portfolio_service._repository, "save"
-    ) as mock_save:
+    with (
+        patch.object(portfolio_service._repository, "find_by_id") as mock_find,
+        patch.object(
+            portfolio_service._data_service, "validate_ticker"
+        ) as mock_validate,
+        patch.object(portfolio_service._repository, "save") as mock_save,
+    ):
         mock_find.return_value = portfolio
         mock_validate.return_value = True
         mock_save.return_value = portfolio
@@ -162,11 +156,10 @@ def test_remove_position(portfolio_service: PortfolioService) -> None:
     portfolio = MagicMock()
     portfolio.id = "test-id"
 
-    with patch.object(
-        portfolio_service._repository, "find_by_id"
-    ) as mock_find, patch.object(
-        portfolio_service._repository, "save"
-    ) as mock_save:
+    with (
+        patch.object(portfolio_service._repository, "find_by_id") as mock_find,
+        patch.object(portfolio_service._repository, "save") as mock_save,
+    ):
         mock_find.return_value = portfolio
         mock_save.return_value = portfolio
 
@@ -186,24 +179,18 @@ def test_clone_portfolio(portfolio_service: PortfolioService) -> None:
     source_portfolio.base_currency = "USD"
     source_portfolio.get_all_positions.return_value = []
 
-    with patch.object(
-        portfolio_service._repository, "find_by_name"
-    ) as mock_find_name, patch.object(
-        portfolio_service._repository, "save"
-    ) as mock_save:
+    with (
+        patch.object(portfolio_service._repository, "find_by_name") as mock_find_name,
+        patch.object(portfolio_service._repository, "save") as mock_save,
+    ):
         mock_find_name.return_value = None  # New name doesn't exist
         mock_save.return_value = source_portfolio
 
         # Mock get_portfolio to return source
-        with patch.object(
-            portfolio_service, "get_portfolio"
-        ) as mock_get:
+        with patch.object(portfolio_service, "get_portfolio") as mock_get:
             mock_get.return_value = source_portfolio
 
-            result = portfolio_service.clone_portfolio(
-                "source-id", "Cloned Portfolio"
-            )
+            result = portfolio_service.clone_portfolio("source-id", "Cloned Portfolio")
 
             assert result is not None
             mock_save.assert_called_once()
-

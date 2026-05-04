@@ -2,11 +2,10 @@
 
 import logging
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 from core.data_manager.transaction import Transaction
 from core.data_manager.transaction_repository import TransactionRepository
-from core.exceptions import ValidationError
 from services.portfolio_service import PortfolioService
 
 logger = logging.getLogger(__name__)
@@ -62,7 +61,7 @@ class TransactionService:
             ValidationError: If transaction data is invalid
         """
         # Validate portfolio exists
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        self._portfolio_service.get_portfolio(portfolio_id)
 
         # Create transaction
         transaction = Transaction(
@@ -89,7 +88,7 @@ class TransactionService:
         portfolio_id: str,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-    ) -> List[Transaction]:
+    ) -> list[Transaction]:
         """
         Get all transactions for a portfolio.
 
@@ -101,9 +100,7 @@ class TransactionService:
         Returns:
             List of transactions
         """
-        return self._repository.find_by_portfolio(
-            portfolio_id, start_date, end_date
-        )
+        return self._repository.find_by_portfolio(portfolio_id, start_date, end_date)
 
     def delete_transaction(self, transaction_id: str) -> bool:
         """
@@ -116,4 +113,3 @@ class TransactionService:
             True if deleted, False if not found
         """
         return self._repository.delete(transaction_id)
-

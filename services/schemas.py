@@ -1,7 +1,7 @@
 """Pydantic validation schemas for portfolio operations."""
 
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -25,9 +25,7 @@ class PositionSchema(BaseModel):
     purchase_price: Optional[float] = Field(
         None, gt=0, description="Purchase price per share"
     )
-    purchase_date: Optional[date] = Field(
-        None, description="Purchase date"
-    )
+    purchase_date: Optional[date] = Field(None, description="Purchase date")
 
     @field_validator("ticker")
     @classmethod
@@ -43,19 +41,15 @@ class PositionSchema(BaseModel):
 class CreatePortfolioRequest(BaseModel):
     """Request schema for creating a portfolio."""
 
-    name: str = Field(
-        ..., min_length=1, max_length=100, description="Portfolio name"
-    )
+    name: str = Field(..., min_length=1, max_length=100, description="Portfolio name")
     description: Optional[str] = Field(
         None, max_length=500, description="Portfolio description"
     )
-    starting_capital: float = Field(
-        ..., gt=0, description="Starting capital amount"
-    )
+    starting_capital: float = Field(..., gt=0, description="Starting capital amount")
     base_currency: str = Field(
         "USD", min_length=3, max_length=3, description="Base currency"
     )
-    positions: List[PositionSchema] = Field(
+    positions: list[PositionSchema] = Field(
         ...,
         min_length=1,
         max_length=100,
@@ -77,8 +71,8 @@ class CreatePortfolioRequest(BaseModel):
     @field_validator("positions")
     @classmethod
     def validate_no_duplicate_tickers(
-        cls, positions: List[PositionSchema]
-    ) -> List[PositionSchema]:
+        cls, positions: list[PositionSchema]
+    ) -> list[PositionSchema]:
         """Validate no duplicate tickers."""
         tickers = [p.ticker for p in positions]
         if len(tickers) != len(set(tickers)):
@@ -88,8 +82,8 @@ class CreatePortfolioRequest(BaseModel):
     @field_validator("positions")
     @classmethod
     def validate_weights_sum(
-        cls, positions: List[PositionSchema]
-    ) -> List[PositionSchema]:
+        cls, positions: list[PositionSchema]
+    ) -> list[PositionSchema]:
         """
         Validate that weights sum to 1.0 (±0.0001 tolerance).
 
@@ -157,18 +151,14 @@ class AddPositionRequest(BaseModel):
         pattern=r"^[A-Z0-9-]+$",
         description="Ticker symbol (may contain hyphens)",
     )
-    shares: float = Field(
-        ..., gt=0, description="Number of shares (must be > 0)"
-    )
+    shares: float = Field(..., gt=0, description="Number of shares (must be > 0)")
     weight_target: Optional[float] = Field(
         None, ge=0.0, le=1.0, description="Target weight"
     )
     purchase_price: Optional[float] = Field(
         None, gt=0, description="Purchase price per share"
     )
-    purchase_date: Optional[date] = Field(
-        None, description="Purchase date"
-    )
+    purchase_date: Optional[date] = Field(None, description="Purchase date")
 
     @field_validator("ticker")
     @classmethod
@@ -184,20 +174,15 @@ class AddPositionRequest(BaseModel):
 class UpdatePositionRequest(BaseModel):
     """Request schema for updating a position."""
 
-    shares: Optional[float] = Field(
-        None, gt=0, description="Number of shares"
-    )
+    shares: Optional[float] = Field(None, gt=0, description="Number of shares")
     weight_target: Optional[float] = Field(
         None, ge=0.0, le=1.0, description="Target weight"
     )
     purchase_price: Optional[float] = Field(
         None, gt=0, description="Purchase price per share"
     )
-    purchase_date: Optional[date] = Field(
-        None, description="Purchase date"
-    )
+    purchase_date: Optional[date] = Field(None, description="Purchase date")
 
     class Config:
         str_strip_whitespace = True
         validate_assignment = True
-

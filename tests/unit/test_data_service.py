@@ -142,6 +142,7 @@ def test_fetch_current_price(data_service: DataService) -> None:
 
 def test_get_latest_prices(data_service: DataService) -> None:
     """Test getting latest prices for multiple tickers."""
+
     # Mock fetch_current_price for each ticker
     def mock_fetch_current(ticker: str, **kwargs) -> float:
         prices = {"AAPL": 150.0, "MSFT": 300.0, "GOOGL": 2500.0}
@@ -175,6 +176,7 @@ def test_get_latest_prices_single_ticker(data_service: DataService) -> None:
 
 def test_get_latest_prices_parallel(data_service: DataService) -> None:
     """Test parallel fetching for multiple tickers."""
+
     # Mock fetch_current_price for each ticker
     def mock_fetch_current(ticker: str, **kwargs) -> float:
         prices = {"AAPL": 150.0, "MSFT": 300.0, "GOOGL": 2500.0, "AMZN": 3500.0}
@@ -196,6 +198,7 @@ def test_get_latest_prices_parallel(data_service: DataService) -> None:
 
 def test_get_latest_prices_with_error(data_service: DataService) -> None:
     """Test getting latest prices with some errors."""
+
     def mock_fetch_current(ticker: str, **kwargs) -> float:
         if ticker == "INVALID":
             raise TickerNotFoundError("Ticker not found")
@@ -253,7 +256,7 @@ def test_fetch_historical_prices_with_db_cached_ticker(
     mock_session = MagicMock()
     mock_get_db_session.return_value.__enter__.return_value = mock_session
     mock_get_db_session.return_value.__exit__.return_value = None
-    
+
     # Mock query to return None (no data in DB)
     mock_query = MagicMock()
     mock_session.query.return_value = mock_query
@@ -266,4 +269,3 @@ def test_fetch_historical_prices_with_db_cached_ticker(
     assert isinstance(result, pd.DataFrame)
     # Should try to get from DB first (SPY is in _db_cached_tickers)
     assert mock_session.query.called
-

@@ -1,9 +1,10 @@
 """Unit tests for analytics engine."""
 
-import pytest
-import pandas as pd
+from datetime import date
+
 import numpy as np
-from datetime import date, timedelta
+import pandas as pd
+import pytest
 
 from core.analytics_engine.engine import AnalyticsEngine
 from core.exceptions import InsufficientDataError
@@ -20,10 +21,7 @@ def sample_returns() -> pd.Series:
     """Create sample returns series."""
     np.random.seed(42)
     dates = pd.date_range("2024-01-01", periods=252, freq="D")
-    returns = pd.Series(
-        np.random.normal(0.001, 0.02, 252),
-        index=dates
-    )
+    returns = pd.Series(np.random.normal(0.001, 0.02, 252), index=dates)
     return returns
 
 
@@ -32,10 +30,7 @@ def sample_benchmark_returns() -> pd.Series:
     """Create sample benchmark returns series."""
     np.random.seed(43)
     dates = pd.date_range("2024-01-01", periods=252, freq="D")
-    returns = pd.Series(
-        np.random.normal(0.0008, 0.015, 252),
-        index=dates
-    )
+    returns = pd.Series(np.random.normal(0.0008, 0.015, 252), index=dates)
     return returns
 
 
@@ -207,4 +202,3 @@ class TestAnalyticsEngine:
 
         assert "start_date" in metadata
         assert "end_date" in metadata
-

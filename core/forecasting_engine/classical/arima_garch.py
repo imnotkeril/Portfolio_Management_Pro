@@ -106,8 +106,7 @@ class ARIMAGARCHForecaster(BaseForecaster):
             # Validate returns data
             if returns_data.isna().any() or np.any(np.isinf(returns_data)):
                 logger.warning(
-                    "ARIMA-GARCH: Returns contain NaN or Inf values, "
-                    "filtering..."
+                    "ARIMA-GARCH: Returns contain NaN or Inf values, " "filtering..."
                 )
                 returns_data = returns_data[
                     ~(returns_data.isna() | np.isinf(returns_data))
@@ -149,17 +148,11 @@ class ARIMAGARCHForecaster(BaseForecaster):
                     is_auto_arima = False
 
                 # Validate order
-                if not isinstance(arima_order, (tuple, list)) or len(
-                    arima_order
-                ) != 3:
-                    raise CalculationError(
-                        f"Invalid ARIMA order: {arima_order}"
-                    )
+                if not isinstance(arima_order, (tuple, list)) or len(arima_order) != 3:
+                    raise CalculationError(f"Invalid ARIMA order: {arima_order}")
 
             except Exception as e:
-                raise CalculationError(
-                    f"ARIMA model fitting failed: {e}"
-                ) from e
+                raise CalculationError(f"ARIMA model fitting failed: {e}") from e
 
             # Get ARIMA residuals for GARCH
             try:
@@ -190,18 +183,14 @@ class ARIMAGARCHForecaster(BaseForecaster):
                         f"ARIMA residuals length ({residuals_len}) > "
                         f"returns length ({len(returns_data)}), truncating"
                     )
-                    arima_residuals_array = arima_residuals_array[-len(returns_data):]
+                    arima_residuals_array = arima_residuals_array[-len(returns_data) :]
                     residual_index = returns_data.index
 
-                arima_residuals = pd.Series(
-                    arima_residuals_array, index=residual_index
-                )
+                arima_residuals = pd.Series(arima_residuals_array, index=residual_index)
                 arima_residuals = arima_residuals.dropna()
 
             except Exception as e:
-                raise CalculationError(
-                    f"Could not extract ARIMA residuals: {e}"
-                ) from e
+                raise CalculationError(f"Could not extract ARIMA residuals: {e}") from e
 
             if len(arima_residuals) < 30:
                 raise CalculationError(
@@ -214,8 +203,10 @@ class ARIMAGARCHForecaster(BaseForecaster):
                 # Filter out kwargs that are not valid for arch_model
                 # Remove auto_arima and other ARIMA-specific parameters
                 garch_kwargs = {
-                    k: v for k, v in kwargs.items()
-                    if k not in ['auto_arima', 'arima_auto', 'arima_p', 'arima_d', 'arima_q']
+                    k: v
+                    for k, v in kwargs.items()
+                    if k
+                    not in ["auto_arima", "arima_auto", "arima_p", "arima_d", "arima_q"]
                 }
                 garch_model = arch_model(
                     arima_residuals,
@@ -228,9 +219,7 @@ class ARIMAGARCHForecaster(BaseForecaster):
                 )
                 garch_fitted = garch_model.fit(disp="off")
             except Exception as e:
-                raise CalculationError(
-                    f"GARCH model fitting failed: {e}"
-                ) from e
+                raise CalculationError(f"GARCH model fitting failed: {e}") from e
 
             # Step 3: Forecast mean returns with ARIMA
             logger.debug("Forecasting mean returns with ARIMA...")
@@ -264,20 +253,14 @@ class ARIMAGARCHForecaster(BaseForecaster):
                         )
 
             except Exception as e:
-                raise CalculationError(
-                    f"ARIMA forecast failed: {e}"
-                ) from e
+                raise CalculationError(f"ARIMA forecast failed: {e}") from e
 
             # Step 4: Forecast volatility with GARCH
             logger.debug("Forecasting volatility with GARCH...")
             try:
-                garch_forecast = garch_fitted.forecast(
-                    horizon=horizon, reindex=False
-                )
+                garch_forecast = garch_fitted.forecast(horizon=horizon, reindex=False)
             except Exception as e:
-                raise CalculationError(
-                    f"GARCH volatility forecast failed: {e}"
-                ) from e
+                raise CalculationError(f"GARCH volatility forecast failed: {e}") from e
 
             # Extract forecasted volatility
             forecast_volatility = None
@@ -310,9 +293,7 @@ class ARIMAGARCHForecaster(BaseForecaster):
                             )
                             forecast_variance = np.append(
                                 forecast_variance,
-                                np.full(
-                                    horizon - len(forecast_variance), last_val
-                                ),
+                                np.full(horizon - len(forecast_variance), last_val),
                             )
 
                     forecast_volatility = np.sqrt(forecast_variance)
@@ -341,8 +322,7 @@ class ARIMAGARCHForecaster(BaseForecaster):
                 np.isinf(forecast_volatility)
             ):
                 logger.warning(
-                    "ARIMA-GARCH forecast volatility contains NaN or Inf, "
-                    "cleaning"
+                    "ARIMA-GARCH forecast volatility contains NaN or Inf, " "cleaning"
                 )
                 forecast_volatility = np.nan_to_num(
                     forecast_volatility, nan=0.01, posinf=0.1, neginf=0.01
@@ -409,9 +389,7 @@ class ARIMAGARCHForecaster(BaseForecaster):
                 )
                 residuals = garch_residuals.dropna().values
             except Exception as e:
-                logger.warning(
-                    f"Could not extract ARIMA-GARCH residuals: {e}"
-                )
+                logger.warning(f"Could not extract ARIMA-GARCH residuals: {e}")
                 residuals = None
 
             # Get model info
@@ -469,7 +447,9 @@ class ARIMAGARCHForecaster(BaseForecaster):
 
             # Format ARIMA order for message
             if isinstance(arima_order, (tuple, list)) and len(arima_order) == 3:
-                arima_order_str = f"({arima_order[0]},{arima_order[1]},{arima_order[2]})"
+                arima_order_str = (
+                    f"({arima_order[0]},{arima_order[1]},{arima_order[2]})"
+                )
             else:
                 arima_order_str = str(arima_order)
 
@@ -508,8 +488,5 @@ class ARIMAGARCHForecaster(BaseForecaster):
             )
 
         except Exception as e:
-            logger.error(
-                f"ARIMA-GARCH forecast failed: {e}", exc_info=True
-            )
+            logger.error(f"ARIMA-GARCH forecast failed: {e}", exc_info=True)
             raise CalculationError(f"ARIMA-GARCH forecast failed: {e}") from e
-

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Dict, List, Optional
+from typing import Optional
 
 import pandas as pd
 from sqlalchemy import and_
@@ -39,8 +39,15 @@ class DataService:
         self._ticker_validator = ticker_validator or TickerValidator(cache=self._cache)
         # Only these tickers are persisted in DB (benchmarks/indices & common ETFs)
         self._db_cached_tickers = {
-            "SPY", "QQQ", "VTI", "DIA", "IWM",  # Benchmarks from UI
-            "^GSPC", "^NDX", "^DJI", "^RUT",     # Index symbols (in case)
+            "SPY",
+            "QQQ",
+            "VTI",
+            "DIA",
+            "IWM",  # Benchmarks from UI
+            "^GSPC",
+            "^NDX",
+            "^DJI",
+            "^RUT",  # Index symbols (in case)
         }
 
     def validate_ticker(self, ticker: str) -> bool:
@@ -64,7 +71,7 @@ class DataService:
             logger.error(f"Error validating ticker {ticker}: {e}", exc_info=True)
             return False
 
-    def validate_tickers(self, tickers: List[str]) -> Dict[str, bool]:
+    def validate_tickers(self, tickers: list[str]) -> dict[str, bool]:
         """
         Validate multiple tickers.
 
@@ -145,12 +152,11 @@ class DataService:
                     # Otherwise, fetch missing parts from API and merge
                     missing_segments: list[tuple[date, date]] = []
                     if db_start > start_date:
-                        missing_segments.append(
-                            (start_date, min(db_start, end_date))
-                        )
+                        missing_segments.append((start_date, min(db_start, end_date)))
                     if db_end < end_date:
                         # add a day after db_end to avoid overlap
                         from datetime import timedelta
+
                         seg_start = min(end_date, db_end + timedelta(days=1))
                         if seg_start <= end_date:
                             missing_segments.append((seg_start, end_date))
@@ -158,11 +164,8 @@ class DataService:
                     for seg_start, seg_end in missing_segments:
                         try:
                             if seg_start <= seg_end:
-                                api_df = (
-                                    self._price_manager.fetch_historical_prices(
-                                        ticker, seg_start, seg_end,
-                                        use_cache=use_cache
-                                    )
+                                api_df = self._price_manager.fetch_historical_prices(
+                                    ticker, seg_start, seg_end, use_cache=use_cache
                                 )
                                 # Verify api_df is DataFrame
                                 if (
@@ -189,7 +192,9 @@ class DataService:
                     return merged
 
         # Fetch from API
-        logger.info(f"Fetching prices from API for {ticker} ({start_date} to {end_date})")
+        logger.info(
+            f"Fetching prices from API for {ticker} ({start_date} to {end_date})"
+        )
         df = self._price_manager.fetch_historical_prices(
             ticker, start_date, end_date, use_cache=use_cache
         )
@@ -200,9 +205,7 @@ class DataService:
                 f"price_manager.fetch_historical_prices returned "
                 f"non-DataFrame for {ticker}: {type(df)}"
             )
-            raise DataFetchError(
-                f"Invalid data type returned for {ticker}: {type(df)}"
-            )
+            raise DataFetchError(f"Invalid data type returned for {ticker}: {type(df)}")
 
         # Save to database only for benchmark/index tickers
         if save_to_db and use_db_cache and not df.empty:
@@ -227,7 +230,7 @@ class DataService:
         """
         return self._price_manager.fetch_current_price(ticker, use_cache=use_cache)
 
-    def get_latest_prices(self, tickers: List[str]) -> Dict[str, float]:
+    def get_latest_prices(self, tickers: list[str]) -> dict[str, float]:
         """
         Get latest prices for multiple tickers with parallel fetching.
 
@@ -256,7 +259,7 @@ class DataService:
         # Use parallel fetching for multiple tickers
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        prices: Dict[str, float] = {}
+        prices: dict[str, float] = {}
         MAX_WORKERS = 5
 
         def fetch_single(ticker: str) -> tuple[str, Optional[float]]:
@@ -272,10 +275,9 @@ class DataService:
         # Use ThreadPoolExecutor for parallel fetching
         with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(tickers))) as executor:
             future_to_ticker = {
-                executor.submit(fetch_single, ticker): ticker 
-                for ticker in tickers
+                executor.submit(fetch_single, ticker): ticker for ticker in tickers
             }
-            
+
             for future in as_completed(future_to_ticker):
                 ticker, price = future.result()
                 if price is not None:
@@ -285,7 +287,7 @@ class DataService:
 
     def fetch_bulk_prices(
         self,
-        tickers: List[str],
+        tickers: list[str],
         start_date: date,
         end_date: date,
         use_cache: bool = True,
@@ -307,7 +309,9 @@ class DataService:
         Raises:
             DataFetchError: If bulk fetch fails
         """
-        return self._price_manager.fetch_bulk_prices(tickers, start_date, end_date, use_cache=use_cache)
+        return self._price_manager.fetch_bulk_prices(
+            tickers, start_date, end_date, use_cache=use_cache
+        )
 
     def _get_prices_from_db(
         self, ticker: str, start_date: date, end_date: date
@@ -344,15 +348,17 @@ class DataService:
                 # Convert to DataFrame
                 data = []
                 for record in records:
-                    data.append({
-                        "Date": record.date,
-                        "Open": record.open,
-                        "High": record.high,
-                        "Low": record.low,
-                        "Close": record.close,
-                        "Adjusted_Close": record.adjusted_close,
-                        "Volume": int(record.volume) if record.volume else None,
-                    })
+                    data.append(
+                        {
+                            "Date": record.date,
+                            "Open": record.open,
+                            "High": record.high,
+                            "Low": record.low,
+                            "Close": record.close,
+                            "Adjusted_Close": record.adjusted_close,
+                            "Volume": int(record.volume) if record.volume else None,
+                        }
+                    )
 
                 df = pd.DataFrame(data)
                 # Normalize Date to pandas Timestamp (tz-naive) for consistency
@@ -387,7 +393,11 @@ class DataService:
                     df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date
                 except Exception:
                     pass
-                df = df.drop_duplicates(subset=["Date"]).sort_values("Date").reset_index(drop=True)
+                df = (
+                    df.drop_duplicates(subset=["Date"])
+                    .sort_values("Date")
+                    .reset_index(drop=True)
+                )
             with get_db_session() as session:
                 # Check which records already exist
                 existing_dates = {
@@ -418,8 +428,12 @@ class DataService:
 
                 if records:
                     session.add_all(records)
-                    logger.info(f"Saved {len(records)} price records to database for {ticker}")
+                    logger.info(
+                        f"Saved {len(records)} price records to database for {ticker}"
+                    )
 
         except Exception as e:
-            logger.error(f"Error saving prices to database for {ticker}: {e}", exc_info=True)
+            logger.error(
+                f"Error saving prices to database for {ticker}: {e}", exc_info=True
+            )
             # Don't raise - database save failure shouldn't break API response

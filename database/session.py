@@ -1,8 +1,8 @@
 """Database session management."""
 
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -63,10 +63,9 @@ def init_db() -> None:
         if db_path != ":memory:":
             db_file = Path(db_path)
             db_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Import all models to ensure they are registered
     from models import Portfolio, Position, PriceHistory, Transaction  # noqa: F401
-    
+
     # Create all tables
     Base.metadata.create_all(bind=engine)
-

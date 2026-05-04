@@ -1,7 +1,8 @@
 """Unit tests for ticker validator."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from core.data_manager.ticker_validator import TickerValidator
 from core.exceptions import TickerNotFoundError, ValidationError
@@ -32,6 +33,7 @@ def test_validate_ticker_normalization(mock_ticker_class) -> None:
     """Test ticker normalization (uppercase, strip)."""
     # Create validator without cache to avoid cache interference
     from core.data_manager.cache import Cache
+
     cache = Cache()
     validator = TickerValidator(cache=cache)
 
@@ -69,6 +71,7 @@ def test_validate_ticker_valid(mock_ticker_class) -> None:
 def test_validate_ticker_invalid(mock_ticker_class) -> None:
     """Test validation of invalid ticker."""
     from core.data_manager.cache import Cache
+
     cache = Cache()
     cache.clear()
     validator = TickerValidator(cache=cache)
@@ -132,4 +135,3 @@ def test_get_ticker_info_not_found(mock_ticker_class) -> None:
     with patch.object(validator, "validate_ticker", return_value=False):
         with pytest.raises(TickerNotFoundError):
             validator.get_ticker_info("INVALID")
-
