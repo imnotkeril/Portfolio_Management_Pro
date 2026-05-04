@@ -1,0 +1,23 @@
+{
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/node_modules": true,
+    ".coverage": true,
+    "coverage.xml": true,
+    "htmlcov": true,
+    "logs": true,
+    ".playwright-mcp": true
+  },
+  "search.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/node_modules": true,
+    "htmlcov": true,
+    "logs": true
+  }
+}

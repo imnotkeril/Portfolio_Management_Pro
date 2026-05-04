@@ -37,8 +37,9 @@ env/
 .env.*.local
 *.env
 
-# IDE and Editors
-.vscode/
+# IDE and Editors (commit .vscode/settings.json for shared explorer excludes)
+.vscode/*
+!.vscode/settings.json
 .idea/
 .cursor/
 *.swp
@@ -70,6 +71,9 @@ htmlcov/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# ruff
+.ruff_cache/
 
 # Database
 *.db
