@@ -194,6 +194,21 @@ def test_calculate_portfolio_metrics_with_benchmark(
                 analytics_service._engine.calculate_all_metrics.assert_called_once()
 
 
+def test_align_portfolio_with_benchmark_common_index(
+    analytics_service: AnalyticsService,
+) -> None:
+    """Portfolio and benchmark returns share the same dates after alignment."""
+    d_full = pd.date_range("2024-01-01", periods=12, freq="D")
+    d_bench = pd.date_range("2024-01-04", periods=6, freq="D")
+    port = pd.Series(np.linspace(0.001, 0.002, len(d_full)), index=d_full)
+    bench = pd.Series(np.linspace(0.0008, 0.0015, len(d_bench)), index=d_bench)
+    pv = pd.Series(np.arange(100, 100 + len(d_full), dtype=float), index=d_full)
+    pa, ba, pva = analytics_service._align_portfolio_with_benchmark(port, bench, pv)
+    assert len(pa) == len(ba)
+    assert pa.index.equals(ba.index)
+    assert pva is not None and len(pva) == len(pa)
+
+
 def test_get_single_ticker_returns(analytics_service: AnalyticsService) -> None:
     """Test getting returns for a single ticker."""
     dates = pd.date_range("2024-01-01", periods=10, freq="D")

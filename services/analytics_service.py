@@ -147,7 +147,7 @@ class AnalyticsService:
                         sr_index = series.index.tz_localize(None)
                     except Exception:
                         sr_index = series.index
-                    common_idx = pr_index.intersection(sr_index)
+                    common_idx = pr_index.intersection(sr_index).sort_values()
                     series = series.loc[common_idx]
                     comparison_returns = series.copy()
             elif comparison_type == "portfolio" and comparison_value:
@@ -164,15 +164,20 @@ class AnalyticsService:
                         sr_index = series.index.tz_localize(None)
                     except Exception:
                         sr_index = series.index
-                    common_idx = pr_index.intersection(sr_index)
+                    common_idx = pr_index.intersection(sr_index).sort_values()
                     series = series.loc[common_idx]
                     comparison_returns = series.copy()
             if comparison_returns is not None and not comparison_returns.empty:
+                benchmark_returns = comparison_returns
+                portfolio_returns, benchmark_returns, portfolio_values = (
+                    self._align_portfolio_with_benchmark(
+                        portfolio_returns, benchmark_returns, portfolio_values
+                    )
+                )
+                comparison_returns = benchmark_returns
                 comparison_metrics = self._compute_basic_metrics_from_returns(
                     comparison_returns
                 )
-                # Use comparison as benchmark for engine metrics (beta, alpha, etc.)
-                benchmark_returns = comparison_returns
         except Exception as e:
             logger.warning(
                 f"Comparison fetch failed: type={comparison_type}, value={comparison_value}, error={e}"
@@ -424,6 +429,9 @@ class AnalyticsService:
             returns.index = returns.index.tz_localize(None)
         except Exception:
             pass
+        returns = returns.sort_index()
+        if returns.index.has_duplicates:
+            returns = returns[~returns.index.duplicated(keep="last")]
 
         return returns
 
@@ -472,8 +480,58 @@ class AnalyticsService:
             portfolio_values.index = portfolio_values.index.tz_localize(None)
         except Exception:
             pass
+        portfolio_values = portfolio_values.sort_index()
+        if portfolio_values.index.has_duplicates:
+            portfolio_values = portfolio_values[
+                ~portfolio_values.index.duplicated(keep="last")
+            ]
 
         return portfolio_values
+
+    def _align_portfolio_with_benchmark(
+        self,
+        portfolio_returns: pd.Series,
+        benchmark_returns: pd.Series,
+        portfolio_values: Optional[pd.Series],
+    ) -> tuple[pd.Series, pd.Series, Optional[pd.Series]]:
+        """Align portfolio returns/values to benchmark on identical sorted dates.
+
+        Without this, the benchmark series is clipped to the intersection while the
+        portfolio series stays longer—frontend cumulative charts then disagree with
+        summary metrics computed from portfolio values / benchmark-only windows.
+        """
+        port = portfolio_returns.sort_index()
+        bench = benchmark_returns.sort_index()
+        if port.index.has_duplicates:
+            port = port[~port.index.duplicated(keep="last")]
+        if bench.index.has_duplicates:
+            bench = bench[~bench.index.duplicated(keep="last")]
+        common = port.index.intersection(bench.index).sort_values()
+        if len(common) == 0:
+            logger.warning(
+                "Portfolio and benchmark have no overlapping dates; keeping unaligned series"
+            )
+            return portfolio_returns, benchmark_returns, portfolio_values
+        port = port.loc[common]
+        bench = bench.loc[common]
+        valid = port.notna() & bench.notna()
+        port = port.loc[valid]
+        bench = bench.loc[valid]
+        if port.empty:
+            logger.warning(
+                "Portfolio/benchmark overlap has no valid paired returns; keeping originals"
+            )
+            return portfolio_returns, benchmark_returns, portfolio_values
+
+        pv_out: Optional[pd.Series] = portfolio_values
+        if portfolio_values is not None and not portfolio_values.empty:
+            pv = portfolio_values.sort_index()
+            if pv.index.has_duplicates:
+                pv = pv[~pv.index.duplicated(keep="last")]
+            pv_aligned = pv.reindex(port.index).ffill().bfill()
+            pv_out = pv_aligned
+
+        return port, bench, pv_out
 
     def simulate_buy_and_hold_returns_from_weights(
         self,

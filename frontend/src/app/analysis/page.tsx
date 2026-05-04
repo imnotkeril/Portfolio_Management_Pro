@@ -524,6 +524,17 @@ export default function AnalysisPage() {
   const portfolioReturns = useMemo(() => extractSeries(analytics?.portfolio_returns), [analytics]);
   const benchmarkReturns = useMemo(() => extractSeries(analytics?.comparison_returns ?? analytics?.benchmark_returns), [analytics]);
   const portfolioValues = useMemo(() => extractSeries(analytics?.portfolio_values), [analytics]);
+  /** Align portfolio/benchmark daily returns by calendar date (series may differ in length). */
+  const portReturnByDate = useMemo(() => {
+    const m = new Map<string, number>();
+    portfolioReturns.forEach((d) => m.set(String(d.x).slice(0, 10), d.y));
+    return m;
+  }, [portfolioReturns]);
+  const benchReturnByDate = useMemo(() => {
+    const m = new Map<string, number>();
+    benchmarkReturns.forEach((d) => m.set(String(d.x).slice(0, 10), d.y));
+    return m;
+  }, [benchmarkReturns]);
   const positions = selected?.positions ?? [];
   const hasBenchmark = benchmarkReturns.length > 0;
 
@@ -2272,11 +2283,20 @@ export default function AnalysisPage() {
                     const dates: string[] = assetData.asset_returns.dates ?? [];
                     const assetDaily: number[] = assetData.asset_returns[curAsset] ?? [];
                     const compChart = dates.map((d: string, i: number) => {
+                      const key = (t: string) => String(t).slice(0, 10);
                       let aCum = 0; for (let j = 0; j <= i; j++) aCum = (1 + aCum) * (1 + (assetDaily[j] ?? 0)) - 1;
-                      let pCum = 0; for (let j = 0; j <= i; j++) pCum = (1 + pCum) * (1 + (portfolioReturns[j]?.y ?? 0)) - 1;
+                      let pCum = 0; for (let j = 0; j <= i; j++) {
+                        const dj = key(dates[j] ?? "");
+                        const ry = portReturnByDate.get(dj) ?? 0;
+                        pCum = (1 + pCum) * (1 + ry) - 1;
+                      }
                       const row: Record<string, any> = { x: d.slice(0, 10), [curAsset]: +(aCum * 100).toFixed(2), Portfolio: +(pCum * 100).toFixed(2) };
-                      if (hasBenchmark && benchmarkReturns[i]) {
-                        let bCum = 0; for (let j = 0; j <= i; j++) bCum = (1 + bCum) * (1 + (benchmarkReturns[j]?.y ?? 0)) - 1;
+                      if (hasBenchmark) {
+                        let bCum = 0; for (let j = 0; j <= i; j++) {
+                          const dj = key(dates[j] ?? "");
+                          const ry = benchReturnByDate.get(dj) ?? 0;
+                          bCum = (1 + bCum) * (1 + ry) - 1;
+                        }
                         row[`${cmpValue} (Benchmark)`] = +(bCum * 100).toFixed(2);
                       }
                       return row;
