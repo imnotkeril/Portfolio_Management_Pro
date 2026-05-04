@@ -34,11 +34,15 @@ from core.scenario_engine.custom_scenarios import (
 from core.scenario_engine.historical_scenarios import (
     HISTORICAL_SCENARIOS as PORTFOLIO_SCENARIOS,
 )
-from core.scenario_engine.historical_scenarios import get_all_scenarios
+from core.scenario_engine.historical_scenarios import (
+    get_all_scenarios,
+)
 from core.scenario_engine.historical_scenarios import (
     get_scenario_by_name as get_portfolio_scenario,
 )
-from core.scenario_engine.historical_scenarios import get_scenarios_by_date_range
+from core.scenario_engine.historical_scenarios import (
+    get_scenarios_by_date_range,
+)
 from core.scenario_engine.scenario_chain import (
     apply_scenario_chain,
     create_scenario_chain,
