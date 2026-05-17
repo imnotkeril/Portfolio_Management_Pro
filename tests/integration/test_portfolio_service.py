@@ -26,8 +26,15 @@ def mock_data_service() -> DataService:
 
 
 @pytest.fixture
-def portfolio_service(mock_data_service: DataService) -> PortfolioService:
+def portfolio_service(
+    mock_data_service: DataService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> PortfolioService:
     """Create portfolio service with mocked data service."""
+    monkeypatch.setattr(
+        "services.portfolio_service.settings.auth_disabled",
+        True,
+    )
     return PortfolioService(data_service=mock_data_service)
 
 

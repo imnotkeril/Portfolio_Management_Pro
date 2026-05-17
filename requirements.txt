@@ -5,11 +5,17 @@ scipy>=1.11.0
 statsmodels>=0.14.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
+email-validator>=2.0.0
 
 # Database
 sqlalchemy>=2.0.0
 alembic>=1.12.0
 psycopg2-binary>=2.9.0
+
+# Auth (Phase 2)
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.1,<4.1.0
 
 # Data fetching
 yfinance>=0.2.0

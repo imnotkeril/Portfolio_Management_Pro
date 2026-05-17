@@ -39,6 +39,7 @@ class TransactionService:
         price: float,
         fees: float = 0.0,
         notes: Optional[str] = None,
+        user_id: str | None = None,
     ) -> Transaction:
         """
         Add transaction to portfolio.
@@ -61,7 +62,7 @@ class TransactionService:
             ValidationError: If transaction data is invalid
         """
         # Validate portfolio exists
-        self._portfolio_service.get_portfolio(portfolio_id)
+        self._portfolio_service.get_portfolio(portfolio_id, user_id)
 
         # Create transaction
         transaction = Transaction(
@@ -88,6 +89,7 @@ class TransactionService:
         portfolio_id: str,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        user_id: str | None = None,
     ) -> list[Transaction]:
         """
         Get all transactions for a portfolio.
@@ -100,9 +102,12 @@ class TransactionService:
         Returns:
             List of transactions
         """
+        self._portfolio_service.get_portfolio(portfolio_id, user_id)
         return self._repository.find_by_portfolio(portfolio_id, start_date, end_date)
 
-    def delete_transaction(self, transaction_id: str) -> bool:
+    def delete_transaction(
+        self, transaction_id: str, user_id: str | None = None
+    ) -> bool:
         """
         Delete transaction by ID.
 
@@ -112,4 +117,8 @@ class TransactionService:
         Returns:
             True if deleted, False if not found
         """
+        portfolio_id = self._repository.find_portfolio_id(transaction_id)
+        if not portfolio_id:
+            return False
+        self._portfolio_service.get_portfolio(portfolio_id, user_id)
         return self._repository.delete(transaction_id)

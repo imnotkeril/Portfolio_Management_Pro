@@ -66,6 +66,16 @@ class TransactionRepository:
             transactions_orm = query.all()
             return [self._orm_to_domain(txn) for txn in transactions_orm]
 
+    def find_portfolio_id(self, transaction_id: str) -> Optional[str]:
+        """Return portfolio_id for a transaction, or None if not found."""
+        with get_db_session() as session:
+            row = (
+                session.query(TransactionORM.portfolio_id)
+                .filter(TransactionORM.id == transaction_id)
+                .first()
+            )
+            return row[0] if row else None
+
     def delete(self, transaction_id: str) -> bool:
         """
         Delete transaction by ID.

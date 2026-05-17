@@ -1,6 +1,10 @@
 """Pytest fixtures and configuration."""
 
+import os
 from pathlib import Path
+
+# Use isolated SQLite before settings/engine import in test collection
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 import pytest
 
@@ -70,3 +74,34 @@ def test_db():
     yield SessionLocal
 
     Base.metadata.drop_all(test_engine)
+
+
+@pytest.fixture
+def api_client():
+    """FastAPI test client with fresh in-memory schema."""
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    return TestClient(app)
+
+
+@pytest.fixture
+def auth_headers(api_client):
+    """Register a user and return Authorization headers."""
+
+    def _headers(
+        email: str = "test@example.com", password: str = "secretpass1"
+    ) -> dict[str, str]:
+        api_client.post(
+            "/auth/register",
+            json={"email": email, "password": password},
+        )
+        login = api_client.post(
+            "/auth/login/json",
+            json={"email": email, "password": password},
+        )
+        token = login.json()["access_token"]
+        return {"Authorization": f"Bearer {token}"}
+
+    return _headers

@@ -5,11 +5,13 @@ from unittest.mock import patch
 
 import pytest
 
+from core.auth.constants import SYSTEM_USER_EMAIL, SYSTEM_USER_ID
 from core.data_manager.transaction import Transaction
 from core.data_manager.transaction_repository import TransactionRepository
 from core.exceptions import ValidationError
 from database.session import Base
 from models.portfolio import Portfolio
+from models.user import User
 
 
 @pytest.fixture(scope="function")
@@ -52,10 +54,19 @@ def sample_portfolio(test_db):
     # Ensure all models are imported for SQLAlchemy
 
     session = test_db()
+    session.add(
+        User(
+            id=SYSTEM_USER_ID,
+            email=SYSTEM_USER_EMAIL,
+            password_hash="test-hash",
+            is_active=True,
+        )
+    )
     portfolio = Portfolio(
         name="Test Portfolio",
         starting_capital=100000.0,
         description="Test",
+        user_id=SYSTEM_USER_ID,
     )
     session.add(portfolio)
     session.commit()

@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
 
+    # Auth (Phase 2)
+    jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24
+    auth_disabled: bool = False
+
     # Database
     database_url: str = "sqlite:///./data/wmc.db"
     database_echo: bool = False

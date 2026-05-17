@@ -4,14 +4,16 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Float, Index, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from models.position import Position
     from models.transaction import Transaction
+    from models.user import User
 else:
     Transaction = "Transaction"
+    User = "User"
 
 from database.session import Base
 
@@ -33,6 +35,12 @@ class Portfolio(Base):
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     starting_capital: Mapped[float] = mapped_column(Float, nullable=False)
     base_currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
+    user_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -48,6 +56,11 @@ class Portfolio(Base):
     )
 
     # Relationships
+    user: Mapped["User"] = relationship(  # noqa: F821
+        "User",
+        back_populates="portfolios",
+        lazy="selectin",
+    )
     positions: Mapped[list["Position"]] = relationship(  # noqa: F821
         "Position",
         back_populates="portfolio",
@@ -65,7 +78,7 @@ class Portfolio(Base):
 
     # Indexes
     __table_args__ = (
-        Index("idx_portfolio_name", "name"),
+        Index("idx_portfolio_user_name", "user_id", "name"),
         Index("idx_portfolio_created", "created_at"),
     )
 

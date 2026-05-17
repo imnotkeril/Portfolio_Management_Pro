@@ -8,6 +8,8 @@ domain ``Portfolio`` logic for create/update/delete and position management.
 import logging
 from typing import Optional
 
+from config.settings import settings
+from core.auth.constants import SYSTEM_USER_ID
 from core.data_manager.portfolio import Portfolio
 from core.data_manager.portfolio_repository import PortfolioRepository
 from core.exceptions import (
@@ -28,6 +30,15 @@ from services.schemas import (
 logger = logging.getLogger(__name__)
 
 
+def _resolve_user_id(user_id: str | None) -> str:
+    """Use explicit user_id, or system user when AUTH_DISABLED (Streamlit dev)."""
+    if user_id is not None:
+        return user_id
+    if settings.auth_disabled:
+        return SYSTEM_USER_ID
+    raise ValidationError("user_id is required when authentication is enabled")
+
+
 class PortfolioService:
     """Facade over portfolio CRUD, ticker validation, and position updates."""
 
@@ -46,7 +57,9 @@ class PortfolioService:
         self._repository = repository or PortfolioRepository()
         self._data_service = data_service or DataService()
 
-    def create_portfolio(self, request: CreatePortfolioRequest) -> Portfolio:
+    def create_portfolio(
+        self, request: CreatePortfolioRequest, user_id: str | None = None
+    ) -> Portfolio:
         """
         Create a new portfolio.
 
@@ -60,8 +73,10 @@ class PortfolioService:
             ConflictError: If portfolio name already exists
             ValidationError: If tickers are invalid
         """
+        uid = _resolve_user_id(user_id)
+
         # Check for duplicate name
-        existing = self._repository.find_by_name(request.name)
+        existing = self._repository.find_by_name(request.name, uid)
         if existing:
             raise ConflictError(f"Portfolio name '{request.name}' already exists")
 
@@ -111,7 +126,7 @@ class PortfolioService:
         )
 
         # Save to database
-        saved_portfolio = self._repository.save(portfolio)
+        saved_portfolio = self._repository.save(portfolio, uid)
 
         logger.info(
             f"Portfolio saved with {len(saved_portfolio.get_all_positions())} "
@@ -124,7 +139,7 @@ class PortfolioService:
 
         return saved_portfolio
 
-    def get_portfolio(self, portfolio_id: str) -> Portfolio:
+    def get_portfolio(self, portfolio_id: str, user_id: str | None = None) -> Portfolio:
         """
         Get portfolio by ID.
 
@@ -137,12 +152,15 @@ class PortfolioService:
         Raises:
             PortfolioNotFoundError: If portfolio not found
         """
-        portfolio = self._repository.find_by_id(portfolio_id)
+        uid = _resolve_user_id(user_id)
+        portfolio = self._repository.find_by_id(portfolio_id, uid)
         if not portfolio:
             raise PortfolioNotFoundError(f"Portfolio not found: {portfolio_id}")
         return portfolio
 
-    def list_portfolios(self, limit: int = 100, offset: int = 0) -> list[Portfolio]:
+    def list_portfolios(
+        self, user_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> list[Portfolio]:
         """
         List all portfolios with pagination.
 
@@ -153,12 +171,14 @@ class PortfolioService:
         Returns:
             List of portfolios
         """
-        return self._repository.find_all(limit=limit, offset=offset)
+        uid = _resolve_user_id(user_id)
+        return self._repository.find_all(uid, limit=limit, offset=offset)
 
     def update_portfolio(
         self,
         portfolio_id: str,
         request: UpdatePortfolioRequest,
+        user_id: str | None = None,
     ) -> Portfolio:
         """
         Update portfolio attributes.
@@ -174,11 +194,12 @@ class PortfolioService:
             PortfolioNotFoundError: If portfolio not found
             ConflictError: If new name conflicts with existing portfolio
         """
-        portfolio = self.get_portfolio(portfolio_id)
+        uid = _resolve_user_id(user_id)
+        portfolio = self.get_portfolio(portfolio_id, uid)
 
         # Check name conflict if name is being updated
         if request.name and request.name != portfolio.name:
-            existing = self._repository.find_by_name(request.name)
+            existing = self._repository.find_by_name(request.name, uid)
             if existing and existing.id != portfolio_id:
                 raise ConflictError(f"Portfolio name '{request.name}' already exists")
 
@@ -193,12 +214,12 @@ class PortfolioService:
             portfolio.base_currency = request.base_currency
 
         # Save changes
-        updated = self._repository.save(portfolio)
+        updated = self._repository.save(portfolio, uid)
 
         logger.info(f"Updated portfolio: {portfolio_id}")
         return updated
 
-    def delete_portfolio(self, portfolio_id: str) -> bool:
+    def delete_portfolio(self, portfolio_id: str, user_id: str | None = None) -> bool:
         """
         Delete portfolio.
 
@@ -208,7 +229,8 @@ class PortfolioService:
         Returns:
             True if deleted, False if not found
         """
-        result = self._repository.delete(portfolio_id)
+        uid = _resolve_user_id(user_id)
+        result = self._repository.delete(portfolio_id, uid)
         if result:
             logger.info(f"Deleted portfolio: {portfolio_id}")
         return result
@@ -217,6 +239,7 @@ class PortfolioService:
         self,
         portfolio_id: str,
         request: AddPositionRequest,
+        user_id: str | None = None,
     ) -> Portfolio:
         """
         Add position to portfolio.
@@ -232,7 +255,8 @@ class PortfolioService:
             PortfolioNotFoundError: If portfolio not found
             ValidationError: If ticker is invalid or already exists
         """
-        portfolio = self.get_portfolio(portfolio_id)
+        uid = _resolve_user_id(user_id)
+        portfolio = self.get_portfolio(portfolio_id, uid)
 
         # Validate ticker
         if not self._data_service.validate_ticker(request.ticker):
@@ -248,12 +272,14 @@ class PortfolioService:
         )
 
         # Save changes
-        updated = self._repository.save(portfolio)
+        updated = self._repository.save(portfolio, uid)
 
         logger.info(f"Added position {request.ticker} to portfolio {portfolio_id}")
         return updated
 
-    def remove_position(self, portfolio_id: str, ticker: str) -> Portfolio:
+    def remove_position(
+        self, portfolio_id: str, ticker: str, user_id: str | None = None
+    ) -> Portfolio:
         """
         Remove position from portfolio.
 
@@ -268,12 +294,13 @@ class PortfolioService:
             PortfolioNotFoundError: If portfolio not found
             ValidationError: If position not found
         """
-        portfolio = self.get_portfolio(portfolio_id)
+        uid = _resolve_user_id(user_id)
+        portfolio = self.get_portfolio(portfolio_id, uid)
 
         portfolio.remove_position(ticker)
 
         # Save changes
-        updated = self._repository.save(portfolio)
+        updated = self._repository.save(portfolio, uid)
 
         logger.info(f"Removed position {ticker} from portfolio {portfolio_id}")
         return updated
@@ -283,6 +310,7 @@ class PortfolioService:
         portfolio_id: str,
         ticker: str,
         request: UpdatePositionRequest,
+        user_id: str | None = None,
     ) -> Portfolio:
         """
         Update position in portfolio.
@@ -299,7 +327,8 @@ class PortfolioService:
             PortfolioNotFoundError: If portfolio not found
             ValidationError: If position not found
         """
-        portfolio = self.get_portfolio(portfolio_id)
+        uid = _resolve_user_id(user_id)
+        portfolio = self.get_portfolio(portfolio_id, uid)
 
         portfolio.update_position(
             ticker=ticker,
@@ -310,12 +339,14 @@ class PortfolioService:
         )
 
         # Save changes
-        updated = self._repository.save(portfolio)
+        updated = self._repository.save(portfolio, uid)
 
         logger.info(f"Updated position {ticker} in portfolio {portfolio_id}")
         return updated
 
-    def clone_portfolio(self, portfolio_id: str, new_name: str) -> Portfolio:
+    def clone_portfolio(
+        self, portfolio_id: str, new_name: str, user_id: str | None = None
+    ) -> Portfolio:
         """
         Clone portfolio with new name.
 
@@ -331,10 +362,11 @@ class PortfolioService:
             ConflictError: If new name already exists
         """
         # Get source portfolio
-        source_portfolio = self.get_portfolio(portfolio_id)
+        uid = _resolve_user_id(user_id)
+        source_portfolio = self.get_portfolio(portfolio_id, uid)
 
         # Check name conflict
-        existing = self._repository.find_by_name(new_name)
+        existing = self._repository.find_by_name(new_name, uid)
         if existing:
             raise ConflictError(f"Portfolio name '{new_name}' already exists")
 
@@ -357,13 +389,15 @@ class PortfolioService:
             )
 
         # Save cloned portfolio
-        saved = self._repository.save(cloned)
+        saved = self._repository.save(cloned, uid)
 
         logger.info(f"Cloned portfolio {portfolio_id} as {saved.id} ({new_name})")
 
         return saved
 
-    def calculate_portfolio_metrics(self, portfolio_id: str) -> dict[str, float]:
+    def calculate_portfolio_metrics(
+        self, portfolio_id: str, user_id: str | None = None
+    ) -> dict[str, float]:
         """
         Calculate current portfolio value and weights.
 
@@ -377,7 +411,7 @@ class PortfolioService:
             PortfolioNotFoundError: If portfolio not found
             DataFetchError: If prices cannot be fetched
         """
-        portfolio = self.get_portfolio(portfolio_id)
+        portfolio = self.get_portfolio(portfolio_id, user_id)
 
         # Get current prices for all tickers
         tickers = [pos.ticker for pos in portfolio.get_all_positions()]

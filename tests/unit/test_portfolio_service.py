@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from core.auth.constants import SYSTEM_USER_ID
 from core.data_manager.portfolio import Portfolio
 from core.data_manager.portfolio_repository import PortfolioRepository
 from core.exceptions import ConflictError, PortfolioNotFoundError, ValidationError
@@ -32,9 +33,15 @@ def mock_data_service() -> DataService:
 
 @pytest.fixture
 def portfolio_service(
-    mock_repository: PortfolioRepository, mock_data_service: DataService
+    mock_repository: PortfolioRepository,
+    mock_data_service: DataService,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> PortfolioService:
     """Create portfolio service with mocked dependencies."""
+    monkeypatch.setattr(
+        "services.portfolio_service.settings.auth_disabled",
+        True,
+    )
     return PortfolioService(repository=mock_repository, data_service=mock_data_service)
 
 
@@ -69,7 +76,9 @@ def test_create_portfolio_success(portfolio_service: PortfolioService) -> None:
     result = portfolio_service.create_portfolio(request)
 
     assert result == saved_portfolio
-    portfolio_service._repository.find_by_name.assert_called_once_with("Test Portfolio")
+    portfolio_service._repository.find_by_name.assert_called_once_with(
+        "Test Portfolio", SYSTEM_USER_ID
+    )
     portfolio_service._data_service.validate_tickers.assert_called_once_with(
         ["AAPL", "MSFT"]
     )
@@ -116,7 +125,9 @@ def test_get_portfolio_success(portfolio_service: PortfolioService) -> None:
     result = portfolio_service.get_portfolio("test-id")
 
     assert result == portfolio
-    portfolio_service._repository.find_by_id.assert_called_once_with("test-id")
+    portfolio_service._repository.find_by_id.assert_called_once_with(
+        "test-id", SYSTEM_USER_ID
+    )
 
 
 def test_get_portfolio_not_found(portfolio_service: PortfolioService) -> None:
@@ -135,7 +146,9 @@ def test_list_portfolios(portfolio_service: PortfolioService) -> None:
     result = portfolio_service.list_portfolios()
 
     assert result == portfolios
-    portfolio_service._repository.find_all.assert_called_once()
+    portfolio_service._repository.find_all.assert_called_once_with(
+        SYSTEM_USER_ID, limit=100, offset=0
+    )
 
 
 def test_update_portfolio_success(portfolio_service: PortfolioService) -> None:
@@ -158,7 +171,9 @@ def test_update_portfolio_success(portfolio_service: PortfolioService) -> None:
     # get_portfolio is called, which calls find_by_id
     assert portfolio_service._repository.find_by_id.called
     # Should check for name conflict
-    portfolio_service._repository.find_by_name.assert_called_once_with("Updated Name")
+    portfolio_service._repository.find_by_name.assert_called_once_with(
+        "Updated Name", SYSTEM_USER_ID
+    )
     portfolio_service._repository.save.assert_called_once()
 
 
@@ -179,7 +194,9 @@ def test_delete_portfolio_success(portfolio_service: PortfolioService) -> None:
     result = portfolio_service.delete_portfolio("test-id")
 
     assert result is True
-    portfolio_service._repository.delete.assert_called_once_with("test-id")
+    portfolio_service._repository.delete.assert_called_once_with(
+        "test-id", SYSTEM_USER_ID
+    )
 
 
 def test_delete_portfolio_not_found(portfolio_service: PortfolioService) -> None:
@@ -269,7 +286,7 @@ def test_clone_portfolio_success(portfolio_service: PortfolioService) -> None:
 
     assert result is not None
     portfolio_service._repository.find_by_name.assert_called_once_with(
-        "Cloned Portfolio"
+        "Cloned Portfolio", SYSTEM_USER_ID
     )
     portfolio_service._repository.save.assert_called_once()
 

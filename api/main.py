@@ -7,10 +7,12 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from api.dependencies import get_current_user
+from api.routers import auth as auth_router
 from core.analytics_engine.chart_data import (
     get_asset_impact_on_return_data,
     get_asset_impact_on_risk_data,
@@ -39,6 +41,7 @@ from core.scenario_engine.custom_scenarios import (
 from core.scenario_engine.historical_scenarios import get_scenario_by_name
 from core.scenario_engine.scenario_chain import create_scenario_chain
 from database.session import ensure_database_schema
+from models.user import User
 from services.analytics_service import AnalyticsService
 from services.data_service import DataService
 from services.forecasting_service import ForecastingService
@@ -289,15 +292,24 @@ def _handle_error(exc: Exception) -> None:
     raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+def _verify_portfolio_access(portfolio_id: str, user: User) -> None:
+    """Ensure portfolio exists and belongs to the user (404 if not)."""
+    portfolio_service.get_portfolio(portfolio_id, user.id)
+
+
 ensure_database_schema()
 app = FastAPI(title="WMC Portfolio API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(auth_router.router)
 
 portfolio_service = PortfolioService()
 transaction_service = TransactionService()
@@ -394,23 +406,38 @@ def ticker_price(ticker: str) -> dict[str, Any]:
 
 
 @app.get("/portfolios")
-def list_portfolios() -> list[dict[str, Any]]:
-    return [_serialize_portfolio(p) for p in portfolio_service.list_portfolios()]
+def list_portfolios(
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    return [
+        _serialize_portfolio(p)
+        for p in portfolio_service.list_portfolios(current_user.id)
+    ]
 
 
 @app.get("/portfolios/{portfolio_id}")
-def get_portfolio(portfolio_id: str) -> dict[str, Any]:
+def get_portfolio(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
-        return _serialize_portfolio(portfolio_service.get_portfolio(portfolio_id))
+        return _serialize_portfolio(
+            portfolio_service.get_portfolio(portfolio_id, current_user.id)
+        )
     except Exception as exc:
         _handle_error(exc)
         raise
 
 
 @app.post("/portfolios")
-def create_portfolio(payload: CreatePortfolioRequest) -> dict[str, Any]:
+def create_portfolio(
+    payload: CreatePortfolioRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
-        return _serialize_portfolio(portfolio_service.create_portfolio(payload))
+        return _serialize_portfolio(
+            portfolio_service.create_portfolio(payload, current_user.id)
+        )
     except Exception as exc:
         _handle_error(exc)
         raise
@@ -418,11 +445,13 @@ def create_portfolio(payload: CreatePortfolioRequest) -> dict[str, Any]:
 
 @app.patch("/portfolios/{portfolio_id}")
 def update_portfolio(
-    portfolio_id: str, payload: UpdatePortfolioRequest
+    portfolio_id: str,
+    payload: UpdatePortfolioRequest,
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
         return _serialize_portfolio(
-            portfolio_service.update_portfolio(portfolio_id, payload)
+            portfolio_service.update_portfolio(portfolio_id, payload, current_user.id)
         )
     except Exception as exc:
         _handle_error(exc)
@@ -430,19 +459,28 @@ def update_portfolio(
 
 
 @app.delete("/portfolios/{portfolio_id}")
-def delete_portfolio(portfolio_id: str) -> dict[str, bool]:
+def delete_portfolio(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, bool]:
     try:
-        return {"deleted": portfolio_service.delete_portfolio(portfolio_id)}
+        return {
+            "deleted": portfolio_service.delete_portfolio(portfolio_id, current_user.id)
+        }
     except Exception as exc:
         _handle_error(exc)
         raise
 
 
 @app.post("/portfolios/{portfolio_id}/positions")
-def add_position(portfolio_id: str, payload: AddPositionRequest) -> dict[str, Any]:
+def add_position(
+    portfolio_id: str,
+    payload: AddPositionRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
         return _serialize_portfolio(
-            portfolio_service.add_position(portfolio_id, payload)
+            portfolio_service.add_position(portfolio_id, payload, current_user.id)
         )
     except Exception as exc:
         _handle_error(exc)
@@ -451,11 +489,16 @@ def add_position(portfolio_id: str, payload: AddPositionRequest) -> dict[str, An
 
 @app.patch("/portfolios/{portfolio_id}/positions/{ticker}")
 def update_position(
-    portfolio_id: str, ticker: str, payload: UpdatePositionRequest
+    portfolio_id: str,
+    ticker: str,
+    payload: UpdatePositionRequest,
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
         return _serialize_portfolio(
-            portfolio_service.update_position(portfolio_id, ticker, payload)
+            portfolio_service.update_position(
+                portfolio_id, ticker, payload, current_user.id
+            )
         )
     except Exception as exc:
         _handle_error(exc)
@@ -463,10 +506,14 @@ def update_position(
 
 
 @app.delete("/portfolios/{portfolio_id}/positions/{ticker}")
-def remove_position(portfolio_id: str, ticker: str) -> dict[str, Any]:
+def remove_position(
+    portfolio_id: str,
+    ticker: str,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
         return _serialize_portfolio(
-            portfolio_service.remove_position(portfolio_id, ticker)
+            portfolio_service.remove_position(portfolio_id, ticker, current_user.id)
         )
     except Exception as exc:
         _handle_error(exc)
@@ -474,16 +521,23 @@ def remove_position(portfolio_id: str, ticker: str) -> dict[str, Any]:
 
 
 @app.get("/portfolios/{portfolio_id}/transactions")
-def get_transactions(portfolio_id: str) -> list[dict[str, Any]]:
+def get_transactions(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     return [
         _serialize_transaction(tx)
-        for tx in transaction_service.get_transactions(portfolio_id)
+        for tx in transaction_service.get_transactions(
+            portfolio_id, user_id=current_user.id
+        )
     ]
 
 
 @app.post("/portfolios/{portfolio_id}/transactions")
 def add_transaction(
-    portfolio_id: str, payload: AddTransactionRequest
+    portfolio_id: str,
+    payload: AddTransactionRequest,
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
         tx = transaction_service.add_transaction(
@@ -495,6 +549,7 @@ def add_transaction(
             price=payload.price,
             fees=payload.fees,
             notes=payload.notes,
+            user_id=current_user.id,
         )
         return _serialize_transaction(tx)
     except Exception as exc:
@@ -503,13 +558,24 @@ def add_transaction(
 
 
 @app.delete("/transactions/{transaction_id}")
-def delete_transaction(transaction_id: str) -> dict[str, bool]:
-    return {"deleted": transaction_service.delete_transaction(transaction_id)}
+def delete_transaction(
+    transaction_id: str,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, bool]:
+    return {
+        "deleted": transaction_service.delete_transaction(
+            transaction_id, current_user.id
+        )
+    }
 
 
 @app.post("/analytics/calculate")
-def calculate_analytics(payload: AnalyticsRequest) -> dict[str, Any]:
+def calculate_analytics(
+    payload: AnalyticsRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         result = analytics_service.calculate_portfolio_metrics(
             portfolio_id=payload.portfolio_id,
             start_date=payload.start_date,
@@ -525,10 +591,15 @@ def calculate_analytics(payload: AnalyticsRequest) -> dict[str, Any]:
 
 
 @app.post("/analytics/assets")
-def calculate_asset_analytics(payload: AssetsAnalyticsRequest) -> dict[str, Any]:
+def calculate_asset_analytics(
+    payload: AssetsAnalyticsRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     """Compute per-asset data: correlations, metrics, returns, impact analysis."""
     try:
-        portfolio = portfolio_service.get_portfolio(payload.portfolio_id)
+        portfolio = portfolio_service.get_portfolio(
+            payload.portfolio_id, current_user.id
+        )
         positions = portfolio.get_all_positions()
         tickers = [p.ticker for p in positions]
 
@@ -652,8 +723,12 @@ def calculate_asset_analytics(payload: AssetsAnalyticsRequest) -> dict[str, Any]
 
 
 @app.post("/optimization/run")
-def optimize(payload: OptimizationRequest) -> dict[str, Any]:
+def optimize(
+    payload: OptimizationRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         result = optimization_service.optimize_portfolio(
             portfolio_id=payload.portfolio_id,
             method=payload.method,
@@ -674,11 +749,13 @@ def optimize(payload: OptimizationRequest) -> dict[str, Any]:
 
 
 @app.get("/portfolios/{portfolio_id}/optimization-snapshot")
-def optimization_snapshot(portfolio_id: str) -> list[dict[str, Any]]:
+def optimization_snapshot(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     """Current holdings with live prices (Streamlit expander)."""
     try:
-        if not portfolio_service.get_portfolio(portfolio_id):
-            raise HTTPException(status_code=404, detail="Portfolio not found")
+        _verify_portfolio_access(portfolio_id, current_user)
         ds = optimization_service._data_service  # noqa: SLF001
         rows = portfolio_snapshot_rows(portfolio_service, ds, portfolio_id)
         return _to_jsonable(rows)
@@ -690,8 +767,12 @@ def optimization_snapshot(portfolio_id: str) -> list[dict[str, Any]]:
 
 
 @app.post("/optimization/full")
-def optimization_full(payload: OptimizationFullRequest) -> dict[str, Any]:
+def optimization_full(
+    payload: OptimizationFullRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         bundle = build_optimization_full_bundle(
             optimization_service,
             portfolio_service,
@@ -719,8 +800,12 @@ def optimization_full(payload: OptimizationFullRequest) -> dict[str, Any]:
 
 
 @app.post("/risk/var")
-def risk_var(payload: RiskVarRequest) -> dict[str, Any]:
+def risk_var(
+    payload: RiskVarRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         return _to_jsonable(
             risk_service.calculate_var_analysis(
                 portfolio_id=payload.portfolio_id,
@@ -738,8 +823,12 @@ def risk_var(payload: RiskVarRequest) -> dict[str, Any]:
 
 
 @app.post("/risk/var/full")
-def risk_var_full(payload: RiskVarFullRequest) -> dict[str, Any]:
+def risk_var_full(
+    payload: RiskVarFullRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         bundle = build_var_full_bundle(
             risk_service,
             portfolio_service,
@@ -759,8 +848,12 @@ def risk_var_full(payload: RiskVarFullRequest) -> dict[str, Any]:
 
 
 @app.post("/risk/monte-carlo")
-def risk_monte_carlo(payload: RiskMonteCarloRequest) -> dict[str, Any]:
+def risk_monte_carlo(
+    payload: RiskMonteCarloRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         return _to_jsonable(
             risk_service.run_monte_carlo_simulation(
                 portfolio_id=payload.portfolio_id,
@@ -778,8 +871,12 @@ def risk_monte_carlo(payload: RiskMonteCarloRequest) -> dict[str, Any]:
 
 
 @app.post("/risk/monte-carlo/full")
-def risk_monte_carlo_full(payload: RiskMonteCarloFullRequest) -> dict[str, Any]:
+def risk_monte_carlo_full(
+    payload: RiskMonteCarloFullRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         bundle = build_monte_carlo_display_bundle(
             risk_service,
             portfolio_id=payload.portfolio_id,
@@ -807,8 +904,12 @@ def risk_scenarios_catalog() -> list[dict[str, Any]]:
 
 
 @app.post("/risk/stress-tests")
-def stress_tests(payload: StressTestRequest) -> Any:
+def stress_tests(
+    payload: StressTestRequest,
+    current_user: User = Depends(get_current_user),
+) -> Any:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         return _to_jsonable(
             risk_service.run_stress_test(payload.portfolio_id, payload.scenario_names)
         )
@@ -818,9 +919,13 @@ def stress_tests(payload: StressTestRequest) -> Any:
 
 
 @app.post("/risk/stress-tests/full")
-def stress_tests_full(payload: StressTestRequest) -> Any:
+def stress_tests_full(
+    payload: StressTestRequest,
+    current_user: User = Depends(get_current_user),
+) -> Any:
     """Historical scenarios bundle: recovery paths, breakdowns, timelines (Streamlit parity)."""
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         bundle = build_stress_historical_display_bundle(
             risk_service,
             portfolio_service,
@@ -834,8 +939,12 @@ def stress_tests_full(payload: StressTestRequest) -> Any:
 
 
 @app.post("/risk/custom-scenario")
-def custom_scenario(payload: CustomScenarioApiRequest) -> Any:
+def custom_scenario(
+    payload: CustomScenarioApiRequest,
+    current_user: User = Depends(get_current_user),
+) -> Any:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         scenario = create_custom_scenario(
             name=payload.name,
             description=payload.description,
@@ -856,8 +965,12 @@ def custom_scenario(payload: CustomScenarioApiRequest) -> Any:
 
 
 @app.post("/risk/scenario-chain")
-def scenario_chain(payload: ScenarioChainApiRequest) -> Any:
+def scenario_chain(
+    payload: ScenarioChainApiRequest,
+    current_user: User = Depends(get_current_user),
+) -> Any:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         selected = []
         for key in payload.scenario_keys:
             sc = get_scenario_by_name(key)
@@ -901,8 +1014,12 @@ def forecast_asset(payload: ForecastAssetRequest) -> Any:
 
 
 @app.post("/forecasting/portfolio")
-def forecast_portfolio(payload: ForecastPortfolioRequest) -> Any:
+def forecast_portfolio(
+    payload: ForecastPortfolioRequest,
+    current_user: User = Depends(get_current_user),
+) -> Any:
     try:
+        _verify_portfolio_access(payload.portfolio_id, current_user)
         return _to_jsonable(
             forecasting_service.forecast_portfolio(
                 portfolio_id=payload.portfolio_id,
@@ -921,12 +1038,17 @@ def forecast_portfolio(payload: ForecastPortfolioRequest) -> Any:
 
 
 @app.post("/forecasting/batch")
-def forecast_batch(payload: ForecastBatchRequest) -> Any:
+def forecast_batch(
+    payload: ForecastBatchRequest,
+    current_user: User = Depends(get_current_user),
+) -> Any:
     try:
         if payload.scope not in ("asset", "portfolio"):
             raise HTTPException(
                 status_code=400, detail="scope must be 'asset' or 'portfolio'"
             )
+        if payload.scope == "portfolio" and payload.portfolio_id:
+            _verify_portfolio_access(payload.portfolio_id, current_user)
         bundle = build_forecast_batch_bundle(
             forecasting_service,
             data_service,

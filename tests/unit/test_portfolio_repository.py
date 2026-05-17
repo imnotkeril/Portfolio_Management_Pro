@@ -2,8 +2,10 @@
 
 import pytest
 
+from core.auth.constants import SYSTEM_USER_ID
 from core.data_manager.portfolio import Portfolio
 from core.data_manager.portfolio_repository import PortfolioRepository
+from core.data_manager.user_repository import UserRepository
 from database.session import Base
 
 
@@ -17,6 +19,8 @@ def test_db():
     test_engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(test_engine)
     SessionLocal = sessionmaker(bind=test_engine)
+
+    UserRepository().ensure_system_user()
 
     yield SessionLocal
 
@@ -48,7 +52,7 @@ def test_find_by_id_not_found() -> None:
     """Test finding portfolio by non-existent ID."""
     repository = PortfolioRepository()
 
-    result = repository.find_by_id("nonexistent-id")
+    result = repository.find_by_id("nonexistent-id", SYSTEM_USER_ID)
     assert result is None
 
 
@@ -56,7 +60,7 @@ def test_find_by_name_not_found() -> None:
     """Test finding portfolio by non-existent name."""
     repository = PortfolioRepository()
 
-    result = repository.find_by_name("Nonexistent Portfolio")
+    result = repository.find_by_name("Nonexistent Portfolio", SYSTEM_USER_ID)
     assert result is None
 
 
@@ -64,7 +68,7 @@ def test_find_all_empty() -> None:
     """Test finding all portfolios when none exist."""
     repository = PortfolioRepository()
 
-    portfolios = repository.find_all()
+    portfolios = repository.find_all(SYSTEM_USER_ID)
     # Should return empty list, not error
     assert isinstance(portfolios, list)
 
@@ -73,5 +77,5 @@ def test_delete_nonexistent() -> None:
     """Test deleting non-existent portfolio."""
     repository = PortfolioRepository()
 
-    result = repository.delete("nonexistent-id")
+    result = repository.delete("nonexistent-id", SYSTEM_USER_ID)
     assert result is False

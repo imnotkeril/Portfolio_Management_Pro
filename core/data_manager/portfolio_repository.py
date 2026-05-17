@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class PortfolioRepository:
     """Repository for portfolio persistence operations."""
 
-    def save(self, portfolio: Portfolio) -> Portfolio:
+    def save(self, portfolio: Portfolio, user_id: str) -> Portfolio:
         """
         Save portfolio to database (create or update).
 
@@ -32,13 +32,12 @@ class PortfolioRepository:
         """
         with get_db_session() as session:
             if portfolio.id:
-                # Update existing portfolio
-                return self._update_portfolio(session, portfolio)
-            else:
-                # Create new portfolio
-                return self._create_portfolio(session, portfolio)
+                return self._update_portfolio(session, portfolio, user_id)
+            return self._create_portfolio(session, portfolio, user_id)
 
-    def _create_portfolio(self, session: Session, portfolio: Portfolio) -> Portfolio:
+    def _create_portfolio(
+        self, session: Session, portfolio: Portfolio, user_id: str
+    ) -> Portfolio:
         """Create new portfolio in database."""
         # Convert domain model to ORM
         portfolio_orm = PortfolioORM(
@@ -46,6 +45,7 @@ class PortfolioRepository:
             description=portfolio.description,
             starting_capital=portfolio.starting_capital,
             base_currency=portfolio.base_currency,
+            user_id=user_id,
         )
 
         session.add(portfolio_orm)
@@ -76,10 +76,17 @@ class PortfolioRepository:
         # Convert back to domain model (commit happens automatically in get_db_session)
         return self._orm_to_domain(portfolio_orm)
 
-    def _update_portfolio(self, session: Session, portfolio: Portfolio) -> Portfolio:
+    def _update_portfolio(
+        self, session: Session, portfolio: Portfolio, user_id: str
+    ) -> Portfolio:
         """Update existing portfolio in database."""
         portfolio_orm = (
-            session.query(PortfolioORM).filter(PortfolioORM.id == portfolio.id).first()
+            session.query(PortfolioORM)
+            .filter(
+                PortfolioORM.id == portfolio.id,
+                PortfolioORM.user_id == user_id,
+            )
+            .first()
         )
 
         if not portfolio_orm:
@@ -113,7 +120,7 @@ class PortfolioRepository:
         session.refresh(portfolio_orm)
         return self._orm_to_domain(portfolio_orm)
 
-    def find_by_id(self, portfolio_id: str) -> Optional[Portfolio]:
+    def find_by_id(self, portfolio_id: str, user_id: str) -> Optional[Portfolio]:
         """
         Find portfolio by ID.
 
@@ -126,7 +133,10 @@ class PortfolioRepository:
         with get_db_session() as session:
             portfolio_orm = (
                 session.query(PortfolioORM)
-                .filter(PortfolioORM.id == portfolio_id)
+                .filter(
+                    PortfolioORM.id == portfolio_id,
+                    PortfolioORM.user_id == user_id,
+                )
                 .first()
             )
 
@@ -135,7 +145,7 @@ class PortfolioRepository:
 
             return self._orm_to_domain(portfolio_orm)
 
-    def find_by_name(self, name: str) -> Optional[Portfolio]:
+    def find_by_name(self, name: str, user_id: str) -> Optional[Portfolio]:
         """
         Find portfolio by name.
 
@@ -147,7 +157,12 @@ class PortfolioRepository:
         """
         with get_db_session() as session:
             portfolio_orm = (
-                session.query(PortfolioORM).filter(PortfolioORM.name == name).first()
+                session.query(PortfolioORM)
+                .filter(
+                    PortfolioORM.name == name,
+                    PortfolioORM.user_id == user_id,
+                )
+                .first()
             )
 
             if not portfolio_orm:
@@ -155,7 +170,9 @@ class PortfolioRepository:
 
             return self._orm_to_domain(portfolio_orm)
 
-    def find_all(self, limit: int = 100, offset: int = 0) -> list[Portfolio]:
+    def find_all(
+        self, user_id: str, limit: int = 100, offset: int = 0
+    ) -> list[Portfolio]:
         """
         Find all portfolios with pagination.
 
@@ -168,12 +185,16 @@ class PortfolioRepository:
         """
         with get_db_session() as session:
             portfolios_orm = (
-                session.query(PortfolioORM).limit(limit).offset(offset).all()
+                session.query(PortfolioORM)
+                .filter(PortfolioORM.user_id == user_id)
+                .limit(limit)
+                .offset(offset)
+                .all()
             )
 
             return [self._orm_to_domain(p) for p in portfolios_orm]
 
-    def delete(self, portfolio_id: str) -> bool:
+    def delete(self, portfolio_id: str, user_id: str) -> bool:
         """
         Delete portfolio by ID.
 
@@ -193,7 +214,10 @@ class PortfolioRepository:
                     noload(PortfolioORM.positions),
                     noload(PortfolioORM.transactions),  # Don't load transactions
                 )
-                .filter(PortfolioORM.id == portfolio_id)
+                .filter(
+                    PortfolioORM.id == portfolio_id,
+                    PortfolioORM.user_id == user_id,
+                )
                 .first()
             )
 

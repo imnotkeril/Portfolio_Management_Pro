@@ -5,5 +5,6 @@ from models.portfolio import Portfolio  # noqa: F401
 from models.position import Position  # noqa: F401
 from models.price_history import PriceHistory  # noqa: F401
 from models.transaction import Transaction  # noqa: F401
+from models.user import User  # noqa: F401
 
-__all__ = ["Portfolio", "Position", "PriceHistory", "Transaction"]
+__all__ = ["Portfolio", "Position", "PriceHistory", "Transaction", "User"]
