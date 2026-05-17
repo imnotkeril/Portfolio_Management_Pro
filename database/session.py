@@ -55,17 +55,37 @@ def get_db_session() -> Generator[Session, None, None]:
         session.close()
 
 
-def init_db() -> None:
-    """Create all database tables."""
-    # Ensure database directory exists for SQLite
-    if settings.database_url.startswith("sqlite:///"):
-        db_path = settings.database_url.replace("sqlite:///", "")
-        if db_path != ":memory:":
-            db_file = Path(db_path)
-            db_file.parent.mkdir(parents=True, exist_ok=True)
+def _is_sqlite_url(url: str) -> bool:
+    return url.startswith("sqlite:")
 
-    # Import all models to ensure they are registered
+
+def init_db() -> None:
+    """Create all tables via SQLAlchemy metadata (SQLite / local dev / tests only)."""
+    if not _is_sqlite_url(settings.database_url):
+        raise RuntimeError(
+            "init_db() is for SQLite only. Use ensure_database_schema() with PostgreSQL."
+        )
+
+    db_path = settings.database_url.replace("sqlite:///", "")
+    if db_path != ":memory:":
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
     from models import Portfolio, Position, PriceHistory, Transaction  # noqa: F401
 
-    # Create all tables
     Base.metadata.create_all(bind=engine)
+
+
+def ensure_database_schema() -> None:
+    """
+    Prepare the database schema.
+
+    - SQLite: create tables if missing (tests, Streamlit local).
+    - PostgreSQL: run Alembic migrations (Docker / production).
+    """
+    if _is_sqlite_url(settings.database_url):
+        init_db()
+        return
+
+    from database.migrate import upgrade_head
+
+    upgrade_head()

@@ -139,9 +139,9 @@ Portfolio_Management_Pro/
 
 ### Full stack (Next.js + FastAPI + Docker)
 
-- `api/main.py` — FastAPI on top of `services/*` and `core/*`  
-- `frontend/` — Next.js, aligned with Streamlit navigation where applicable  
-- `docker-compose.yml` — API + web in one command  
+- `api/main.py` — FastAPI on top of `services/*` and `core/*`
+- `frontend/` — Next.js, aligned with Streamlit navigation where applicable
+- `docker-compose.yml` — **PostgreSQL** + API + web (migrations run on API startup)
 
 ```bash
 docker compose up --build
@@ -149,14 +149,24 @@ docker compose up --build
 
 Open:
 
-- **Frontend**: <http://localhost:3000>  
-- **API health**: <http://localhost:8000/health>  
+- **Frontend**: <http://localhost:3000>
+- **API health**: <http://localhost:8000/health>
 
-**Develop without Docker**
+Postgres is exposed on `localhost:5432` (`portfolio` / `portfolio`, database `portfolio`).
 
-Backend:
+**Develop without Docker (with Postgres)**
 
 ```bash
+docker compose up -d postgres
+# Copy .env.example → .env (DATABASE_URL with localhost)
+alembic upgrade head
+uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+**Develop without Docker (SQLite only — Streamlit / quick API)**
+
+```bash
+# .env: DATABASE_URL=sqlite:///./data/wmc.db
 uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -226,8 +236,11 @@ pre-commit install   # optional: git hooks
 Create `.env` in the project root (optional; defaults exist in `config/settings.py`):
 
 ```env
-# Database (default in code: sqlite:///./data/wmc.db)
-DATABASE_URL=sqlite:///./data/wmc.db
+# Docker / production (see .env.example)
+DATABASE_URL=postgresql+psycopg2://portfolio:portfolio@localhost:5432/portfolio
+
+# Streamlit / local quick start without Postgres:
+# DATABASE_URL=sqlite:///./data/wmc.db
 
 LOG_LEVEL=INFO
 LOG_FILE=logs/app.log
@@ -242,7 +255,8 @@ RISK_FREE_RATE=0.0435
 
 ## Documentation
 
-- **[USER_GUIDE.md](USER_GUIDE.md)** — manual, examples, workflows  
+- **[USER_GUIDE.md](USER_GUIDE.md)** — manual, examples, workflows
+- **[Production plan](docs/production/README.md)** — roadmap, status, phase-by-phase runbooks (PostgreSQL → auth → deploy)  
 
 ---
 
@@ -261,6 +275,8 @@ RISK_FREE_RATE=0.0435
 - Next.js **parity** and UX polish vs Streamlit where needed  
 
 ### Planned
+
+See **[docs/production/README.md](docs/production/README.md)** for the full phased plan (PostgreSQL, auth, Stripe, Railway).
 
 - Authentication & multi-user  
 - Real-time or push-based data updates (where applicable)  

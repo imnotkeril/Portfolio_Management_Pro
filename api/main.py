@@ -38,7 +38,7 @@ from core.scenario_engine.custom_scenarios import (
 )
 from core.scenario_engine.historical_scenarios import get_scenario_by_name
 from core.scenario_engine.scenario_chain import create_scenario_chain
-from database.session import init_db
+from database.session import ensure_database_schema
 from services.analytics_service import AnalyticsService
 from services.data_service import DataService
 from services.forecasting_service import ForecastingService
@@ -289,7 +289,7 @@ def _handle_error(exc: Exception) -> None:
     raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-init_db()
+ensure_database_schema()
 app = FastAPI(title="WMC Portfolio API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
