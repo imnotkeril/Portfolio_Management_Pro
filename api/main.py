@@ -73,13 +73,26 @@ class AddTransactionRequest(BaseModel):
 
     transaction_date: date
     transaction_type: str = Field(
-        ..., examples=["BUY", "SELL", "DEPOSIT", "WITHDRAWAL"]
+        ...,
+        examples=["BUY", "SELL", "DEPOSIT", "WITHDRAWAL", "DIVIDEND", "SPLIT"],
     )
     ticker: str
     shares: float
     price: float
     fees: float = 0.0
     notes: str | None = None
+    reinvest: bool | None = None
+    split_ratio: float | None = None
+    currency: str = "USD"
+
+
+class DividendSyncRequest(BaseModel):
+    """Sync dividends from market data."""
+
+    tickers: list[str]
+    start_date: date
+    end_date: date
+    reinvest: bool = False
 
 
 class RiskVarRequest(BaseModel):
@@ -227,6 +240,7 @@ def _serialize_portfolio(portfolio: Any) -> dict[str, Any]:
         "description": portfolio.description,
         "starting_capital": portfolio.starting_capital,
         "base_currency": portfolio.base_currency,
+        "cost_basis_method": getattr(portfolio, "cost_basis_method", "fifo"),
         "positions": [_serialize_position(p) for p in portfolio.get_all_positions()],
     }
 
@@ -242,6 +256,34 @@ def _serialize_transaction(tx: Transaction) -> dict[str, Any]:
         "amount": tx.amount,
         "fees": tx.fees,
         "notes": tx.notes,
+        "reinvest": tx.reinvest,
+        "split_ratio": tx.split_ratio,
+        "currency": tx.currency,
+    }
+
+
+def _serialize_holding(h: Any) -> dict[str, Any]:
+    return {
+        "ticker": h.ticker,
+        "quantity": h.quantity,
+        "avg_cost": h.avg_cost,
+        "market_price": h.market_price,
+        "market_value": h.market_value,
+        "cost_basis": h.cost_basis,
+        "unrealized_pnl": h.unrealized_pnl,
+    }
+
+
+def _serialize_pnl(summary: Any) -> dict[str, Any]:
+    return {
+        "realized_pnl": summary.realized_pnl,
+        "unrealized_pnl": summary.unrealized_pnl,
+        "dividend_income": summary.dividend_income,
+        "cost_basis": summary.cost_basis,
+        "market_value": summary.market_value,
+        "total_return_twr": summary.total_return_twr,
+        "total_return_mwr": summary.total_return_mwr,
+        "cash_balance": summary.cash_balance,
     }
 
 
@@ -523,12 +565,21 @@ def remove_position(
 @app.get("/portfolios/{portfolio_id}/transactions")
 def get_transactions(
     portfolio_id: str,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    transaction_type: str | None = None,
+    ticker: str | None = None,
     current_user: User = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     return [
         _serialize_transaction(tx)
         for tx in transaction_service.get_transactions(
-            portfolio_id, user_id=current_user.id
+            portfolio_id,
+            start_date=from_date,
+            end_date=to_date,
+            transaction_type=transaction_type,
+            ticker=ticker,
+            user_id=current_user.id,
         )
     ]
 
@@ -550,6 +601,9 @@ def add_transaction(
             fees=payload.fees,
             notes=payload.notes,
             user_id=current_user.id,
+            reinvest=payload.reinvest,
+            split_ratio=payload.split_ratio,
+            currency=payload.currency,
         )
         return _serialize_transaction(tx)
     except Exception as exc:
@@ -557,16 +611,105 @@ def add_transaction(
         raise
 
 
-@app.delete("/transactions/{transaction_id}")
-def delete_transaction(
+@app.delete("/portfolios/{portfolio_id}/transactions/{transaction_id}")
+def delete_portfolio_transaction(
+    portfolio_id: str,
     transaction_id: str,
     current_user: User = Depends(get_current_user),
 ) -> dict[str, bool]:
+    try:
+        _verify_portfolio_access(portfolio_id, current_user)
+        return {
+            "deleted": transaction_service.delete_transaction(
+                transaction_id,
+                current_user.id,
+                portfolio_id=portfolio_id,
+            )
+        }
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
+@app.delete("/transactions/{transaction_id}")
+def delete_transaction_legacy(
+    transaction_id: str,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, bool]:
+    """Deprecated: prefer DELETE /portfolios/{id}/transactions/{tx_id}."""
     return {
         "deleted": transaction_service.delete_transaction(
             transaction_id, current_user.id
         )
     }
+
+
+@app.get("/portfolios/{portfolio_id}/holdings")
+def get_holdings(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    try:
+        rows = transaction_service.get_holdings(portfolio_id, current_user.id)
+        return [_serialize_holding(h) for h in rows]
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
+@app.get("/portfolios/{portfolio_id}/pnl")
+def get_pnl(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        return _serialize_pnl(
+            transaction_service.get_pnl(portfolio_id, current_user.id)
+        )
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
+@app.get("/portfolios/{portfolio_id}/dividends")
+def get_dividends(
+    portfolio_id: str,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    try:
+        txs = transaction_service.get_dividends(
+            portfolio_id,
+            start_date=from_date,
+            end_date=to_date,
+            user_id=current_user.id,
+        )
+        return [_serialize_transaction(tx) for tx in txs]
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
+@app.post("/portfolios/{portfolio_id}/dividends/sync")
+def sync_dividends(
+    portfolio_id: str,
+    payload: DividendSyncRequest,
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    try:
+        created = transaction_service.sync_dividends(
+            portfolio_id,
+            payload.tickers,
+            payload.start_date,
+            payload.end_date,
+            current_user.id,
+            payload.reinvest,
+        )
+        return [_serialize_transaction(tx) for tx in created]
+    except Exception as exc:
+        _handle_error(exc)
+        raise
 
 
 @app.post("/analytics/calculate")

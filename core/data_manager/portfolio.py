@@ -65,6 +65,7 @@ class Portfolio:
         description: Optional[str] = None,
         base_currency: str = "USD",
         portfolio_id: Optional[str] = None,
+        cost_basis_method: str = "fifo",
     ) -> None:
         """
         Initialize portfolio.
@@ -82,11 +83,16 @@ class Portfolio:
         if starting_capital <= 0:
             raise ValidationError("Starting capital must be greater than 0")
 
+        method = cost_basis_method.lower()
+        if method not in ("fifo", "average"):
+            raise ValidationError("cost_basis_method must be 'fifo' or 'average'")
+
         self.id = portfolio_id
         self.name = name.strip()
         self.description = description
         self.starting_capital = starting_capital
         self.base_currency = base_currency
+        self.cost_basis_method = method
         self._positions: list[Position] = []
 
     def add_position(

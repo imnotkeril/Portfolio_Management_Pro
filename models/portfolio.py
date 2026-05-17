@@ -35,6 +35,9 @@ class Portfolio(Base):
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     starting_capital: Mapped[float] = mapped_column(Float, nullable=False)
     base_currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
+    cost_basis_method: Mapped[str] = mapped_column(
+        String(10), default="fifo", nullable=False
+    )
     user_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("users.id", ondelete="CASCADE"),

@@ -45,6 +45,7 @@ class PortfolioRepository:
             description=portfolio.description,
             starting_capital=portfolio.starting_capital,
             base_currency=portfolio.base_currency,
+            cost_basis_method=portfolio.cost_basis_method,
             user_id=user_id,
         )
 
@@ -97,6 +98,7 @@ class PortfolioRepository:
         portfolio_orm.description = portfolio.description
         portfolio_orm.starting_capital = portfolio.starting_capital
         portfolio_orm.base_currency = portfolio.base_currency
+        portfolio_orm.cost_basis_method = portfolio.cost_basis_method
 
         # Update positions: delete existing and add new
         session.query(PositionORM).filter(
@@ -244,6 +246,8 @@ class PortfolioRepository:
             description=portfolio_orm.description,
             base_currency=portfolio_orm.base_currency,
             portfolio_id=portfolio_orm.id,
+            cost_basis_method=getattr(portfolio_orm, "cost_basis_method", "fifo")
+            or "fifo",
         )
 
         # Add positions

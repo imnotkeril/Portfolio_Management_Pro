@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -10,6 +10,7 @@ import pandas as pd
 from core.analytics_engine.engine import AnalyticsEngine
 from core.exceptions import InsufficientDataError, ValidationError
 from services.data_service import DataService
+from services.performance_attribution import PerformanceAttributionService
 from services.portfolio_service import PortfolioService
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class AnalyticsService:
         self._engine = analytics_engine or AnalyticsEngine()
         self._portfolio_service = portfolio_service or PortfolioService()
         self._data_service = data_service or DataService()
+        self._performance = PerformanceAttributionService()
 
     def calculate_portfolio_metrics(
         self,
@@ -224,9 +226,12 @@ class AnalyticsService:
 
         logger.info(f"Metrics calculation completed for portfolio {portfolio_id}")
 
+        ledger_metrics = self._ledger_metrics(portfolio_id, portfolio)
+
         # Return metrics with returns data for charts
         return {
             **metrics,
+            **ledger_metrics,
             "portfolio_returns": portfolio_returns,
             "benchmark_returns": benchmark_returns,
             "portfolio_values": portfolio_values,
@@ -235,6 +240,31 @@ class AnalyticsService:
             "comparison_returns": comparison_returns,
             "comparison_metrics": comparison_metrics,
         }
+
+    def _ledger_metrics(self, portfolio_id: str, portfolio: Any) -> dict[str, Any]:
+        """Ledger-based PnL metrics (Phase 3); empty dict if no transactions."""
+        try:
+            from core.data_manager.transaction_repository import TransactionRepository
+
+            txs = TransactionRepository().find_by_portfolio(portfolio_id)
+            if not txs:
+                return {}
+            summary = self._performance.summarize(
+                txs,
+                portfolio.starting_capital,
+                getattr(portfolio, "cost_basis_method", "fifo"),
+            )
+            return {
+                "realized_pnl": summary.realized_pnl,
+                "unrealized_pnl": summary.unrealized_pnl,
+                "total_return_twr": summary.total_return_twr,
+                "total_return_mwr": summary.total_return_mwr,
+                "dividend_income": summary.dividend_income,
+                "cost_basis": summary.cost_basis,
+            }
+        except Exception as exc:
+            logger.warning("Ledger metrics skipped for %s: %s", portfolio_id, exc)
+            return {}
 
     def _get_single_ticker_returns(
         self, ticker: str, start_date: date, end_date: date

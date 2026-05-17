@@ -233,6 +233,37 @@ class TestTransactionDomain:
         )
         assert txn.transaction_type == "BUY"
 
+    def test_dividend_requires_reinvest(self) -> None:
+        with pytest.raises(ValidationError, match="reinvest"):
+            Transaction(
+                transaction_date=date(2024, 1, 15),
+                transaction_type="DIVIDEND",
+                ticker="AAPL",
+                shares=10.0,
+                price=1.0,
+            )
+
+    def test_dividend_with_reinvest(self) -> None:
+        txn = Transaction(
+            transaction_date=date(2024, 1, 15),
+            transaction_type="DIVIDEND",
+            ticker="AAPL",
+            shares=50.0,
+            price=1.0,
+            reinvest=False,
+        )
+        assert txn.reinvest is False
+
+    def test_split_requires_ratio(self) -> None:
+        with pytest.raises(ValidationError, match="split_ratio"):
+            Transaction(
+                transaction_date=date(2024, 1, 15),
+                transaction_type="SPLIT",
+                ticker="AAPL",
+                shares=1.0,
+                price=1.0,
+            )
+
 
 class TestTransactionRepository:
     """Test transaction repository."""

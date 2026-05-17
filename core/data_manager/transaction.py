@@ -12,7 +12,16 @@ logger = logging.getLogger(__name__)
 class Transaction:
     """Transaction domain model (pure Python, no ORM dependencies)."""
 
-    TRANSACTION_TYPES = ["BUY", "SELL", "DEPOSIT", "WITHDRAWAL"]
+    TRANSACTION_TYPES = [
+        "BUY",
+        "SELL",
+        "DEPOSIT",
+        "WITHDRAWAL",
+        "DIVIDEND",
+        "SPLIT",
+    ]
+    CASH_TYPES = {"DEPOSIT", "WITHDRAWAL"}
+    EQUITY_TYPES = {"BUY", "SELL", "DIVIDEND", "SPLIT"}
 
     def __init__(
         self,
@@ -25,24 +34,13 @@ class Transaction:
         fees: float = 0.0,
         notes: Optional[str] = None,
         transaction_id: Optional[str] = None,
+        reinvest: Optional[bool] = None,
+        split_ratio: Optional[float] = None,
+        currency: str = "USD",
     ) -> None:
-        """
-        Initialize transaction.
-
-        Args:
-            transaction_date: Date of transaction
-            transaction_type: Type (BUY, SELL, DEPOSIT, WITHDRAWAL)
-            ticker: Ticker symbol (or 'CASH' for DEPOSIT/WITHDRAWAL)
-            shares: Number of shares (or amount for CASH)
-            price: Price per share (or 1.0 for CASH)
-            amount: Total amount (shares * price, calculated if not provided)
-            fees: Transaction fees
-            notes: Optional notes
-            transaction_id: Optional transaction ID (for existing transactions)
-        """
-        # Normalize transaction type and ticker first
         normalized_type = transaction_type.upper()
         normalized_ticker = ticker.strip().upper()
+        normalized_currency = currency.strip().upper()
 
         if normalized_type not in self.TRANSACTION_TYPES:
             raise ValidationError(
@@ -50,16 +48,35 @@ class Transaction:
                 f"Must be one of {self.TRANSACTION_TYPES}"
             )
 
-        if shares <= 0:
-            raise ValidationError("Shares must be greater than 0")
-
-        if price <= 0:
-            raise ValidationError("Price must be greater than 0")
-
-        if normalized_type in ["DEPOSIT", "WITHDRAWAL"] and normalized_ticker != "CASH":
+        if normalized_type in self.CASH_TYPES:
+            if normalized_ticker != "CASH":
+                raise ValidationError(
+                    "DEPOSIT/WITHDRAWAL transactions must have ticker='CASH'"
+                )
+        elif normalized_ticker == "CASH":
             raise ValidationError(
-                "DEPOSIT/WITHDRAWAL transactions must have ticker='CASH'"
+                f"{normalized_type} transactions cannot use ticker='CASH'"
             )
+
+        if normalized_type == "DIVIDEND":
+            if reinvest is None:
+                raise ValidationError("DIVIDEND transactions require reinvest (bool)")
+        elif normalized_type == "SPLIT":
+            if split_ratio is None or split_ratio <= 0:
+                raise ValidationError("SPLIT transactions require split_ratio > 0")
+        elif reinvest is not None:
+            raise ValidationError("reinvest is only valid for DIVIDEND transactions")
+
+        if normalized_type != "SPLIT":
+            if shares <= 0:
+                raise ValidationError("Shares must be greater than 0")
+            if price <= 0:
+                raise ValidationError("Price must be greater than 0")
+        else:
+            if shares <= 0:
+                shares = 1.0
+            if price <= 0:
+                price = 1.0
 
         self.id = transaction_id
         self.transaction_date = transaction_date
@@ -70,6 +87,9 @@ class Transaction:
         self.amount = amount if amount is not None else shares * price
         self.fees = fees
         self.notes = notes
+        self.reinvest = reinvest
+        self.split_ratio = split_ratio
+        self.currency = normalized_currency
 
     def __repr__(self) -> str:
         return (
@@ -79,7 +99,6 @@ class Transaction:
         )
 
     def __eq__(self, other: object) -> bool:
-        """Compare transactions by ID if available, otherwise by attributes."""
         if not isinstance(other, Transaction):
             return False
         if self.id and other.id:

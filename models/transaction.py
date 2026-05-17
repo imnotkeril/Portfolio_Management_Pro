@@ -4,7 +4,17 @@ import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
@@ -37,15 +47,16 @@ class Transaction(Base):
 
     # Attributes
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    transaction_type: Mapped[str] = mapped_column(
-        String(20), nullable=False  # BUY, SELL, DEPOSIT, WITHDRAWAL
-    )
+    transaction_type: Mapped[str] = mapped_column(String(20), nullable=False)
     ticker: Mapped[str] = mapped_column(String(10), nullable=False)
     shares: Mapped[float] = mapped_column(Float, nullable=False)
     price: Mapped[float] = mapped_column(Float, nullable=False)
     amount: Mapped[float] = mapped_column(Float, nullable=False)  # shares * price
     fees: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reinvest: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    split_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
