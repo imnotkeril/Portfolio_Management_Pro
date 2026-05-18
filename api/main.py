@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -435,16 +435,63 @@ def validate_tickers(tickers: list[str]) -> dict[str, bool]:
 
 
 @app.get("/ticker-price/{ticker}")
-def ticker_price(ticker: str) -> dict[str, Any]:
+def ticker_price(
+    ticker: str,
+    on_date: date | None = Query(
+        None,
+        description="Historical close on this date (YYYY-MM-DD); omit for latest",
+    ),
+) -> dict[str, Any]:
     try:
-        validation = data_service.validate_tickers([ticker.upper()])
-        is_valid = validation.get(ticker.upper(), False)
+        symbol = ticker.upper()
+        validation = data_service.validate_tickers([symbol])
+        is_valid = validation.get(symbol, False)
         if not is_valid:
-            return {"ticker": ticker.upper(), "valid": False, "price": None}
-        price = data_service.fetch_current_price(ticker.upper())
-        return {"ticker": ticker.upper(), "valid": True, "price": price}
+            return {
+                "ticker": symbol,
+                "valid": False,
+                "price": None,
+                "price_date": None,
+            }
+
+        if on_date is not None:
+            resolved = data_service.fetch_close_on_nearest_trading_day(
+                symbol,
+                on_date,
+                use_cache=True,
+                save_to_db=True,
+            )
+            if resolved is None:
+                return {
+                    "ticker": symbol,
+                    "valid": True,
+                    "price": None,
+                    "price_date": None,
+                    "requested_date": on_date.isoformat(),
+                }
+            price, trade_date = resolved
+            return {
+                "ticker": symbol,
+                "valid": True,
+                "price": price,
+                "price_date": trade_date.isoformat(),
+                "requested_date": on_date.isoformat(),
+            }
+
+        price = data_service.fetch_current_price(symbol)
+        return {
+            "ticker": symbol,
+            "valid": True,
+            "price": price,
+            "price_date": date.today().isoformat(),
+        }
     except Exception:
-        return {"ticker": ticker.upper(), "valid": False, "price": None}
+        return {
+            "ticker": ticker.upper(),
+            "valid": False,
+            "price": None,
+            "price_date": None,
+        }
 
 
 @app.get("/portfolios")

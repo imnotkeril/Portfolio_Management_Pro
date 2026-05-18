@@ -14,12 +14,9 @@ type IndexItem = {
 };
 
 const quickLinks = [
-  { href: "/portfolios", label: "Portfolio List" },
-  { href: "/create", label: "Create Portfolio" },
-  { href: "/analysis", label: "Analysis" },
-  { href: "/optimization", label: "Optimization" },
-  { href: "/risk", label: "Risk Analysis" },
-  { href: "/forecasting", label: "Forecasting" },
+  { href: "/login", label: "Sign in" },
+  { href: "/register", label: "Register" },
+  { href: "/dashboard", label: "Dashboard" },
 ];
 
 export default function DashboardPage() {

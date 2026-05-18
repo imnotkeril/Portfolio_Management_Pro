@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Portfolio } from "@/lib/types";
 import {
@@ -486,7 +487,8 @@ function RollingLineChart({ data, data2, label1 = "Portfolio", label2 = "Benchma
 /*  MAIN COMPONENT                                                        */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-export default function AnalysisPage() {
+function AnalysisPageContent() {
+  const searchParams = useSearchParams();
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10); });
@@ -507,7 +509,17 @@ export default function AnalysisPage() {
   const [selectedAsset, setSelectedAsset] = useState("");
   const [assetData, setAssetData] = useState<Record<string, any> | null>(null);
 
-  useEffect(() => { api.get<Portfolio[]>("/portfolios").then((list) => { setPortfolios(list); if (list[0]) setSelectedId(list[0].id); }); }, []);
+  useEffect(() => {
+    const idFromUrl = searchParams.get("id");
+    api.get<Portfolio[]>("/portfolios").then((list) => {
+      setPortfolios(list);
+      if (idFromUrl && list.some((p) => p.id === idFromUrl)) {
+        setSelectedId(idFromUrl);
+      } else if (list[0]) {
+        setSelectedId(list[0].id);
+      }
+    });
+  }, [searchParams]);
 
   const selected = useMemo(() => portfolios.find((p) => p.id === selectedId) ?? null, [portfolios, selectedId]);
   const otherPortfolios = useMemo(() => portfolios.filter((p) => p.id !== selectedId), [portfolios, selectedId]);
@@ -2450,5 +2462,13 @@ export default function AnalysisPage() {
         </div>)}
       </>)}
     </div>
+  );
+}
+
+export default function AnalysisPage() {
+  return (
+    <Suspense fallback={<p className="text-white/60">Loading…</p>}>
+      <AnalysisPageContent />
+    </Suspense>
   );
 }

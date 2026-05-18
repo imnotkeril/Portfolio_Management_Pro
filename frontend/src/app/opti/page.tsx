@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Portfolio } from "@/lib/types";
 import {
@@ -274,7 +275,8 @@ function LabeledRange({
   );
 }
 
-export default function OptiNotebookPage() {
+function OptiNotebookPageContent() {
+  const searchParams = useSearchParams();
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [portfolioId, setPortfolioId] = useState("");
   const [method, setMethod] = useState<string>(AVAILABLE_OPTIMIZATION_METHODS[0]);
@@ -307,14 +309,19 @@ export default function OptiNotebookPage() {
   const [bundle, setBundle] = useState<OptiBundle | null>(null);
 
   useEffect(() => {
+    const idFromUrl = searchParams.get("id");
     api
       .get<Portfolio[]>("/portfolios")
       .then((list) => {
         setPortfolios(list);
-        setPortfolioId((prev) => prev || (list[0]?.id ?? ""));
+        if (idFromUrl && list.some((p) => p.id === idFromUrl)) {
+          setPortfolioId(idFromUrl);
+        } else {
+          setPortfolioId((prev) => prev || (list[0]?.id ?? ""));
+        }
       })
       .catch(() => setPortfolios([]));
-  }, []);
+  }, [searchParams]);
 
   const selectedPortfolio = useMemo(
     () => portfolios.find((p) => p.id === portfolioId) ?? null,
@@ -1722,5 +1729,13 @@ export default function OptiNotebookPage() {
         </>
       ) : null}
     </div>
+  );
+}
+
+export default function OptiNotebookPage() {
+  return (
+    <Suspense fallback={<p className="text-white/60">Loading…</p>}>
+      <OptiNotebookPageContent />
+    </Suspense>
   );
 }

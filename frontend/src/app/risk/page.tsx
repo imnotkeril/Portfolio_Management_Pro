@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Portfolio } from "@/lib/types";
 import {
@@ -55,7 +56,8 @@ function fmtTooltip(value: unknown) {
   return Number.isFinite(n) ? String(n) : "";
 }
 
-export default function RiskPage() {
+function RiskPageContent() {
+  const searchParams = useSearchParams();
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [portfolioId, setPortfolioId] = useState("");
   const [tab, setTab] = useState<RiskTab>("var");
@@ -106,14 +108,19 @@ export default function RiskPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const idFromUrl = searchParams.get("id");
     api
       .get<Portfolio[]>("/portfolios")
       .then((list) => {
         setPortfolios(list);
-        setPortfolioId((p) => p || list[0]?.id || "");
+        if (idFromUrl && list.some((p) => p.id === idFromUrl)) {
+          setPortfolioId(idFromUrl);
+        } else {
+          setPortfolioId((p) => p || list[0]?.id || "");
+        }
       })
       .catch(() => {});
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     api
@@ -1591,5 +1598,13 @@ export default function RiskPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function RiskPage() {
+  return (
+    <Suspense fallback={<p className="text-white/60">Loading…</p>}>
+      <RiskPageContent />
+    </Suspense>
   );
 }

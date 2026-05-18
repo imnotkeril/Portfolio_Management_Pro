@@ -1,7 +1,7 @@
 """Data service for orchestrating data operations."""
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 import pandas as pd
@@ -212,6 +212,58 @@ class DataService:
             self._save_prices_to_db(ticker, df)
 
         return df
+
+    def fetch_close_on_nearest_trading_day(
+        self,
+        ticker: str,
+        on_date: date,
+        *,
+        lookback_days: int = 21,
+        lookforward_days: int = 7,
+        use_cache: bool = True,
+        save_to_db: bool = True,
+    ) -> tuple[float, date] | None:
+        """
+        Return close on on_date, or the nearest available trading day.
+
+        When several dates are equally close, prefer the last close on or before
+        on_date (standard "as-of" convention for weekends/holidays).
+        """
+        today = date.today()
+        if on_date > today:
+            on_date = today
+
+        start = on_date - timedelta(days=lookback_days)
+        end = min(on_date + timedelta(days=lookforward_days), today)
+
+        df = self.fetch_historical_prices(
+            ticker,
+            start,
+            end,
+            use_cache=use_cache,
+            save_to_db=save_to_db,
+        )
+        if df is None or df.empty:
+            return None
+
+        close_col = "Close" if "Close" in df.columns else "Adjusted_Close"
+        if close_col not in df.columns:
+            return None
+
+        working = df.copy()
+        working["_trade_date"] = pd.to_datetime(working["Date"]).dt.date
+        working["_dist"] = working["_trade_date"].apply(
+            lambda d: abs((d - on_date).days)
+        )
+        min_dist = int(working["_dist"].min())
+        candidates = working[working["_dist"] == min_dist]
+        on_or_before = candidates[candidates["_trade_date"] <= on_date]
+        if not on_or_before.empty:
+            row = on_or_before.loc[on_or_before["_trade_date"].idxmax()]
+        else:
+            row = candidates.loc[candidates["_trade_date"].idxmin()]
+
+        return float(row[close_col]), row["_trade_date"]
 
     def fetch_current_price(self, ticker: str, use_cache: bool = True) -> float:
         """

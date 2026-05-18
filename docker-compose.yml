@@ -48,6 +48,9 @@ services:
         # Must match host port mapping for api — browser runs on your machine, not inside Docker network
         NEXT_PUBLIC_API_URL: http://localhost:8000
     container_name: wmc-web
+    environment:
+      API_INTERNAL_URL: http://api:8000
+      COOKIE_SECURE: "false"
     depends_on:
       api:
         condition: service_healthy

@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import type { Portfolio, Position, Transaction } from "@/lib/types";
+import {
+  TransactionForm,
+  type TransactionFormPayload,
+} from "@/components/transaction-form";
+import {
+  displayWeightPct,
+  formatShareCount,
+} from "@/lib/portfolio-allocation";
+import type { Portfolio, Transaction } from "@/lib/types";
 
 /* ───────── helpers ───────── */
 
@@ -104,18 +112,6 @@ export default function PortfoliosPage() {
   const [addShares, setAddShares] = useState(0);
   const [addWeight, setAddWeight] = useState(0);
   const [addingPosition, setAddingPosition] = useState(false);
-
-  /* add transaction */
-  const [txDate, setTxDate] = useState(
-    new Date().toISOString().slice(0, 10),
-  );
-  const [txType, setTxType] = useState("BUY");
-  const [txTicker, setTxTicker] = useState("");
-  const [txShares, setTxShares] = useState(0);
-  const [txPrice, setTxPrice] = useState(0);
-  const [txFees, setTxFees] = useState(0);
-  const [txNotes, setTxNotes] = useState("");
-  const [addingTx, setAddingTx] = useState(false);
 
   /* --- load portfolios --- */
   const loadPortfolios = useCallback(async () => {
@@ -278,33 +274,27 @@ export default function PortfoliosPage() {
     }
   };
 
-  const handleAddTransaction = async () => {
-    if (!selectedId || !txTicker.trim()) return;
-    setAddingTx(true);
+  const reloadSelectedPortfolio = useCallback(async () => {
+    if (!selectedId) return;
+    const updated = await api.get<Portfolio>(`/portfolios/${selectedId}`);
+    setPortfolios((prev) =>
+      prev.map((p) => (p.id === selectedId ? updated : p)),
+    );
+  }, [selectedId]);
+
+  const handleAddTransaction = async (payload: TransactionFormPayload) => {
+    if (!selectedId) return;
     try {
       const tx = await api.post<Transaction>(
         `/portfolios/${selectedId}/transactions`,
-        {
-          transaction_date: txDate,
-          transaction_type: txType,
-          ticker: txTicker.trim().toUpperCase(),
-          shares: txShares,
-          price: txPrice,
-          fees: txFees,
-          notes: txNotes || null,
-        },
+        payload,
       );
       setTransactions((prev) => [...prev, tx]);
+      await reloadSelectedPortfolio();
       setMessage({ type: "success", text: "Transaction added successfully!" });
-      setTxTicker("");
-      setTxShares(0);
-      setTxPrice(0);
-      setTxFees(0);
-      setTxNotes("");
     } catch (err) {
       setMessage({ type: "error", text: String(err) });
-    } finally {
-      setAddingTx(false);
+      throw err;
     }
   };
 
@@ -312,11 +302,17 @@ export default function PortfoliosPage() {
     try {
       await api.delete(`/transactions/${txId}`);
       setTransactions((prev) => prev.filter((t) => t.id !== txId));
+      await reloadSelectedPortfolio();
       setMessage({ type: "success", text: "Transaction deleted." });
     } catch (err) {
       setMessage({ type: "error", text: String(err) });
     }
   };
+
+  function formatTxShares(tx: Transaction): string {
+    if (tx.ticker === "CASH") return usd(tx.shares);
+    return String(Math.floor(tx.shares));
+  }
 
   /* ───────── RENDER ───────── */
 
@@ -607,12 +603,10 @@ export default function PortfoliosPage() {
                           <td className="font-mono font-medium text-white">
                             {pos.ticker}
                           </td>
-                          <td>{pct(pos.weight_target)}</td>
                           <td>
-                            {pos.ticker === "CASH"
-                              ? usd(pos.shares)
-                              : pos.shares.toFixed(2)}
+                            {displayWeightPct(pos, selected.positions)}
                           </td>
+                          <td>{formatShareCount(pos.ticker, pos.shares)}</td>
                           <td>
                             {pos.purchase_price
                               ? usd(pos.purchase_price)
@@ -642,9 +636,8 @@ export default function PortfoliosPage() {
                     <tr>
                       <th>Ticker</th>
                       <th>Shares</th>
-                      <th>Weight Target</th>
+                      <th>Weight</th>
                       <th>Purchase Price</th>
-                      <th>Purchase Date</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -653,18 +646,15 @@ export default function PortfoliosPage() {
                         <td className="font-mono font-medium text-white">
                           {pos.ticker}
                         </td>
+                        <td>{formatShareCount(pos.ticker, pos.shares)}</td>
                         <td>
-                          {pos.ticker === "CASH"
-                            ? usd(pos.shares)
-                            : pos.shares.toFixed(4)}
+                          {displayWeightPct(pos, selected.positions)}
                         </td>
-                        <td>{pct(pos.weight_target)}</td>
                         <td>
                           {pos.purchase_price
                             ? usd(pos.purchase_price)
                             : "—"}
                         </td>
-                        <td>{pos.purchase_date ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -712,10 +702,16 @@ export default function PortfoliosPage() {
 
               {transactions.length === 0 && (
                 <Alert type="info">
-                  No transactions yet. Add your first transaction to start
-                  tracking trades.
+                  No transactions yet. Add your first transaction below.
                 </Alert>
               )}
+
+              <Expander
+                title="Add Transaction"
+                defaultOpen={transactions.length === 0}
+              >
+                <TransactionForm onSubmit={handleAddTransaction} />
+              </Expander>
 
               {/* Transaction table */}
               {transactions.length > 0 && (
@@ -734,6 +730,7 @@ export default function PortfoliosPage() {
                         <th>Amount</th>
                         <th>Fees</th>
                         <th>Notes</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -756,12 +753,20 @@ export default function PortfoliosPage() {
                             </span>
                           </td>
                           <td className="font-mono">{tx.ticker}</td>
-                          <td>{tx.shares.toFixed(2)}</td>
+                          <td>{formatTxShares(tx)}</td>
                           <td>{usd(tx.price)}</td>
                           <td className="font-mono">{usd(tx.amount)}</td>
                           <td>{tx.fees > 0 ? usd(tx.fees) : "—"}</td>
                           <td className="text-xs text-white/40 max-w-24 truncate">
                             {tx.notes || "—"}
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-danger !py-1 !px-2 !text-xs"
+                              onClick={() => deleteTransaction(tx.id)}
+                            >
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -926,12 +931,10 @@ export default function PortfoliosPage() {
                           <td className="font-mono font-medium text-white">
                             {pos.ticker}
                           </td>
+                          <td>{formatShareCount(pos.ticker, pos.shares)}</td>
                           <td>
-                            {pos.ticker === "CASH"
-                              ? usd(pos.shares)
-                              : pos.shares.toFixed(4)}
+                            {displayWeightPct(pos, selected.positions)}
                           </td>
-                          <td>{pct(pos.weight_target)}</td>
                           <td>
                             {pos.purchase_price
                               ? usd(pos.purchase_price)
@@ -1057,104 +1060,11 @@ export default function PortfoliosPage() {
                 </Alert>
               )}
 
-              {/* Add transaction form */}
-              <Expander title="Add Transaction" defaultOpen={transactions.length === 0}>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="label">
-                        Date
-                        <Tip text="Transaction date" />
-                      </label>
-                      <input
-                        className="input"
-                        type="date"
-                        value={txDate}
-                        onChange={(e) => setTxDate(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">
-                        Type
-                        <Tip text="BUY, SELL, DEPOSIT, or WITHDRAWAL" />
-                      </label>
-                      <select
-                        className="input"
-                        value={txType}
-                        onChange={(e) => setTxType(e.target.value)}
-                      >
-                        <option value="BUY">BUY</option>
-                        <option value="SELL">SELL</option>
-                        <option value="DEPOSIT">DEPOSIT</option>
-                        <option value="WITHDRAWAL">WITHDRAWAL</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label">
-                        Ticker
-                        <Tip text="Stock symbol for this transaction" />
-                      </label>
-                      <input
-                        className="input"
-                        placeholder="AAPL"
-                        value={txTicker}
-                        onChange={(e) => setTxTicker(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Shares</label>
-                      <input
-                        className="input"
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={txShares}
-                        onChange={(e) => setTxShares(Number(e.target.value))}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Price per share</label>
-                      <input
-                        className="input"
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={txPrice}
-                        onChange={(e) => setTxPrice(Number(e.target.value))}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">
-                        Fees
-                        <Tip text="Transaction fees/commissions" />
-                      </label>
-                      <input
-                        className="input"
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={txFees}
-                        onChange={(e) => setTxFees(Number(e.target.value))}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="label">Notes (optional)</label>
-                    <input
-                      className="input"
-                      placeholder="Optional notes..."
-                      value={txNotes}
-                      onChange={(e) => setTxNotes(e.target.value)}
-                    />
-                  </div>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleAddTransaction}
-                    disabled={!txTicker.trim() || addingTx}
-                  >
-                    {addingTx ? "Adding..." : "Add Transaction"}
-                  </button>
-                </div>
+              <Expander
+                title="Add Transaction"
+                defaultOpen={transactions.length === 0}
+              >
+                <TransactionForm onSubmit={handleAddTransaction} />
               </Expander>
 
               {/* Transaction history */}
@@ -1197,7 +1107,7 @@ export default function PortfoliosPage() {
                             </span>
                           </td>
                           <td className="font-mono">{tx.ticker}</td>
-                          <td>{tx.shares.toFixed(2)}</td>
+                          <td>{formatTxShares(tx)}</td>
                           <td>{usd(tx.price)}</td>
                           <td className="font-mono">{usd(tx.amount)}</td>
                           <td>{tx.fees > 0 ? usd(tx.fees) : "—"}</td>

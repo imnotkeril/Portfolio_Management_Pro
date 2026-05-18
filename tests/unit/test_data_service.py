@@ -128,6 +128,52 @@ def test_fetch_historical_prices_error(data_service: DataService) -> None:
         )
 
 
+def test_fetch_close_on_nearest_trading_day_prefers_prior_close(
+    data_service: DataService,
+) -> None:
+    """Weekend/holiday: use nearest bar; tie-break to last close on or before."""
+    mock_df = pd.DataFrame(
+        {
+            "Date": [date(2019, 12, 31), date(2020, 1, 2)],
+            "Close": [100.0, 101.5],
+        }
+    )
+    data_service._price_manager.fetch_historical_prices.return_value = mock_df
+
+    result = data_service.fetch_close_on_nearest_trading_day(
+        "VTV",
+        date(2020, 1, 1),
+        use_cache=False,
+        save_to_db=False,
+    )
+
+    assert result == (100.0, date(2019, 12, 31))
+
+
+def test_fetch_close_on_nearest_trading_day_only_after(
+    data_service: DataService,
+) -> None:
+    """If only future bars exist in window, use earliest after target."""
+    mock_df = pd.DataFrame(
+        {
+            "Date": [date(2020, 1, 2), date(2020, 1, 3)],
+            "Close": [101.5, 102.0],
+        }
+    )
+    data_service._price_manager.fetch_historical_prices.return_value = mock_df
+
+    result = data_service.fetch_close_on_nearest_trading_day(
+        "VTV",
+        date(2020, 1, 1),
+        lookback_days=0,
+        lookforward_days=7,
+        use_cache=False,
+        save_to_db=False,
+    )
+
+    assert result == (101.5, date(2020, 1, 2))
+
+
 def test_fetch_current_price(data_service: DataService) -> None:
     """Test fetching current price."""
     data_service._price_manager.fetch_current_price.return_value = 150.0

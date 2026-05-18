@@ -3,6 +3,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { defaultFeesForTransaction } from "@/lib/ib-fees";
+import { buildPositionsWithCash } from "@/lib/portfolio-allocation";
+import { fetchTickerPrice } from "@/lib/ticker-price-api";
 
 /* ───────── types ───────── */
 
@@ -33,7 +36,16 @@ type CreatedPortfolio = {
     shares: number;
     weight_target: number;
     purchase_price: number | null;
+    purchase_date?: string | null;
   }[];
+};
+
+type PositionPayload = {
+  ticker: string;
+  shares: number;
+  weight_target: number;
+  purchase_price?: number;
+  purchase_date?: string;
 };
 
 /* ───────── templates (mirror Streamlit) ───────── */
@@ -250,6 +262,9 @@ export default function CreatePortfolioPage() {
     "buy_hold" | "transactions"
   >("buy_hold");
   const [createInitialTxns, setCreateInitialTxns] = useState(true);
+  const [inceptionDate, setInceptionDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
 
   /* --- derived --- */
   const totalWeight = useMemo(
@@ -466,57 +481,63 @@ export default function CreatePortfolioPage() {
           }
         }
 
-        const investable = capital * (1 - cashAllocation / 100);
-
-        let posPayload: {
-          ticker: string;
-          shares: number;
-          weight_target: number;
-        }[];
+        let posPayload: PositionPayload[] = [];
+        const priceByTicker: Record<string, number> = {};
+        const asOfDate =
+          portfolioMode === "transactions"
+            ? inceptionDate
+            : new Date().toISOString().slice(0, 10);
 
         if (calculateShares) {
-          const priced: { ticker: string; weight: number; price: number }[] = [];
+          const prices: Record<string, number> = {};
           for (const p of normWeights) {
             const t = p.ticker.toUpperCase();
-            if (t === "CASH") {
-              priced.push({
-                ticker: p.ticker,
-                weight: p.weight,
-                price: 1,
-              });
-              continue;
-            }
-            const res = await api.get<TickerPriceResponse>(
-              `/ticker-price/${encodeURIComponent(t)}`,
-            );
+            if (t === "CASH") continue;
+            const res = await fetchTickerPrice(t, asOfDate);
             const px =
               res?.valid && res.price != null && res.price > 0
                 ? Number(res.price)
                 : null;
             if (px == null) {
               setErrorMsg(
-                `Could not get a valid price for ${t}. Check the ticker or try again.`,
+                `Could not get a valid price for ${t} on ${asOfDate}. Check the ticker or date.`,
               );
               return;
             }
-            priced.push({ ticker: p.ticker, weight: p.weight, price: px });
+            prices[t] = px;
+            priceByTicker[t] = px;
           }
 
-          posPayload = priced.map((row) => {
-            const dollars = investable * row.weight;
-            const shares =
-              row.ticker.toUpperCase() === "CASH" ? dollars : dollars / row.price;
-            return {
-              ticker: row.ticker,
-              shares: Math.max(shares, 1e-8),
-              weight_target: row.weight,
-            };
+          const built = buildPositionsWithCash({
+            rows: normWeights.map((p) => ({
+              ticker: p.ticker,
+              weight: p.weight,
+            })),
+            prices,
+            totalCapital: capital,
+            cashAllocationPct: cashAllocation,
+            floorShares: true,
           });
+
+          if (built.positions.filter((p) => p.ticker !== "CASH").length === 0) {
+            setErrorMsg(
+              "No whole-share positions could be built. Lower prices or increase capital.",
+            );
+            return;
+          }
+
+          posPayload = built.positions.map((p) => ({
+            ticker: p.ticker,
+            shares: p.shares,
+            weight_target: p.weight_target,
+            purchase_price: p.ticker === "CASH" ? 1 : p.purchase_price,
+          }));
         } else {
           posPayload = normWeights.map((p) => ({
             ticker: p.ticker,
             shares: 1,
             weight_target: p.weight,
+            purchase_date: asOfDate,
           }));
         }
 
@@ -527,6 +548,48 @@ export default function CreatePortfolioPage() {
           base_currency: baseCurrency,
           positions: posPayload,
         });
+
+        if (portfolioMode === "transactions" && createInitialTxns) {
+          for (const pos of result.positions) {
+            if (pos.ticker === "CASH") {
+              if (pos.shares > 0) {
+                await api.post(`/portfolios/${result.id}/transactions`, {
+                  transaction_date: inceptionDate,
+                  transaction_type: "DEPOSIT",
+                  ticker: "CASH",
+                  shares: pos.shares,
+                  price: 1.0,
+                  fees: 0,
+                  notes: "Initial cash allocation",
+                });
+              }
+              continue;
+            }
+            let price = pos.purchase_price ?? priceByTicker[pos.ticker] ?? null;
+            if (!price || price <= 0) {
+              const res = await api.get<TickerPriceResponse>(
+                `/ticker-price/${encodeURIComponent(pos.ticker)}`,
+              );
+              price =
+                res?.valid && res.price != null && res.price > 0
+                  ? res.price
+                  : 1;
+            }
+            const wholeShares = Math.floor(pos.shares);
+            if (wholeShares > 0) {
+              await api.post(`/portfolios/${result.id}/transactions`, {
+                transaction_date: inceptionDate,
+                transaction_type: "BUY",
+                ticker: pos.ticker,
+                shares: wholeShares,
+                price,
+                fees: defaultFeesForTransaction("BUY", wholeShares, price),
+                notes: "Initial position",
+              });
+            }
+          }
+        }
+
         setCreatedPortfolio(result);
         setStep(6);
       } catch (err) {
@@ -547,6 +610,9 @@ export default function CreatePortfolioPage() {
       calculateShares,
       autoNormalize,
       cashAllocation,
+      portfolioMode,
+      createInitialTxns,
+      inceptionDate,
     ],
   );
 
@@ -1706,7 +1772,20 @@ export default function CreatePortfolioPage() {
             </div>
 
             {portfolioMode === "transactions" && (
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="label">
+                    Portfolio inception date
+                    <Tip text="Initial BUY/DEPOSIT transactions use this date." />
+                  </label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={inceptionDate}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setInceptionDate(e.target.value)}
+                  />
+                </div>
                 <label className="checkbox-label">
                   <input
                     type="checkbox"
@@ -1717,18 +1796,16 @@ export default function CreatePortfolioPage() {
                   <Tip text="If checked, initial BUY transactions will be created for each position when portfolio is created. You can add more transactions later." />
                 </label>
                 <Alert type="info">
-                  Initial transactions will be created from your positions.
-                  Each position becomes a BUY transaction. You can add more
-                  transactions later.
+                  Transactions dated <strong>{inceptionDate}</strong>. Overview
+                  holdings use the ledger after creation.
                 </Alert>
               </div>
             )}
 
             {portfolioMode === "buy_hold" && (
               <Alert type="info">
-                You can add strategies later for backtesting, even with
-                Buy-and-Hold mode. Strategies generate simulated transactions
-                for analysis.
+                Buy-and-Hold: positions only (today). For a dated ledger, choose
+                &quot;With Transactions&quot;.
               </Alert>
             )}
           </div>

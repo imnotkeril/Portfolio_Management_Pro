@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Portfolio } from "@/lib/types";
 import {
@@ -52,7 +53,8 @@ function InterpretBox({ text }: { text: string }) {
   );
 }
 
-export default function ForecastingPage() {
+function ForecastingPageContent() {
+  const searchParams = useSearchParams();
   const [forecastType, setForecastType] = useState<"Single Asset" | "Portfolio">("Single Asset");
   const [ticker, setTicker] = useState("AAPL");
   const [portfolioId, setPortfolioId] = useState("");
@@ -87,11 +89,17 @@ export default function ForecastingPage() {
   const [individualMethod, setIndividualMethod] = useState<string>("");
 
   useEffect(() => {
+    const idFromUrl = searchParams.get("id");
     api
       .get<Portfolio[]>("/portfolios")
       .then((list) => {
         setPortfolios(list);
-        setPortfolioId((p) => p || list[0]?.id || "");
+        if (idFromUrl && list.some((p) => p.id === idFromUrl)) {
+          setPortfolioId(idFromUrl);
+          setForecastType("Portfolio");
+        } else {
+          setPortfolioId((p) => p || list[0]?.id || "");
+        }
         const tickers = new Set<string>();
         list.forEach((port) =>
           port.positions.forEach((pos) => {
@@ -101,7 +109,7 @@ export default function ForecastingPage() {
         if (tickers.size) setTicker(Array.from(tickers).sort()[0]);
       })
       .catch(() => {});
-  }, []);
+  }, [searchParams]);
 
   const horizonDays = useMemo(() => {
     const v = HORIZON_PRESETS[horizonPreset];
@@ -699,6 +707,14 @@ export default function ForecastingPage() {
         </section>
       ) : null}
     </div>
+  );
+}
+
+export default function ForecastingPage() {
+  return (
+    <Suspense fallback={<p className="text-white/60">Loading…</p>}>
+      <ForecastingPageContent />
+    </Suspense>
   );
 }
 
