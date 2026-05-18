@@ -9,6 +9,7 @@ import {
 } from "@/components/transaction-form";
 import { api } from "@/lib/api";
 import { usd } from "@/lib/format";
+import { netDeposits } from "@/lib/transaction-metrics";
 import type { Transaction } from "@/lib/types";
 
 function formatTxShares(tx: Transaction): string {
@@ -63,9 +64,7 @@ export default function PortfolioTransactionsPage() {
     }
   };
 
-  const totalInvested = transactions
-    .filter((t) => ["BUY", "DEPOSIT"].includes(t.transaction_type))
-    .reduce((s, t) => s + t.amount, 0);
+  const totalInvested = netDeposits(transactions);
 
   return (
     <div className="space-y-6">

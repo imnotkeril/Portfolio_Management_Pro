@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { defaultFeesForTransaction } from "@/lib/ib-fees";
 import { buildPositionsWithCash } from "@/lib/portfolio-allocation";
+import { parseRebalanceInterval, REBALANCE_INTERVAL_OPTIONS } from "@/lib/rebalance";
 import { fetchTickerPrice } from "@/lib/ticker-price-api";
 
 /* ───────── types ───────── */
@@ -265,6 +266,7 @@ export default function CreatePortfolioPage() {
   const [inceptionDate, setInceptionDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
+  const [rebalanceInterval, setRebalanceInterval] = useState("");
 
   /* --- derived --- */
   const totalWeight = useMemo(
@@ -541,40 +543,41 @@ export default function CreatePortfolioPage() {
           }));
         }
 
+        const rebalanceMonths = parseRebalanceInterval(rebalanceInterval);
         const result = await api.post<CreatedPortfolio>("/portfolios", {
           name: name.trim(),
           description: description.trim(),
           starting_capital: capital,
           base_currency: baseCurrency,
           positions: posPayload,
+          rebalance_interval_months: rebalanceMonths,
         });
 
         if (portfolioMode === "transactions" && createInitialTxns) {
+          await api.post(`/portfolios/${result.id}/transactions`, {
+            transaction_date: inceptionDate,
+            transaction_type: "DEPOSIT",
+            ticker: "CASH",
+            shares: capital,
+            price: 1.0,
+            fees: 0,
+            notes: "Initial deposit",
+          });
+
           for (const pos of result.positions) {
-            if (pos.ticker === "CASH") {
-              if (pos.shares > 0) {
-                await api.post(`/portfolios/${result.id}/transactions`, {
-                  transaction_date: inceptionDate,
-                  transaction_type: "DEPOSIT",
-                  ticker: "CASH",
-                  shares: pos.shares,
-                  price: 1.0,
-                  fees: 0,
-                  notes: "Initial cash allocation",
-                });
-              }
-              continue;
-            }
-            let price = pos.purchase_price ?? priceByTicker[pos.ticker] ?? null;
+            if (pos.ticker === "CASH") continue;
+
+            let price: number | null =
+              pos.purchase_price ?? priceByTicker[pos.ticker] ?? null;
             if (!price || price <= 0) {
-              const res = await api.get<TickerPriceResponse>(
-                `/ticker-price/${encodeURIComponent(pos.ticker)}`,
-              );
+              const res = await fetchTickerPrice(pos.ticker, inceptionDate);
               price =
                 res?.valid && res.price != null && res.price > 0
                   ? res.price
-                  : 1;
+                  : null;
             }
+            if (price == null || price <= 0) continue;
+
             const wholeShares = Math.floor(pos.shares);
             if (wholeShares > 0) {
               await api.post(`/portfolios/${result.id}/transactions`, {
@@ -613,6 +616,7 @@ export default function CreatePortfolioPage() {
       portfolioMode,
       createInitialTxns,
       inceptionDate,
+      rebalanceInterval,
     ],
   );
 
@@ -1808,6 +1812,27 @@ export default function CreatePortfolioPage() {
                 &quot;With Transactions&quot;.
               </Alert>
             )}
+          </div>
+
+          <div className="border-t border-white/10 pt-4">
+            <h4 className="text-base font-semibold text-white mb-3">
+              Rebalancing strategy
+            </h4>
+            <p className="text-sm text-white/50 mb-3">
+              Periodically return holdings to the target weights defined above.
+            </p>
+            <label className="label">Rebalance frequency</label>
+            <select
+              className="input max-w-md"
+              value={rebalanceInterval}
+              onChange={(e) => setRebalanceInterval(e.target.value)}
+            >
+              {REBALANCE_INTERVAL_OPTIONS.map((o) => (
+                <option key={o.value || "off"} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Portfolio Summary */}

@@ -10,6 +10,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+REBALANCE_INTERVALS = frozenset({1, 3, 6, 12})
+
 
 class PositionSchema(BaseModel):
     """Position schema for validation."""
@@ -60,6 +62,21 @@ class CreatePortfolioRequest(BaseModel):
         max_length=100,
         description="List of positions",
     )
+    rebalance_interval_months: Optional[int] = Field(
+        None,
+        description="Rebalance to target weights every N months (1, 3, 6, 12); null = off",
+    )
+
+    @field_validator("rebalance_interval_months")
+    @classmethod
+    def validate_rebalance_interval(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return None
+        if v not in REBALANCE_INTERVALS:
+            raise ValueError(
+                "rebalance_interval_months must be 1, 3, 6, 12, or omitted"
+            )
+        return v
 
     @field_validator("name")
     @classmethod
@@ -128,6 +145,22 @@ class UpdatePortfolioRequest(BaseModel):
     base_currency: Optional[str] = Field(
         None, min_length=3, max_length=3, description="Base currency"
     )
+    rebalance_interval_months: Optional[int] = Field(
+        None,
+        description="Rebalance schedule in months (1, 3, 6, 12); null disables",
+    )
+
+    @field_validator("rebalance_interval_months")
+    @classmethod
+    def validate_rebalance_interval_update(
+        cls,
+        v: Optional[int],
+    ) -> Optional[int]:
+        if v is None:
+            return None
+        if v not in REBALANCE_INTERVALS:
+            raise ValueError("rebalance_interval_months must be 1, 3, 6, 12, or null")
+        return v
 
     @field_validator("name")
     @classmethod

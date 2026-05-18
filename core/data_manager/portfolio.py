@@ -66,6 +66,7 @@ class Portfolio:
         base_currency: str = "USD",
         portfolio_id: Optional[str] = None,
         cost_basis_method: str = "fifo",
+        rebalance_interval_months: Optional[int] = None,
     ) -> None:
         """
         Initialize portfolio.
@@ -93,6 +94,12 @@ class Portfolio:
         self.starting_capital = starting_capital
         self.base_currency = base_currency
         self.cost_basis_method = method
+        if rebalance_interval_months is not None:
+            if rebalance_interval_months not in (1, 3, 6, 12):
+                raise ValidationError(
+                    "rebalance_interval_months must be 1, 3, 6, 12, or None"
+                )
+        self.rebalance_interval_months = rebalance_interval_months
         self._positions: list[Position] = []
 
     def add_position(

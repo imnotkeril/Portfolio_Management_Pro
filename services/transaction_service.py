@@ -15,6 +15,7 @@ from services.performance_attribution import (
 )
 from services.portfolio_service import PortfolioService
 from services.position_sync import sync_positions_from_transactions
+from services.split_processor import SplitProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +30,14 @@ class TransactionService:
         holdings_builder: Optional[HoldingsBuilder] = None,
         performance_service: Optional[PerformanceAttributionService] = None,
         dividend_processor: Optional[DividendProcessor] = None,
+        split_processor: Optional[SplitProcessor] = None,
     ) -> None:
         self._repository = repository or TransactionRepository()
         self._portfolio_service = portfolio_service or PortfolioService()
         self._holdings_builder = holdings_builder or HoldingsBuilder()
         self._performance = performance_service or PerformanceAttributionService()
         self._dividend_processor = dividend_processor or DividendProcessor()
+        self._split_processor = split_processor or SplitProcessor()
 
     def add_transaction(
         self,
@@ -170,6 +173,27 @@ class TransactionService:
             end_date,
             user_id,
             reinvest,
+        )
+        if created:
+            self._sync_positions(portfolio_id, user_id, portfolio.cost_basis_method)
+        return created
+
+    def sync_splits(
+        self,
+        portfolio_id: str,
+        tickers: list[str],
+        start_date: date,
+        end_date: date,
+        user_id: str | None = None,
+    ) -> list[Transaction]:
+        """Import stock splits from market data (idempotent)."""
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
+        created = self._split_processor.sync_splits(
+            portfolio_id,
+            tickers,
+            start_date,
+            end_date,
+            user_id,
         )
         if created:
             self._sync_positions(portfolio_id, user_id, portfolio.cost_basis_method)

@@ -46,6 +46,7 @@ class PortfolioRepository:
             starting_capital=portfolio.starting_capital,
             base_currency=portfolio.base_currency,
             cost_basis_method=portfolio.cost_basis_method,
+            rebalance_interval_months=portfolio.rebalance_interval_months,
             user_id=user_id,
         )
 
@@ -99,6 +100,7 @@ class PortfolioRepository:
         portfolio_orm.starting_capital = portfolio.starting_capital
         portfolio_orm.base_currency = portfolio.base_currency
         portfolio_orm.cost_basis_method = portfolio.cost_basis_method
+        portfolio_orm.rebalance_interval_months = portfolio.rebalance_interval_months
 
         # Update positions: delete existing and add new
         session.query(PositionORM).filter(
@@ -248,6 +250,9 @@ class PortfolioRepository:
             portfolio_id=portfolio_orm.id,
             cost_basis_method=getattr(portfolio_orm, "cost_basis_method", "fifo")
             or "fifo",
+            rebalance_interval_months=getattr(
+                portfolio_orm, "rebalance_interval_months", None
+            ),
         )
 
         # Add positions

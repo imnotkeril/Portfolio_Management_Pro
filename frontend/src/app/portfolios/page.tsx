@@ -3,15 +3,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { RebalanceStrategyPanel } from "@/components/rebalance-strategy-panel";
 import {
   TransactionForm,
   type TransactionFormPayload,
 } from "@/components/transaction-form";
 import {
+  parseRebalanceInterval,
+  rebalanceIntervalLabel,
+} from "@/lib/rebalance";
+import {
   displayWeightPct,
   formatShareCount,
 } from "@/lib/portfolio-allocation";
 import type { Portfolio, Transaction } from "@/lib/types";
+import { netDeposits } from "@/lib/transaction-metrics";
 
 /* ───────── helpers ───────── */
 
@@ -166,11 +172,18 @@ export default function PortfoliosPage() {
 
   /* --- actions --- */
 
+  const syncStrategyIntervalFromPortfolio = (p: Portfolio) => {
+    const m = p.rebalance_interval_months;
+    setStrategyInterval(m != null ? String(m) : "");
+  };
+
   const openView = (id: string) => {
+    const p = portfolios.find((x) => x.id === id);
     setSelectedId(id);
     setMode("view");
     setTab("overview");
     setMessage(null);
+    if (p) syncStrategyIntervalFromPortfolio(p);
   };
 
   const openEdit = (p: Portfolio) => {
@@ -179,9 +192,31 @@ export default function PortfoliosPage() {
     setEditDescription(p.description ?? "");
     setEditCurrency(p.base_currency);
     setEditCapital(p.starting_capital);
+    syncStrategyIntervalFromPortfolio(p);
     setMode("edit");
     setTab("positions");
     setMessage(null);
+  };
+
+  const saveRebalanceStrategy = async () => {
+    if (!selectedId) return;
+    setSavingStrategy(true);
+    try {
+      const updated = await api.patch<Portfolio>(
+        `/portfolios/${selectedId}`,
+        {
+          rebalance_interval_months: parseRebalanceInterval(strategyInterval),
+        },
+      );
+      setPortfolios((prev) =>
+        prev.map((p) => (p.id === selectedId ? updated : p)),
+      );
+      setMessage({ type: "success", text: "Rebalancing strategy saved." });
+    } catch (err) {
+      setMessage({ type: "error", text: String(err) });
+    } finally {
+      setSavingStrategy(false);
+    }
   };
 
   const backToList = () => {
@@ -281,6 +316,62 @@ export default function PortfoliosPage() {
       prev.map((p) => (p.id === selectedId ? updated : p)),
     );
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    if (tab === "overview" || tab === "positions") {
+      void reloadSelectedPortfolio();
+    }
+  }, [selectedId, tab, reloadSelectedPortfolio]);
+
+  const [syncingMarket, setSyncingMarket] = useState(false);
+  const [strategyInterval, setStrategyInterval] = useState("");
+  const [savingStrategy, setSavingStrategy] = useState(false);
+
+  const reloadTransactions = useCallback(async () => {
+    if (!selectedId) return;
+    const rows = await api.get<Transaction[]>(
+      `/portfolios/${selectedId}/transactions`,
+    );
+    setTransactions(rows);
+  }, [selectedId]);
+
+  const syncMarketEvents = async (kind: "dividends" | "splits") => {
+    if (!selectedId || !selected) return;
+    const tickers = selected.positions
+      .filter((p) => p.ticker !== "CASH")
+      .map((p) => p.ticker);
+    if (tickers.length === 0) {
+      setMessage({ type: "info", text: "No stock positions to sync." });
+      return;
+    }
+    const dates = transactions.map((t) => t.transaction_date).sort();
+    const startDate = dates[0] ?? new Date().toISOString().slice(0, 10);
+    const endDate = new Date().toISOString().slice(0, 10);
+    setSyncingMarket(true);
+    try {
+      const path =
+        kind === "dividends"
+          ? `/portfolios/${selectedId}/dividends/sync`
+          : `/portfolios/${selectedId}/splits/sync`;
+      const created = await api.post<Transaction[]>(path, {
+        tickers,
+        start_date: startDate,
+        end_date: endDate,
+        reinvest: false,
+      });
+      await reloadTransactions();
+      await reloadSelectedPortfolio();
+      setMessage({
+        type: "success",
+        text: `Synced ${created.length} ${kind === "dividends" ? "dividend" : "split"} transaction(s).`,
+      });
+    } catch (err) {
+      setMessage({ type: "error", text: String(err) });
+    } finally {
+      setSyncingMarket(false);
+    }
+  };
 
   const handleAddTransaction = async (payload: TransactionFormPayload) => {
     if (!selectedId) return;
@@ -524,17 +615,21 @@ export default function PortfoliosPage() {
           </div>
 
           {/* Mode badge */}
-          <div className="panel p-3 flex items-center gap-2 text-sm">
-            <strong className="text-white/70">Portfolio Mode:</strong>
-            {transactions.length > 0 ? (
-              <span className="text-[var(--ok)]">
-                With Transactions ({transactions.length} transactions)
-              </span>
-            ) : (
-              <span className="text-[var(--info)]">
-                Buy-and-Hold (Simple mode)
-              </span>
-            )}
+          <div className="panel p-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <span>
+              <strong className="text-white/70">Portfolio Mode:</strong>{" "}
+              {transactions.length > 0 ? (
+                <span className="text-[var(--ok)]">
+                  With Transactions ({transactions.length})
+                </span>
+              ) : (
+                <span className="text-[var(--info)]">Buy-and-Hold</span>
+              )}
+            </span>
+            <span>
+              <strong className="text-white/70">Rebalancing:</strong>{" "}
+              {rebalanceIntervalLabel(selected.rebalance_interval_months)}
+            </span>
           </div>
 
           {/* Tabs */}
@@ -561,7 +656,6 @@ export default function PortfoliosPage() {
           {tab === "overview" && (
             <div className="space-y-5">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <MetricCard label="Name" value={selected.name} />
                 <MetricCard
                   label="Starting Capital"
                   value={usd(selected.starting_capital)}
@@ -570,6 +664,13 @@ export default function PortfoliosPage() {
                 <MetricCard
                   label="Total Assets"
                   value={String(selected.positions.length)}
+                />
+                <MetricCard
+                  label="Cash"
+                  value={usd(
+                    selected.positions.find((p) => p.ticker === "CASH")?.shares ??
+                      0,
+                  )}
                 />
               </div>
 
@@ -689,13 +790,7 @@ export default function PortfoliosPage() {
                   />
                   <MetricCard
                     label="Total Invested"
-                    value={usd(
-                      transactions
-                        .filter((t) =>
-                          ["BUY", "DEPOSIT"].includes(t.transaction_type),
-                        )
-                        .reduce((s, t) => s + t.amount, 0),
-                    )}
+                    value={usd(netDeposits(transactions))}
                   />
                 </div>
               )}
@@ -705,6 +800,25 @@ export default function PortfoliosPage() {
                   No transactions yet. Add your first transaction below.
                 </Alert>
               )}
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary !text-xs"
+                  disabled={syncingMarket}
+                  onClick={() => void syncMarketEvents("dividends")}
+                >
+                  {syncingMarket ? "Syncing…" : "Sync dividends"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary !text-xs"
+                  disabled={syncingMarket}
+                  onClick={() => void syncMarketEvents("splits")}
+                >
+                  {syncingMarket ? "Syncing…" : "Sync splits"}
+                </button>
+              </div>
 
               <Expander
                 title="Add Transaction"
@@ -778,30 +892,15 @@ export default function PortfoliosPage() {
           )}
 
           {/* --- Strategies tab --- */}
-          {tab === "strategies" && (
-            <div className="space-y-3">
-              <Alert type="info">
-                Strategy management — coming in Phase 5
-              </Alert>
-              <div className="panel p-4 text-sm text-white/60 space-y-1">
-                <p>
-                  <strong className="text-white/80">
-                    Strategies can be applied to any portfolio mode:
-                  </strong>
-                </p>
-                <ul className="list-disc list-inside space-y-0.5">
-                  <li>
-                    Buy-and-Hold portfolios can use strategies for backtesting
-                  </li>
-                  <li>
-                    Transaction-based portfolios can also use strategies
-                  </li>
-                  <li>
-                    Strategies generate simulated transactions for analysis
-                  </li>
-                </ul>
-              </div>
-            </div>
+          {tab === "strategies" && selected && (
+            <RebalanceStrategyPanel
+              portfolio={selected}
+              intervalValue={strategyInterval}
+              onIntervalChange={setStrategyInterval}
+              onSave={() => void saveRebalanceStrategy()}
+              saving={savingStrategy}
+              showSaveButton
+            />
           )}
         </div>
       )}
@@ -1043,13 +1142,7 @@ export default function PortfoliosPage() {
                   />
                   <MetricCard
                     label="Total Invested"
-                    value={usd(
-                      transactions
-                        .filter((t) =>
-                          ["BUY", "DEPOSIT"].includes(t.transaction_type),
-                        )
-                        .reduce((s, t) => s + t.amount, 0),
-                    )}
+                    value={usd(netDeposits(transactions))}
                   />
                 </div>
               )}
@@ -1059,6 +1152,25 @@ export default function PortfoliosPage() {
                   No transactions yet. Add your first transaction below.
                 </Alert>
               )}
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary !text-xs"
+                  disabled={syncingMarket}
+                  onClick={() => void syncMarketEvents("dividends")}
+                >
+                  {syncingMarket ? "Syncing…" : "Sync dividends"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary !text-xs"
+                  disabled={syncingMarket}
+                  onClick={() => void syncMarketEvents("splits")}
+                >
+                  {syncingMarket ? "Syncing…" : "Sync splits"}
+                </button>
+              </div>
 
               <Expander
                 title="Add Transaction"
@@ -1132,30 +1244,15 @@ export default function PortfoliosPage() {
           )}
 
           {/* --- Strategies tab (edit) --- */}
-          {tab === "strategies" && (
-            <div className="space-y-3">
-              <Alert type="info">
-                Strategy management — coming in Phase 5
-              </Alert>
-              <div className="panel p-4 text-sm text-white/60 space-y-1">
-                <p>
-                  <strong className="text-white/80">
-                    Strategies can be applied to any portfolio mode:
-                  </strong>
-                </p>
-                <ul className="list-disc list-inside space-y-0.5">
-                  <li>
-                    Buy-and-Hold portfolios can use strategies for backtesting
-                  </li>
-                  <li>
-                    Transaction-based portfolios can also use strategies
-                  </li>
-                  <li>
-                    Strategies generate simulated transactions for analysis
-                  </li>
-                </ul>
-              </div>
-            </div>
+          {tab === "strategies" && selected && (
+            <RebalanceStrategyPanel
+              portfolio={selected}
+              intervalValue={strategyInterval}
+              onIntervalChange={setStrategyInterval}
+              onSave={() => void saveRebalanceStrategy()}
+              saving={savingStrategy}
+              showSaveButton
+            />
           )}
         </div>
       )}

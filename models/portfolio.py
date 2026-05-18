@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
@@ -37,6 +37,9 @@ class Portfolio(Base):
     base_currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
     cost_basis_method: Mapped[str] = mapped_column(
         String(10), default="fifo", nullable=False
+    )
+    rebalance_interval_months: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None
     )
     user_id: Mapped[str] = mapped_column(
         String(36),

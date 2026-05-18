@@ -97,6 +97,7 @@ class PortfolioService:
             starting_capital=request.starting_capital,
             description=request.description,
             base_currency=request.base_currency,
+            rebalance_interval_months=request.rebalance_interval_months,
         )
 
         # Add positions
@@ -212,6 +213,8 @@ class PortfolioService:
             portfolio.starting_capital = request.starting_capital
         if request.base_currency is not None:
             portfolio.base_currency = request.base_currency
+        if "rebalance_interval_months" in request.model_fields_set:
+            portfolio.rebalance_interval_months = request.rebalance_interval_months
 
         # Save changes
         updated = self._repository.save(portfolio, uid)

@@ -95,6 +95,14 @@ class DividendSyncRequest(BaseModel):
     reinvest: bool = False
 
 
+class SplitSyncRequest(BaseModel):
+    """Sync stock splits from market data."""
+
+    tickers: list[str]
+    start_date: date
+    end_date: date
+
+
 class RiskVarRequest(BaseModel):
     portfolio_id: str
     start_date: date
@@ -241,6 +249,9 @@ def _serialize_portfolio(portfolio: Any) -> dict[str, Any]:
         "starting_capital": portfolio.starting_capital,
         "base_currency": portfolio.base_currency,
         "cost_basis_method": getattr(portfolio, "cost_basis_method", "fifo"),
+        "rebalance_interval_months": getattr(
+            portfolio, "rebalance_interval_months", None
+        ),
         "positions": [_serialize_position(p) for p in portfolio.get_all_positions()],
     }
 
@@ -752,6 +763,26 @@ def sync_dividends(
             payload.end_date,
             current_user.id,
             payload.reinvest,
+        )
+        return [_serialize_transaction(tx) for tx in created]
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
+@app.post("/portfolios/{portfolio_id}/splits/sync")
+def sync_splits(
+    portfolio_id: str,
+    payload: SplitSyncRequest,
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    try:
+        created = transaction_service.sync_splits(
+            portfolio_id,
+            payload.tickers,
+            payload.start_date,
+            payload.end_date,
+            current_user.id,
         )
         return [_serialize_transaction(tx) for tx in created]
     except Exception as exc:
