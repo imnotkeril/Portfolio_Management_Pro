@@ -67,6 +67,7 @@ class Portfolio:
         portfolio_id: Optional[str] = None,
         cost_basis_method: str = "fifo",
         rebalance_interval_months: Optional[int] = None,
+        ledger_mode: str = "buy_hold",
     ) -> None:
         """
         Initialize portfolio.
@@ -100,6 +101,10 @@ class Portfolio:
                     "rebalance_interval_months must be 1, 3, 6, 12, or None"
                 )
         self.rebalance_interval_months = rebalance_interval_months
+        mode = (ledger_mode or "buy_hold").strip().lower()
+        if mode not in ("buy_hold", "transactions"):
+            raise ValidationError("ledger_mode must be 'buy_hold' or 'transactions'")
+        self.ledger_mode = mode
         self._positions: list[Position] = []
 
     def add_position(

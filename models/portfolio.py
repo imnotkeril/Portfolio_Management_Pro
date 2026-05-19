@@ -41,6 +41,9 @@ class Portfolio(Base):
     rebalance_interval_months: Mapped[int | None] = mapped_column(
         Integer, nullable=True, default=None
     )
+    ledger_mode: Mapped[str] = mapped_column(
+        String(20), default="buy_hold", nullable=False
+    )
     user_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("users.id", ondelete="CASCADE"),

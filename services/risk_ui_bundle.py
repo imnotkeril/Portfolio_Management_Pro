@@ -674,6 +674,7 @@ def build_var_full_bundle(
     rolling_window: int = 63,
     include_monte_carlo: bool = True,
     num_simulations: int = 10000,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     base = risk_service.calculate_var_analysis(
         portfolio_id=portfolio_id,
@@ -683,10 +684,11 @@ def build_var_full_bundle(
         include_monte_carlo=include_monte_carlo,
         num_simulations=num_simulations,
         time_horizon=time_horizon,
+        user_id=user_id,
     )
     var_data = base.get("var_results") or {}
     portfolio_returns = risk_service._get_portfolio_returns(  # noqa: SLF001
-        portfolio_id, start_date, end_date
+        portfolio_id, start_date, end_date, user_id
     )
 
     cvar_sel = float(calculate_cvar(portfolio_returns, confidence_level))
@@ -890,6 +892,7 @@ def build_monte_carlo_display_bundle(
     model: str,
     include_sample_paths: bool,
     max_paths: int = 40,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     raw = risk_service.run_monte_carlo_simulation(
         portfolio_id=portfolio_id,
@@ -899,6 +902,7 @@ def build_monte_carlo_display_bundle(
         num_simulations=num_simulations,
         initial_value=initial_value,
         model=model,
+        user_id=user_id,
     )
     finals = np.array(raw.get("final_values") or [], dtype=float)
     hist: list[dict[str, float]] = []
@@ -983,7 +987,7 @@ def build_monte_carlo_display_bundle(
                 }
             )
         pr = risk_service._get_portfolio_returns(
-            portfolio_id, start_date, end_date
+            portfolio_id, start_date, end_date, user_id
         )  # noqa: SLF001
         if pr is not None and not pr.empty:
             for cl in (0.90, 0.95, 0.99):

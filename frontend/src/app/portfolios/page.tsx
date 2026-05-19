@@ -13,10 +13,16 @@ import {
   rebalanceIntervalLabel,
 } from "@/lib/rebalance";
 import {
-  displayWeightPct,
+  formatTxShares,
+  sortTransactionsForDisplay,
+} from "@/lib/format-tx-shares";
+import {
+  currentWeightPctFromMarket,
   formatShareCount,
+  marketValueByTicker,
+  targetWeightPct,
 } from "@/lib/portfolio-allocation";
-import type { Portfolio, Transaction } from "@/lib/types";
+import type { Holding, Portfolio, Transaction } from "@/lib/types";
 import { netDeposits } from "@/lib/transaction-metrics";
 
 /* ───────── helpers ───────── */
@@ -118,6 +124,8 @@ export default function PortfoliosPage() {
   const [addShares, setAddShares] = useState(0);
   const [addWeight, setAddWeight] = useState(0);
   const [addingPosition, setAddingPosition] = useState(false);
+  const [syncingLedger, setSyncingLedger] = useState(false);
+  const [holdings, setHoldings] = useState<Holding[]>([]);
 
   /* --- load portfolios --- */
   const loadPortfolios = useCallback(async () => {
@@ -136,20 +144,13 @@ export default function PortfoliosPage() {
     loadPortfolios();
   }, [loadPortfolios]);
 
-  /* --- load transactions when portfolio selected --- */
-  useEffect(() => {
-    if (!selectedId) {
-      setTransactions([]);
-      return;
-    }
-    api
-      .get<Transaction[]>(`/portfolios/${selectedId}/transactions`)
-      .then(setTransactions)
-      .catch(() => setTransactions([]));
-  }, [selectedId]);
-
   /* --- derived --- */
   const selected = portfolios.find((p) => p.id === selectedId) ?? null;
+
+  const marketValues = useMemo(() => {
+    if (!selected) return {};
+    return marketValueByTicker(selected.positions, holdings);
+  }, [selected, holdings]);
 
   const filtered = useMemo(() => {
     let result = [...portfolios];
@@ -177,13 +178,40 @@ export default function PortfoliosPage() {
     setStrategyInterval(m != null ? String(m) : "");
   };
 
+  const syncPortfolioLedger = useCallback(async (id: string) => {
+    setSyncingLedger(true);
+    try {
+      const txs = await api.get<Transaction[]>(
+        `/portfolios/${id}/transactions`,
+      );
+      const [portfolio, holdingsRows] = await Promise.all([
+        api.get<Portfolio>(`/portfolios/${id}`),
+        api.get<Holding[]>(`/portfolios/${id}/holdings`),
+      ]);
+      setPortfolios((prev) =>
+        prev.map((p) => (p.id === id ? portfolio : p)),
+      );
+      setTransactions(txs);
+      setHoldings(holdingsRows);
+      syncStrategyIntervalFromPortfolio(portfolio);
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: `Ledger sync failed: ${String(err)}`,
+      });
+      setTransactions([]);
+      setHoldings([]);
+    } finally {
+      setSyncingLedger(false);
+    }
+  }, []);
+
   const openView = (id: string) => {
-    const p = portfolios.find((x) => x.id === id);
     setSelectedId(id);
     setMode("view");
     setTab("overview");
     setMessage(null);
-    if (p) syncStrategyIntervalFromPortfolio(p);
+    void syncPortfolioLedger(id);
   };
 
   const openEdit = (p: Portfolio) => {
@@ -311,10 +339,14 @@ export default function PortfoliosPage() {
 
   const reloadSelectedPortfolio = useCallback(async () => {
     if (!selectedId) return;
-    const updated = await api.get<Portfolio>(`/portfolios/${selectedId}`);
+    const [updated, holdingsRows] = await Promise.all([
+      api.get<Portfolio>(`/portfolios/${selectedId}`),
+      api.get<Holding[]>(`/portfolios/${selectedId}/holdings`),
+    ]);
     setPortfolios((prev) =>
       prev.map((p) => (p.id === selectedId ? updated : p)),
     );
+    setHoldings(holdingsRows);
   }, [selectedId]);
 
   useEffect(() => {
@@ -324,54 +356,21 @@ export default function PortfoliosPage() {
     }
   }, [selectedId, tab, reloadSelectedPortfolio]);
 
-  const [syncingMarket, setSyncingMarket] = useState(false);
   const [strategyInterval, setStrategyInterval] = useState("");
   const [savingStrategy, setSavingStrategy] = useState(false);
 
   const reloadTransactions = useCallback(async () => {
     if (!selectedId) return;
-    const rows = await api.get<Transaction[]>(
-      `/portfolios/${selectedId}/transactions`,
-    );
-    setTransactions(rows);
-  }, [selectedId]);
-
-  const syncMarketEvents = async (kind: "dividends" | "splits") => {
-    if (!selectedId || !selected) return;
-    const tickers = selected.positions
-      .filter((p) => p.ticker !== "CASH")
-      .map((p) => p.ticker);
-    if (tickers.length === 0) {
-      setMessage({ type: "info", text: "No stock positions to sync." });
-      return;
-    }
-    const dates = transactions.map((t) => t.transaction_date).sort();
-    const startDate = dates[0] ?? new Date().toISOString().slice(0, 10);
-    const endDate = new Date().toISOString().slice(0, 10);
-    setSyncingMarket(true);
+    setSyncingLedger(true);
     try {
-      const path =
-        kind === "dividends"
-          ? `/portfolios/${selectedId}/dividends/sync`
-          : `/portfolios/${selectedId}/splits/sync`;
-      const created = await api.post<Transaction[]>(path, {
-        tickers,
-        start_date: startDate,
-        end_date: endDate,
-        reinvest: false,
-      });
-      await reloadTransactions();
-      await reloadSelectedPortfolio();
-      setMessage({
-        type: "success",
-        text: `Synced ${created.length} ${kind === "dividends" ? "dividend" : "split"} transaction(s).`,
-      });
-    } catch (err) {
-      setMessage({ type: "error", text: String(err) });
+      const rows = await api.get<Transaction[]>(
+        `/portfolios/${selectedId}/transactions`,
+      );
+      setTransactions(rows);
     } finally {
-      setSyncingMarket(false);
+      setSyncingLedger(false);
     }
-  };
+  }, [selectedId]);
 
   const handleAddTransaction = async (payload: TransactionFormPayload) => {
     if (!selectedId) return;
@@ -400,10 +399,10 @@ export default function PortfoliosPage() {
     }
   };
 
-  function formatTxShares(tx: Transaction): string {
-    if (tx.ticker === "CASH") return usd(tx.shares);
-    return String(Math.floor(tx.shares));
-  }
+  const sortedTransactions = useMemo(
+    () => sortTransactionsForDisplay(transactions),
+    [transactions],
+  );
 
   /* ───────── RENDER ───────── */
 
@@ -618,7 +617,8 @@ export default function PortfoliosPage() {
           <div className="panel p-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span>
               <strong className="text-white/70">Portfolio Mode:</strong>{" "}
-              {transactions.length > 0 ? (
+              {selected.ledger_mode === "transactions" ||
+              transactions.length > 0 ? (
                 <span className="text-[var(--ok)]">
                   With Transactions ({transactions.length})
                 </span>
@@ -631,6 +631,13 @@ export default function PortfoliosPage() {
               {rebalanceIntervalLabel(selected.rebalance_interval_months)}
             </span>
           </div>
+
+          {syncingLedger && (
+            <Alert type="info">
+              Syncing splits, dividends, and rebalances through today — this may
+              take a minute for older portfolios…
+            </Alert>
+          )}
 
           {/* Tabs */}
           <div className="tab-bar">
@@ -686,35 +693,55 @@ export default function PortfoliosPage() {
               {/* Positions table */}
               {selected.positions.length > 0 && (
                 <div>
-                  <h3 className="text-base font-semibold text-white mb-3">
+                  <h3 className="text-base font-semibold text-white mb-1">
                     Asset Allocation
                   </h3>
+                  <p className="text-xs text-white/40 mb-3">
+                    Current % uses market prices (same as Positions tab).
+                  </p>
                   <table className="data-table">
                     <thead>
                       <tr>
                         <th>Ticker</th>
-                        <th>Weight</th>
+                        <th>Target</th>
+                        <th>Current (market)</th>
                         <th>Shares</th>
-                        <th>Purchase Price</th>
+                        <th>Avg cost</th>
+                        <th>Market price</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {selected.positions.map((pos) => (
-                        <tr key={pos.ticker}>
-                          <td className="font-mono font-medium text-white">
-                            {pos.ticker}
-                          </td>
-                          <td>
-                            {displayWeightPct(pos, selected.positions)}
-                          </td>
-                          <td>{formatShareCount(pos.ticker, pos.shares)}</td>
-                          <td>
-                            {pos.purchase_price
-                              ? usd(pos.purchase_price)
-                              : "—"}
-                          </td>
-                        </tr>
-                      ))}
+                      {selected.positions.map((pos) => {
+                        const holding = holdings.find(
+                          (h) => h.ticker === pos.ticker,
+                        );
+                        const curW = currentWeightPctFromMarket(
+                          pos.ticker,
+                          marketValues,
+                        );
+                        return (
+                          <tr key={pos.ticker}>
+                            <td className="font-mono font-medium text-white">
+                              {pos.ticker}
+                            </td>
+                            <td>{targetWeightPct(pos)}</td>
+                            <td>
+                              {curW != null ? `${curW.toFixed(1)}%` : "—"}
+                            </td>
+                            <td>{formatShareCount(pos.ticker, pos.shares)}</td>
+                            <td>
+                              {pos.purchase_price
+                                ? usd(pos.purchase_price)
+                                : "—"}
+                            </td>
+                            <td>
+                              {holding?.market_price != null
+                                ? usd(holding.market_price)
+                                : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -737,27 +764,44 @@ export default function PortfoliosPage() {
                     <tr>
                       <th>Ticker</th>
                       <th>Shares</th>
-                      <th>Weight</th>
-                      <th>Purchase Price</th>
+                      <th>Target</th>
+                      <th>Current (market)</th>
+                      <th>Avg cost</th>
+                      <th>Market price</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {selected.positions.map((pos) => (
+                    {selected.positions.map((pos) => {
+                      const holding = holdings.find(
+                        (h) => h.ticker === pos.ticker,
+                      );
+                      const curW = currentWeightPctFromMarket(
+                        pos.ticker,
+                        marketValues,
+                      );
+                      return (
                       <tr key={pos.ticker}>
                         <td className="font-mono font-medium text-white">
                           {pos.ticker}
                         </td>
                         <td>{formatShareCount(pos.ticker, pos.shares)}</td>
+                        <td>{targetWeightPct(pos)}</td>
                         <td>
-                          {displayWeightPct(pos, selected.positions)}
+                          {curW != null ? `${curW.toFixed(1)}%` : "—"}
                         </td>
                         <td>
                           {pos.purchase_price
                             ? usd(pos.purchase_price)
                             : "—"}
                         </td>
+                        <td>
+                          {holding?.market_price != null
+                            ? usd(holding.market_price)
+                            : "—"}
+                        </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -801,24 +845,10 @@ export default function PortfoliosPage() {
                 </Alert>
               )}
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn btn-secondary !text-xs"
-                  disabled={syncingMarket}
-                  onClick={() => void syncMarketEvents("dividends")}
-                >
-                  {syncingMarket ? "Syncing…" : "Sync dividends"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary !text-xs"
-                  disabled={syncingMarket}
-                  onClick={() => void syncMarketEvents("splits")}
-                >
-                  {syncingMarket ? "Syncing…" : "Sync splits"}
-                </button>
-              </div>
+              <p className="text-xs text-white/40">
+                Dividends, splits, and rebalancing sync automatically when this
+                portfolio is opened (through today).
+              </p>
 
               <Expander
                 title="Add Transaction"
@@ -848,7 +878,7 @@ export default function PortfoliosPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.map((tx) => (
+                      {sortedTransactions.map((tx) => (
                         <tr key={tx.id}>
                           <td className="font-mono text-xs">
                             {tx.transaction_date}
@@ -1031,9 +1061,7 @@ export default function PortfoliosPage() {
                             {pos.ticker}
                           </td>
                           <td>{formatShareCount(pos.ticker, pos.shares)}</td>
-                          <td>
-                            {displayWeightPct(pos, selected.positions)}
-                          </td>
+                          <td>{targetWeightPct(pos)}</td>
                           <td>
                             {pos.purchase_price
                               ? usd(pos.purchase_price)
@@ -1153,24 +1181,10 @@ export default function PortfoliosPage() {
                 </Alert>
               )}
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn btn-secondary !text-xs"
-                  disabled={syncingMarket}
-                  onClick={() => void syncMarketEvents("dividends")}
-                >
-                  {syncingMarket ? "Syncing…" : "Sync dividends"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary !text-xs"
-                  disabled={syncingMarket}
-                  onClick={() => void syncMarketEvents("splits")}
-                >
-                  {syncingMarket ? "Syncing…" : "Sync splits"}
-                </button>
-              </div>
+              <p className="text-xs text-white/40">
+                Dividends, splits, and rebalancing sync automatically when this
+                portfolio is opened (through today).
+              </p>
 
               <Expander
                 title="Add Transaction"
@@ -1200,7 +1214,7 @@ export default function PortfoliosPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.map((tx) => (
+                      {sortedTransactions.map((tx) => (
                         <tr key={tx.id}>
                           <td className="font-mono text-xs">
                             {tx.transaction_date}

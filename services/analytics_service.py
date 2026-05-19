@@ -10,6 +10,10 @@ import pandas as pd
 from core.analytics_engine.engine import AnalyticsEngine
 from core.exceptions import InsufficientDataError, ValidationError
 from services.data_service import DataService
+from services.ledger_portfolio_series import (
+    LedgerPortfolioSeriesBuilder,
+    first_transaction_date,
+)
 from services.performance_attribution import PerformanceAttributionService
 from services.portfolio_service import PortfolioService
 
@@ -46,6 +50,7 @@ class AnalyticsService:
         benchmark_ticker: Optional[str] = None,
         comparison_type: Optional[str] = None,  # 'ticker' | 'portfolio'
         comparison_value: Optional[str] = None,  # ticker or portfolio_id
+        user_id: str | None = None,
     ) -> dict[str, any]:
         """
         Calculate all metrics for a portfolio.
@@ -68,50 +73,91 @@ class AnalyticsService:
             raise ValidationError("Start date must be before end date")
 
         # Get portfolio
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
+        ledger_mode = getattr(portfolio, "ledger_mode", "buy_hold") or "buy_hold"
+        analysis_meta: dict[str, Any] = {
+            "ledger_mode": ledger_mode,
+            "requested_start_date": start_date.isoformat(),
+            "requested_end_date": end_date.isoformat(),
+        }
+        effective_start = start_date
 
-        # Get tickers
-        positions = portfolio.get_all_positions()
-        tickers = [pos.ticker for pos in positions]
+        if ledger_mode == "transactions":
+            from core.data_manager.transaction_repository import TransactionRepository
 
-        if not tickers:
-            raise InsufficientDataError("Portfolio has no positions")
+            txs = TransactionRepository().find_by_portfolio(portfolio_id)
+            if not txs:
+                raise InsufficientDataError(
+                    "Portfolio has no transactions; open it in Portfolios to sync ledger."
+                )
+            first_tx = first_transaction_date(txs)
+            if first_tx:
+                analysis_meta["first_transaction_date"] = first_tx.isoformat()
+                if start_date < first_tx:
+                    effective_start = first_tx
+                    analysis_meta["start_date_clamped"] = True
 
-        logger.info(
-            f"Calculating metrics for portfolio {portfolio_id} "
-            f"({len(tickers)} positions) from {start_date} to {end_date}"
-        )
-
-        # Fetch portfolio price data
-        try:
-            portfolio_prices = self._fetch_portfolio_prices(
-                tickers, start_date, end_date
+            builder = LedgerPortfolioSeriesBuilder()
+            portfolio_returns, portfolio_values, effective_start = (
+                builder.build_returns(
+                    txs,
+                    effective_start,
+                    end_date,
+                    portfolio.cost_basis_method,
+                    self._fetch_portfolio_prices,
+                )
             )
-        except Exception as e:
-            logger.error(f"Error fetching portfolio prices: {e}")
-            raise InsufficientDataError(f"Failed to fetch price data: {e}") from e
+            analysis_meta["effective_start_date"] = effective_start.isoformat()
+            positions = portfolio.get_all_positions()
+            logger.info(
+                "Ledger analytics for %s: %d txs, %s → %s",
+                portfolio_id,
+                len(txs),
+                effective_start,
+                end_date,
+            )
+        else:
+            positions = portfolio.get_all_positions()
+            tickers = [pos.ticker for pos in positions]
 
-        # Calculate portfolio returns
-        portfolio_returns = self._calculate_portfolio_returns(
-            portfolio_prices, positions
-        )
+            if not tickers:
+                raise InsufficientDataError("Portfolio has no positions")
+
+            logger.info(
+                f"Calculating metrics for portfolio {portfolio_id} "
+                f"({len(tickers)} positions) from {start_date} to {end_date}"
+            )
+
+            try:
+                portfolio_prices = self._fetch_portfolio_prices(
+                    tickers, start_date, end_date
+                )
+            except Exception as e:
+                logger.error(f"Error fetching portfolio prices: {e}")
+                raise InsufficientDataError(f"Failed to fetch price data: {e}") from e
+
+            portfolio_returns = self._calculate_portfolio_returns(
+                portfolio_prices, positions
+            )
+            portfolio_values = self._calculate_portfolio_values(
+                portfolio_prices, positions, portfolio.starting_capital
+            )
 
         if portfolio_returns.empty:
             raise InsufficientDataError(
                 "Unable to calculate portfolio returns from price data"
             )
 
-        # Calculate portfolio values
-        portfolio_values = self._calculate_portfolio_values(
-            portfolio_prices, positions, portfolio.starting_capital
-        )
+        price_window_start = effective_start
+        if ledger_mode != "transactions":
+            analysis_meta["effective_start_date"] = start_date.isoformat()
 
         # Fetch benchmark data if provided (legacy support). Will be shown in comparison too.
         benchmark_returns: Optional[pd.Series] = None
         if benchmark_ticker:
             try:
                 bm_prices = self._fetch_portfolio_prices(
-                    [benchmark_ticker], start_date, end_date
+                    [benchmark_ticker], price_window_start, end_date
                 )
                 if not bm_prices.empty and benchmark_ticker in bm_prices.columns:
                     bm_series = bm_prices[benchmark_ticker].sort_index().ffill().bfill()
@@ -137,7 +183,7 @@ class AnalyticsService:
             if comparison_type == "ticker" and comparison_value:
                 comparison_label = comparison_value.upper()
                 series = self._get_single_ticker_returns(
-                    comparison_label, start_date, end_date
+                    comparison_label, price_window_start, end_date
                 )
                 if not series.empty:
                     # Normalize tz and align strictly by intersection
@@ -155,7 +201,7 @@ class AnalyticsService:
             elif comparison_type == "portfolio" and comparison_value:
                 comparison_label = f"PORT:{comparison_value}"
                 series = self._get_portfolio_returns_by_id(
-                    comparison_value, start_date, end_date
+                    comparison_value, price_window_start, end_date, user_id
                 )
                 if not series.empty:
                     try:
@@ -196,7 +242,7 @@ class AnalyticsService:
         ):
             try:
                 bm_prices = self._fetch_portfolio_prices(
-                    [comparison_label], start_date, end_date
+                    [comparison_label], price_window_start, end_date
                 )
                 if not bm_prices.empty and comparison_label in bm_prices.columns:
 
@@ -218,7 +264,7 @@ class AnalyticsService:
         # Calculate all metrics
         metrics = self._engine.calculate_all_metrics(
             portfolio_returns=portfolio_returns,
-            start_date=start_date,
+            start_date=price_window_start,
             end_date=end_date,
             benchmark_returns=benchmark_returns,
             portfolio_values=portfolio_values,
@@ -232,6 +278,7 @@ class AnalyticsService:
         return {
             **metrics,
             **ledger_metrics,
+            "analysis_meta": analysis_meta,
             "portfolio_returns": portfolio_returns,
             "benchmark_returns": benchmark_returns,
             "portfolio_values": portfolio_values,
@@ -290,15 +337,39 @@ class AnalyticsService:
         return ret
 
     def _get_portfolio_returns_by_id(
-        self, portfolio_id: str, start_date: date, end_date: date
+        self,
+        portfolio_id: str,
+        start_date: date,
+        end_date: date,
+        user_id: str | None = None,
     ) -> pd.Series:
-        other = self._portfolio_service.get_portfolio(portfolio_id)
+        other = self._portfolio_service.get_portfolio(portfolio_id, user_id)
         if other is None:
             return pd.Series(dtype=float)
-        positions = other.get_all_positions()
-        tickers = [p.ticker for p in positions]
-        prices = self._fetch_portfolio_prices(tickers, start_date, end_date)
-        series = self._calculate_portfolio_returns(prices, positions)
+
+        ledger_mode = getattr(other, "ledger_mode", "buy_hold") or "buy_hold"
+        if ledger_mode == "transactions":
+            from core.data_manager.transaction_repository import TransactionRepository
+
+            txs = TransactionRepository().find_by_portfolio(portfolio_id)
+            if not txs:
+                return pd.Series(dtype=float)
+            first_tx = first_transaction_date(txs)
+            eff_start = max(start_date, first_tx) if first_tx else start_date
+            builder = LedgerPortfolioSeriesBuilder()
+            series, _, _ = builder.build_returns(
+                txs,
+                eff_start,
+                end_date,
+                other.cost_basis_method,
+                self._fetch_portfolio_prices,
+            )
+        else:
+            positions = other.get_all_positions()
+            tickers = [p.ticker for p in positions]
+            prices = self._fetch_portfolio_prices(tickers, start_date, end_date)
+            series = self._calculate_portfolio_returns(prices, positions)
+
         if not series.empty:
             try:
                 series.index = series.index.tz_localize(None)

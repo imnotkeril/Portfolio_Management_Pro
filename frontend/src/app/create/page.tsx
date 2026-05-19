@@ -274,6 +274,42 @@ export default function CreatePortfolioPage() {
     [positions],
   );
 
+  /** Fraction of total portfolio allocated to stocks (rest is planned cash). */
+  const investableFraction = useMemo(
+    () => Math.max(0, 1 - cashAllocation / 100),
+    [cashAllocation],
+  );
+
+  const stocksWeightOfPortfolio = useMemo(
+    () => totalWeight * investableFraction,
+    [totalWeight, investableFraction],
+  );
+
+  const draftAssetLines = useMemo(() => {
+    const stocks =
+      method === "file"
+        ? filePositions.filter((p) => p.ticker.toUpperCase() !== "CASH")
+        : positions.filter((p) => p.ticker.toUpperCase() !== "CASH");
+    const lines = stocks.map((p) => ({
+      ticker: p.ticker,
+      label: pct(p.weight * investableFraction),
+    }));
+    if (cashAllocation > 0) {
+      lines.push({
+        ticker: "CASH",
+        label: `${cashAllocation.toFixed(1)}%`,
+      });
+    }
+    return lines;
+  }, [method, filePositions, positions, cashAllocation, investableFraction]);
+
+  const draftWeightSummary = useMemo(() => {
+    if (cashAllocation <= 0) {
+      return `${pct(totalWeight)} of portfolio`;
+    }
+    return `${pct(stocksWeightOfPortfolio)} stocks + ${cashAllocation.toFixed(1)}% cash = 100%`;
+  }, [cashAllocation, totalWeight, stocksWeightOfPortfolio]);
+
   const validPositions = useMemo(() => {
     if (Object.keys(validationMap).length === 0) return positions;
     return positions.filter(
@@ -535,12 +571,24 @@ export default function CreatePortfolioPage() {
             purchase_price: p.ticker === "CASH" ? 1 : p.purchase_price,
           }));
         } else {
-          posPayload = normWeights.map((p) => ({
-            ticker: p.ticker,
-            shares: 1,
-            weight_target: p.weight,
-            purchase_date: asOfDate,
-          }));
+          const cashW = cashAllocation / 100;
+          const stockScale = Math.max(0, 1 - cashW);
+          posPayload = normWeights
+            .filter((p) => p.ticker.toUpperCase() !== "CASH")
+            .map((p) => ({
+              ticker: p.ticker,
+              shares: 1,
+              weight_target: p.weight * stockScale,
+              purchase_date: asOfDate,
+            }));
+          if (cashW > 0) {
+            posPayload.push({
+              ticker: "CASH",
+              shares: capital * cashW,
+              weight_target: cashW,
+              purchase_price: 1,
+            });
+          }
         }
 
         const rebalanceMonths = parseRebalanceInterval(rebalanceInterval);
@@ -551,6 +599,7 @@ export default function CreatePortfolioPage() {
           base_currency: baseCurrency,
           positions: posPayload,
           rebalance_interval_months: rebalanceMonths,
+          ledger_mode: portfolioMode,
         });
 
         if (portfolioMode === "transactions" && createInitialTxns) {
@@ -591,6 +640,8 @@ export default function CreatePortfolioPage() {
               });
             }
           }
+
+          await api.post(`/portfolios/${result.id}/ledger/maintain`, {});
         }
 
         setCreatedPortfolio(result);
@@ -1855,12 +1906,12 @@ export default function CreatePortfolioPage() {
                 )}
               />
               <MetricCard
-                label="Total Weight"
-                value={pct(
-                  method === "file"
-                    ? filePositions.reduce((s, p) => s + p.weight, 0)
-                    : totalWeight,
-                )}
+                label="Portfolio Mix"
+                value={
+                  cashAllocation > 0
+                    ? `${pct(stocksWeightOfPortfolio)} + ${cashAllocation}% cash`
+                    : pct(totalWeight)
+                }
               />
             </div>
           </div>
@@ -2029,27 +2080,22 @@ export default function CreatePortfolioPage() {
           <h2 className="text-base font-semibold text-white mb-3">
             Draft Assets
             <span className="text-white/40 text-sm font-normal ml-2">
-              ({method === "file" ? filePositions.length : positions.length}{" "}
-              assets, {pct(method === "file" ? filePositions.reduce((s, p) => s + p.weight, 0) : totalWeight)} total)
+              ({draftAssetLines.length} lines — {draftWeightSummary})
             </span>
           </h2>
           <div className="space-y-1.5 text-sm max-h-64 overflow-y-auto">
-            {(method === "file" ? filePositions : positions).length === 0 ? (
+            {draftAssetLines.length === 0 ? (
               <div className="text-white/40">No assets yet.</div>
             ) : (
-              (method === "file" ? filePositions : positions).map(
-                (pos, index) => (
-                  <div
-                    key={`${pos.ticker}-${index}`}
-                    className="flex items-center justify-between py-2 px-3 rounded-lg bg-[var(--surface)] border border-white/5"
-                  >
-                    <span className="font-mono text-white/80">
-                      {pos.ticker}
-                    </span>
-                    <span className="text-white/50">{pct(pos.weight)}</span>
-                  </div>
-                ),
-              )
+              draftAssetLines.map((pos, index) => (
+                <div
+                  key={`${pos.ticker}-${index}`}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-[var(--surface)] border border-white/5"
+                >
+                  <span className="font-mono text-white/80">{pos.ticker}</span>
+                  <span className="text-white/50">{pos.label}</span>
+                </div>
+              ))
             )}
           </div>
         </div>

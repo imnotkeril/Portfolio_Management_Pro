@@ -51,7 +51,9 @@ from services.optimization_ui_bundle import (
     build_optimization_full_bundle,
     portfolio_snapshot_rows,
 )
+from services.portfolio_ledger_service import PortfolioLedgerService
 from services.portfolio_service import PortfolioService
+from services.rebalance_service import RebalanceService
 from services.risk_service import RiskService
 from services.risk_ui_bundle import (
     build_monte_carlo_display_bundle,
@@ -101,6 +103,14 @@ class SplitSyncRequest(BaseModel):
     tickers: list[str]
     start_date: date
     end_date: date
+
+
+class RebalanceRequest(BaseModel):
+    """Execute or preview rebalance to position target weights."""
+
+    as_of_date: date | None = None
+    run_scheduled: bool = False
+    through_date: date | None = None
 
 
 class RiskVarRequest(BaseModel):
@@ -241,6 +251,11 @@ def _serialize_position(position: Any) -> dict[str, Any]:
     }
 
 
+def _maintain_ledger(portfolio_id: str, user_id: str) -> None:
+    """Sync splits, dividends, and scheduled rebalances through today."""
+    ledger_service.maintain(portfolio_id, user_id)
+
+
 def _serialize_portfolio(portfolio: Any) -> dict[str, Any]:
     return {
         "id": portfolio.id,
@@ -252,6 +267,7 @@ def _serialize_portfolio(portfolio: Any) -> dict[str, Any]:
         "rebalance_interval_months": getattr(
             portfolio, "rebalance_interval_months", None
         ),
+        "ledger_mode": getattr(portfolio, "ledger_mode", "buy_hold") or "buy_hold",
         "positions": [_serialize_position(p) for p in portfolio.get_all_positions()],
     }
 
@@ -366,6 +382,12 @@ app.include_router(auth_router.router)
 
 portfolio_service = PortfolioService()
 transaction_service = TransactionService()
+rebalance_service = RebalanceService()
+ledger_service = PortfolioLedgerService(
+    portfolio_service=portfolio_service,
+    transaction_service=transaction_service,
+    rebalance_service=rebalance_service,
+)
 data_service = DataService()
 analytics_service = AnalyticsService()
 optimization_service = OptimizationService()
@@ -529,6 +551,24 @@ def get_portfolio(
         raise
 
 
+@app.post("/portfolios/{portfolio_id}/ledger/maintain")
+def maintain_portfolio_ledger(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        stats = ledger_service.maintain(portfolio_id, current_user.id)
+        return {
+            "portfolio": _serialize_portfolio(
+                portfolio_service.get_portfolio(portfolio_id, current_user.id)
+            ),
+            **stats,
+        }
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
 @app.post("/portfolios")
 def create_portfolio(
     payload: CreatePortfolioRequest,
@@ -550,8 +590,10 @@ def update_portfolio(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
+        portfolio_service.update_portfolio(portfolio_id, payload, current_user.id)
+        _maintain_ledger(portfolio_id, current_user.id)
         return _serialize_portfolio(
-            portfolio_service.update_portfolio(portfolio_id, payload, current_user.id)
+            portfolio_service.get_portfolio(portfolio_id, current_user.id)
         )
     except Exception as exc:
         _handle_error(exc)
@@ -629,6 +671,7 @@ def get_transactions(
     ticker: str | None = None,
     current_user: User = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
+    _maintain_ledger(portfolio_id, current_user.id)
     return [
         _serialize_transaction(tx)
         for tx in transaction_service.get_transactions(
@@ -790,6 +833,63 @@ def sync_splits(
         raise
 
 
+@app.post("/portfolios/{portfolio_id}/rebalance/preview")
+def preview_rebalance(
+    portfolio_id: str,
+    payload: RebalanceRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        as_of = payload.as_of_date or date.today()
+        trades = rebalance_service.preview(portfolio_id, as_of, current_user.id)
+        return {
+            "as_of_date": as_of.isoformat(),
+            "trades": [
+                {
+                    "ticker": t.ticker,
+                    "action": t.action,
+                    "shares": t.shares,
+                    "price": t.price,
+                    "fees": t.fees,
+                    "current_shares": t.current_shares,
+                    "target_shares": t.target_shares,
+                    "current_weight": t.current_weight,
+                    "target_weight": t.target_weight,
+                }
+                for t in trades
+            ],
+            "trade_count": len(trades),
+        }
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
+@app.post("/portfolios/{portfolio_id}/rebalance/execute")
+def execute_rebalance(
+    portfolio_id: str,
+    payload: RebalanceRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        if payload.run_scheduled:
+            created = rebalance_service.execute_scheduled(
+                portfolio_id,
+                current_user.id,
+                through_date=payload.through_date,
+            )
+        else:
+            as_of = payload.as_of_date or date.today()
+            created = rebalance_service.execute(portfolio_id, as_of, current_user.id)
+        return {
+            "transactions": [_serialize_transaction(tx) for tx in created],
+            "count": len(created),
+        }
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
 @app.post("/analytics/calculate")
 def calculate_analytics(
     payload: AnalyticsRequest,
@@ -804,6 +904,7 @@ def calculate_analytics(
             benchmark_ticker=payload.benchmark_ticker,
             comparison_type=payload.comparison_type,
             comparison_value=payload.comparison_value,
+            user_id=current_user.id,
         )
         return _to_jsonable(result)
     except Exception as exc:
@@ -818,24 +919,49 @@ def calculate_asset_analytics(
 ) -> dict[str, Any]:
     """Compute per-asset data: correlations, metrics, returns, impact analysis."""
     try:
+        from core.data_manager.transaction_repository import TransactionRepository
+        from services.ledger_portfolio_series import (
+            LedgerPortfolioSeriesBuilder,
+            first_transaction_date,
+            positions_snapshot_at,
+        )
+
         portfolio = portfolio_service.get_portfolio(
             payload.portfolio_id, current_user.id
         )
-        positions = portfolio.get_all_positions()
+        ledger_mode = getattr(portfolio, "ledger_mode", "buy_hold") or "buy_hold"
+        effective_start = payload.start_date
+        txs: list[Transaction] = []
+
+        if ledger_mode == "transactions":
+            txs = TransactionRepository().find_by_portfolio(payload.portfolio_id)
+            if not txs:
+                raise ValidationError("Portfolio has no transactions")
+            first_tx = first_transaction_date(txs)
+            if first_tx and effective_start < first_tx:
+                effective_start = first_tx
+            positions = positions_snapshot_at(
+                txs, payload.end_date, portfolio.cost_basis_method
+            )
+        else:
+            positions = portfolio.get_all_positions()
+
         tickers = [p.ticker for p in positions]
 
         if not tickers:
             raise ValidationError("Portfolio has no positions")
 
         price_data = analytics_service._fetch_portfolio_prices(
-            tickers, payload.start_date, payload.end_date
+            tickers, effective_start, payload.end_date
         )
 
         benchmark_returns: pd.Series | None = None
         if payload.benchmark_ticker:
             try:
                 bm_prices = analytics_service._fetch_portfolio_prices(
-                    [payload.benchmark_ticker], payload.start_date, payload.end_date
+                    [payload.benchmark_ticker],
+                    effective_start,
+                    payload.end_date,
                 )
                 if (
                     not bm_prices.empty
@@ -848,9 +974,19 @@ def calculate_asset_analytics(
             except Exception:
                 pass
 
-        portfolio_returns = analytics_service._calculate_portfolio_returns(
-            price_data, positions
-        )
+        if ledger_mode == "transactions" and txs:
+            builder = LedgerPortfolioSeriesBuilder()
+            portfolio_returns, _, _ = builder.build_returns(
+                txs,
+                effective_start,
+                payload.end_date,
+                portfolio.cost_basis_method,
+                analytics_service._fetch_portfolio_prices,
+            )
+        else:
+            portfolio_returns = analytics_service._calculate_portfolio_returns(
+                price_data, positions
+            )
 
         result: dict[str, Any] = {}
 
@@ -997,6 +1133,7 @@ def optimization_full(
         bundle = build_optimization_full_bundle(
             optimization_service,
             portfolio_service,
+            user_id=current_user.id,
             portfolio_id=payload.portfolio_id,
             method=payload.method,
             start_date=payload.start_date,
@@ -1036,6 +1173,7 @@ def risk_var(
                 include_monte_carlo=payload.include_monte_carlo,
                 num_simulations=payload.num_simulations,
                 time_horizon=payload.time_horizon,
+                user_id=current_user.id,
             )
         )
     except Exception as exc:
@@ -1061,6 +1199,7 @@ def risk_var_full(
             rolling_window=payload.rolling_window,
             include_monte_carlo=payload.include_monte_carlo,
             num_simulations=payload.num_simulations,
+            user_id=current_user.id,
         )
         return _to_jsonable(bundle)
     except Exception as exc:
@@ -1084,6 +1223,7 @@ def risk_monte_carlo(
                 num_simulations=payload.num_simulations,
                 initial_value=payload.initial_value,
                 model=payload.model,
+                user_id=current_user.id,
             )
         )
     except Exception as exc:
@@ -1108,6 +1248,7 @@ def risk_monte_carlo_full(
             initial_value=payload.initial_value,
             model=payload.model,
             include_sample_paths=payload.include_sample_paths,
+            user_id=current_user.id,
         )
         return _to_jsonable(bundle)
     except Exception as exc:

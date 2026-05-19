@@ -47,6 +47,7 @@ class PortfolioRepository:
             base_currency=portfolio.base_currency,
             cost_basis_method=portfolio.cost_basis_method,
             rebalance_interval_months=portfolio.rebalance_interval_months,
+            ledger_mode=portfolio.ledger_mode,
             user_id=user_id,
         )
 
@@ -101,11 +102,13 @@ class PortfolioRepository:
         portfolio_orm.base_currency = portfolio.base_currency
         portfolio_orm.cost_basis_method = portfolio.cost_basis_method
         portfolio_orm.rebalance_interval_months = portfolio.rebalance_interval_months
+        portfolio_orm.ledger_mode = portfolio.ledger_mode
 
-        # Update positions: delete existing and add new
+        # Update positions: delete existing and add new (flush between to avoid races)
         session.query(PositionORM).filter(
             PositionORM.portfolio_id == portfolio.id
-        ).delete()
+        ).delete(synchronize_session=False)
+        session.flush()
 
         for pos in portfolio.get_all_positions():
             position_orm = PositionORM(
@@ -253,6 +256,7 @@ class PortfolioRepository:
             rebalance_interval_months=getattr(
                 portfolio_orm, "rebalance_interval_months", None
             ),
+            ledger_mode=getattr(portfolio_orm, "ledger_mode", "buy_hold") or "buy_hold",
         )
 
         # Add positions

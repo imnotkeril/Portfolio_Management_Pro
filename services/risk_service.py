@@ -68,6 +68,7 @@ class RiskService:
         include_monte_carlo: bool = True,
         num_simulations: int = 10000,
         time_horizon: int = 1,
+        user_id: str | None = None,
     ) -> dict[str, any]:
         """
         Calculate comprehensive VaR analysis for portfolio.
@@ -85,7 +86,9 @@ class RiskService:
             Dictionary with VaR results for all methods
         """
         # Get portfolio returns
-        returns = self._get_portfolio_returns(portfolio_id, start_date, end_date)
+        returns = self._get_portfolio_returns(
+            portfolio_id, start_date, end_date, user_id
+        )
 
         # Calculate VaR using all methods
         var_results = calculate_var_all_methods(
@@ -113,6 +116,7 @@ class RiskService:
         num_simulations: int = 10000,
         initial_value: float = 1.0,
         model: str = "gbm",
+        user_id: str | None = None,
     ) -> dict[str, any]:
         """
         Run Monte Carlo simulation for portfolio.
@@ -130,7 +134,9 @@ class RiskService:
             Dictionary with simulation results
         """
         # Get portfolio returns
-        returns = self._get_portfolio_returns(portfolio_id, start_date, end_date)
+        returns = self._get_portfolio_returns(
+            portfolio_id, start_date, end_date, user_id
+        )
 
         # Run simulation
         result = simulate_portfolio_paths(
@@ -403,12 +409,19 @@ class RiskService:
         return get_all_historical_scenarios()
 
     def _get_portfolio_returns(
-        self, portfolio_id: str, start_date: date, end_date: date
+        self,
+        portfolio_id: str,
+        start_date: date,
+        end_date: date,
+        user_id: str | None = None,
     ) -> pd.Series:
         """Get portfolio returns for analysis period."""
         # Use analytics service to get returns
         metrics = self._analytics_service.calculate_portfolio_metrics(
-            portfolio_id, start_date, end_date
+            portfolio_id,
+            start_date,
+            end_date,
+            user_id=user_id,
         )
 
         # Extract returns directly from result

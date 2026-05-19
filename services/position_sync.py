@@ -7,6 +7,7 @@ from core.data_manager.portfolio import Portfolio
 from core.data_manager.portfolio_repository import PortfolioRepository
 from core.data_manager.transaction import Transaction
 from services.cost_basis import CostBasisCalculator
+from services.portfolio_lock import portfolio_maintenance_lock
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,25 @@ def sync_positions_from_transactions(
     if portfolio.id is None:
         raise ValueError("Portfolio must have an id to sync positions")
 
+    with portfolio_maintenance_lock(portfolio.id):
+        return _sync_positions_unlocked(portfolio, transactions, repository, user_id)
+
+
+def _sync_positions_unlocked(
+    portfolio: Portfolio,
+    transactions: list[Transaction],
+    repository: PortfolioRepository | None = None,
+    user_id: str | None = None,
+) -> Portfolio:
     summary = CostBasisCalculator(method=portfolio.cost_basis_method).summarize(
         transactions
     )
+
+    old_weights = {
+        p.ticker: p.weight_target
+        for p in portfolio.get_all_positions()
+        if p.weight_target is not None and p.weight_target > 0
+    }
 
     rebuilt = Portfolio(
         name=portfolio.name,
@@ -36,15 +53,18 @@ def sync_positions_from_transactions(
         base_currency=portfolio.base_currency,
         portfolio_id=portfolio.id,
         cost_basis_method=portfolio.cost_basis_method,
+        rebalance_interval_months=portfolio.rebalance_interval_months,
+        ledger_mode=portfolio.ledger_mode,
     )
 
     for ticker, leg in summary.holdings.items():
-        if leg.quantity <= 1e-9:
+        if leg.quantity <= 1e-9 or ticker == "CASH":
             continue
         avg = leg.total_cost / leg.quantity if leg.quantity > 0 else 0.0
         rebuilt.add_position(
             ticker=ticker,
             shares=leg.quantity,
+            weight_target=old_weights.get(ticker),
             purchase_price=avg if avg > 0 else None,
         )
 
@@ -52,6 +72,7 @@ def sync_positions_from_transactions(
         rebuilt.add_position(
             ticker="CASH",
             shares=summary.cash_balance,
+            weight_target=old_weights.get("CASH"),
             purchase_price=1.0,
             purchase_date=date.today(),
         )

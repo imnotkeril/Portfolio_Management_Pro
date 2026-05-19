@@ -66,6 +66,18 @@ class CreatePortfolioRequest(BaseModel):
         None,
         description="Rebalance to target weights every N months (1, 3, 6, 12); null = off",
     )
+    ledger_mode: str = Field(
+        "buy_hold",
+        description="buy_hold = positions only; transactions = full ledger",
+    )
+
+    @field_validator("ledger_mode")
+    @classmethod
+    def validate_ledger_mode(cls, v: str) -> str:
+        mode = (v or "buy_hold").strip().lower()
+        if mode not in ("buy_hold", "transactions"):
+            raise ValueError("ledger_mode must be 'buy_hold' or 'transactions'")
+        return mode
 
     @field_validator("rebalance_interval_months")
     @classmethod

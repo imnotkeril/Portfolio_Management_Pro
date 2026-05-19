@@ -22,8 +22,6 @@ export type TransactionFormPayload = {
   price: number;
   fees: number;
   notes: string | null;
-  reinvest?: boolean;
-  split_ratio?: number;
 };
 
 type Props = {
@@ -47,8 +45,6 @@ export function TransactionForm({
   const [txPrice, setTxPrice] = useState(0);
   const [txFees, setTxFees] = useState(0);
   const [txNotes, setTxNotes] = useState("");
-  const [reinvest, setReinvest] = useState(false);
-  const [splitRatio, setSplitRatio] = useState(2);
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceHint, setPriceHint] = useState<string | null>(null);
   const [feesTouched, setFeesTouched] = useState(false);
@@ -126,7 +122,7 @@ export function TransactionForm({
         });
       } else {
         if (!txTicker.trim() || txShares <= 0 || txPrice <= 0) return;
-        const payload: TransactionFormPayload = {
+        await onSubmit({
           transaction_date: txDate,
           transaction_type: txType,
           ticker: txTicker.trim().toUpperCase(),
@@ -134,10 +130,7 @@ export function TransactionForm({
           price: txPrice,
           fees: txFees,
           notes: txNotes || null,
-        };
-        if (txType === "DIVIDEND") payload.reinvest = reinvest;
-        if (txType === "SPLIT") payload.split_ratio = splitRatio;
-        await onSubmit(payload);
+        });
       }
       setTxTicker("");
       setCashAmount(0);
@@ -186,8 +179,6 @@ export function TransactionForm({
             <option value="SELL">SELL</option>
             <option value="DEPOSIT">DEPOSIT</option>
             <option value="WITHDRAWAL">WITHDRAWAL</option>
-            <option value="DIVIDEND">DIVIDEND</option>
-            <option value="SPLIT">SPLIT</option>
           </select>
         </div>
         {isCashFlow ? (
@@ -271,31 +262,6 @@ export function TransactionForm({
           </>
         )}
       </div>
-
-      {txType === "DIVIDEND" && !isCashFlow ? (
-        <label className="flex items-center gap-2 text-sm text-white/70">
-          <input
-            type="checkbox"
-            checked={reinvest}
-            onChange={(e) => setReinvest(e.target.checked)}
-          />
-          Reinvest dividend
-        </label>
-      ) : null}
-
-      {txType === "SPLIT" && !isCashFlow ? (
-        <div>
-          <label className="label">Split ratio</label>
-          <input
-            className="input"
-            type="number"
-            min={0.01}
-            step={0.01}
-            value={splitRatio}
-            onChange={(e) => setSplitRatio(Number(e.target.value))}
-          />
-        </div>
-      ) : null}
 
       <div>
         <label className="label">Notes (optional)</label>

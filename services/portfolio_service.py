@@ -98,6 +98,7 @@ class PortfolioService:
             description=request.description,
             base_currency=request.base_currency,
             rebalance_interval_months=request.rebalance_interval_months,
+            ledger_mode=request.ledger_mode,
         )
 
         # Add positions

@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { percentDecimal } from "@/lib/format";
 import type { Portfolio } from "@/lib/types";
 import {
   AVAILABLE_OPTIMIZATION_METHODS,
@@ -149,10 +150,7 @@ function CmpMetricCard({
 }) {
   const fmtV = (v: number | null | undefined) => {
     if (v == null || !Number.isFinite(v)) return "—";
-    if (format === "percent") {
-      const pct = Math.abs(v) < 2 ? v * 100 : v;
-      return `${pct.toFixed(2)}%`;
-    }
+    if (format === "percent") return percentDecimal(v, 2);
     return v.toFixed(3);
   };
   const pStr = fmtV(portfolioValue);

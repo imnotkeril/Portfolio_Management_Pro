@@ -83,6 +83,27 @@ def test_split_doubles_quantity_halves_cost() -> None:
     assert leg.lots[0].cost_per_share == pytest.approx(50.0)
 
 
+def test_deposit_and_withdrawal_cash_balance() -> None:
+    txs = [
+        Transaction(
+            transaction_date=date(2024, 1, 1),
+            transaction_type="DEPOSIT",
+            ticker="CASH",
+            shares=10_000.0,
+            price=1.0,
+        ),
+        Transaction(
+            transaction_date=date(2024, 1, 5),
+            transaction_type="WITHDRAWAL",
+            ticker="CASH",
+            shares=3_000.0,
+            price=1.0,
+        ),
+    ]
+    summary = CostBasisCalculator(method="fifo").summarize(txs)
+    assert summary.cash_balance == pytest.approx(7_000.0)
+
+
 def test_sell_more_than_held_raises() -> None:
     txs = [_buy(date(2024, 1, 1), "AAPL", 5, 100.0)]
     with pytest.raises(ValidationError):

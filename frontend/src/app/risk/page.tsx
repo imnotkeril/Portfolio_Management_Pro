@@ -3,6 +3,12 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import {
+  clampStartDate,
+  defaultAnalysisStart,
+  todayIso,
+  useLedgerAnalysisDates,
+} from "@/lib/portfolio-ledger-bounds";
 import type { Portfolio } from "@/lib/types";
 import {
   Bar,
@@ -62,14 +68,8 @@ function RiskPageContent() {
   const [portfolioId, setPortfolioId] = useState("");
   const [tab, setTab] = useState<RiskTab>("var");
 
-  const defaultEnd = () => new Date().toISOString().slice(0, 10);
-  const defaultStart = () => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 1);
-    return d.toISOString().slice(0, 10);
-  };
-  const [startDate, setStartDate] = useState(defaultStart);
-  const [endDate, setEndDate] = useState(defaultEnd);
+  const [startDate, setStartDate] = useState(defaultAnalysisStart);
+  const [endDate, setEndDate] = useState(todayIso);
 
   /* VaR */
   const [varConf, setVarConf] = useState(95);
@@ -128,6 +128,17 @@ function RiskPageContent() {
       .then(setCatalog)
       .catch(() => setCatalog([]));
   }, []);
+
+  const selectedPortfolio = useMemo(
+    () => portfolios.find((p) => p.id === portfolioId) ?? null,
+    [portfolios, portfolioId],
+  );
+  const ledgerFirstTx = useLedgerAnalysisDates(
+    portfolioId,
+    selectedPortfolio,
+    setStartDate,
+    setEndDate,
+  );
 
   const parseAssetImpacts = useCallback((text: string): Record<string, number> => {
     const out: Record<string, number> = {};
@@ -388,8 +399,11 @@ function RiskPageContent() {
                   type="date"
                   className="input mt-1"
                   value={startDate}
-                  max={defaultEnd()}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  min={ledgerFirstTx ?? undefined}
+                  max={endDate}
+                  onChange={(e) =>
+                    setStartDate(clampStartDate(e.target.value, ledgerFirstTx ?? undefined))
+                  }
                 />
               </div>
               <div>
@@ -399,7 +413,7 @@ function RiskPageContent() {
                   className="input mt-1"
                   value={endDate}
                   min={startDate}
-                  max={defaultEnd()}
+                  max={todayIso()}
                   onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>

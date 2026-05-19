@@ -9,6 +9,7 @@ import yfinance as yf
 
 from core.data_manager.transaction import Transaction
 from core.data_manager.transaction_repository import TransactionRepository
+from services.cost_basis import CostBasisCalculator
 from services.portfolio_service import PortfolioService
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class DividendProcessor:
         reinvest: bool = False,
     ) -> list[Transaction]:
         """Fetch dividends and insert DIVIDEND transactions (skip duplicates)."""
-        self._portfolio_service.get_portfolio(portfolio_id, user_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
         existing = self._repository.find_by_portfolio(
             portfolio_id,
             start_date=start_date,
@@ -46,6 +47,7 @@ class DividendProcessor:
             (tx.transaction_date, tx.ticker, round(tx.amount, 4)) for tx in existing
         }
 
+        all_txs = self._repository.find_by_portfolio(portfolio_id)
         created: list[Transaction] = []
         for ticker in tickers:
             sym = ticker.strip().upper()
@@ -69,12 +71,22 @@ class DividendProcessor:
                 key = (div_date, sym, round(float(amount), 4))
                 if key in existing_keys:
                     continue
+                dps = float(amount)
+                shares_held = self._shares_held_on(
+                    all_txs + created, sym, div_date, portfolio.cost_basis_method
+                )
+                if shares_held <= 1e-9:
+                    continue
+                total_cash = round(shares_held * dps, 4)
+                if total_cash <= 0:
+                    continue
                 txn = Transaction(
                     transaction_date=div_date,
                     transaction_type="DIVIDEND",
                     ticker=sym,
-                    shares=float(amount),
-                    price=1.0,
+                    shares=shares_held,
+                    price=dps,
+                    amount=total_cash,
                     reinvest=reinvest,
                     notes="Auto-synced dividend",
                 )
@@ -83,3 +95,16 @@ class DividendProcessor:
                 existing_keys.add(key)
 
         return created
+
+    @staticmethod
+    def _shares_held_on(
+        transactions: list[Transaction],
+        ticker: str,
+        as_of: date,
+        cost_basis_method: str,
+    ) -> float:
+        """Share count for ticker at end of as_of (ex-dividend approximation)."""
+        through = [t for t in transactions if t.transaction_date <= as_of]
+        summary = CostBasisCalculator(method=cost_basis_method).summarize(through)
+        leg = summary.holdings.get(ticker.upper())
+        return leg.quantity if leg else 0.0

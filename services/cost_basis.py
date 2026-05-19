@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from core.data_manager.transaction import Transaction
+from core.data_manager.transaction_sort import sort_transactions
 from core.exceptions import ValidationError
 
 
@@ -43,60 +44,85 @@ class CostBasisCalculator:
         if method not in ("fifo", "average"):
             raise ValueError("method must be 'fifo' or 'average'")
         self._method = method
+        self.reset()
+
+    def reset(self) -> None:
+        """Clear ledger state for incremental replay."""
+        self._holdings: dict[str, TickerLedger] = {}
+        self._cash_balance = 0.0
+        self._realized_pnl = 0.0
+        self._dividend_income = 0.0
+
+    def snapshot_quantities(self) -> tuple[dict[str, float], float]:
+        """Current share quantities and cash (USD face value)."""
+        quantities = {
+            ticker: leg.quantity
+            for ticker, leg in self._holdings.items()
+            if leg.quantity > 1e-9
+        }
+        return quantities, self._cash_balance
+
+    def snapshot_equity_rows(self) -> list[tuple[str, float, float | None]]:
+        """(ticker, shares, avg_cost) for each equity line."""
+        rows: list[tuple[str, float, float | None]] = []
+        for ticker, leg in self._holdings.items():
+            if leg.quantity <= 1e-9:
+                continue
+            avg = leg.total_cost / leg.quantity if leg.quantity > 0 else None
+            rows.append((ticker, leg.quantity, avg))
+        return rows
+
+    def apply(self, tx: Transaction) -> None:
+        """Apply one transaction to running ledger state."""
+        if tx.transaction_type in ("DEPOSIT", "WITHDRAWAL"):
+            if tx.transaction_type == "DEPOSIT":
+                self._cash_balance += tx.amount
+            else:
+                self._cash_balance -= tx.amount
+            return
+
+        if tx.transaction_type == "DIVIDEND":
+            self._dividend_income += tx.amount
+            if tx.reinvest:
+                self._apply_buy(self._holdings, tx.ticker, tx.shares, tx.price, tx.fees)
+                self._cash_balance -= tx.amount + (tx.fees or 0.0)
+            else:
+                self._cash_balance += tx.amount
+            return
+
+        if tx.transaction_type == "SPLIT":
+            self._apply_split(self._holdings, tx.ticker, tx.split_ratio or 1.0)
+            return
+
+        if tx.transaction_type == "BUY":
+            cost = tx.amount + (tx.fees or 0.0)
+            self._cash_balance -= cost
+            self._apply_buy(
+                self._holdings,
+                tx.ticker,
+                tx.shares,
+                (tx.amount + (tx.fees or 0.0)) / tx.shares,
+                0.0,
+            )
+            return
+
+        if tx.transaction_type == "SELL":
+            proceeds = tx.amount - (tx.fees or 0.0)
+            self._cash_balance += proceeds
+            self._realized_pnl += self._apply_sell(
+                self._holdings, tx.ticker, tx.shares, tx.price, tx.fees or 0.0
+            )
 
     def summarize(self, transactions: list[Transaction]) -> CostBasisSummary:
         """Process transactions in chronological order."""
-        sorted_txs = sorted(transactions, key=lambda t: t.transaction_date)
-        holdings: dict[str, TickerLedger] = {}
-        realized_pnl = 0.0
-        dividend_income = 0.0
-        cash_balance = 0.0
-
-        for tx in sorted_txs:
-            if tx.transaction_type in ("DEPOSIT", "WITHDRAWAL"):
-                if tx.transaction_type == "DEPOSIT":
-                    cash_balance += tx.amount
-                else:
-                    cash_balance -= tx.amount
-                continue
-
-            if tx.transaction_type == "DIVIDEND":
-                dividend_income += tx.amount
-                if tx.reinvest:
-                    self._apply_buy(holdings, tx.ticker, tx.shares, tx.price, tx.fees)
-                    cash_balance -= tx.amount + (tx.fees or 0.0)
-                else:
-                    cash_balance += tx.amount
-                continue
-
-            if tx.transaction_type == "SPLIT":
-                self._apply_split(holdings, tx.ticker, tx.split_ratio or 1.0)
-                continue
-
-            if tx.transaction_type == "BUY":
-                cost = tx.amount + (tx.fees or 0.0)
-                cash_balance -= cost
-                self._apply_buy(
-                    holdings,
-                    tx.ticker,
-                    tx.shares,
-                    (tx.amount + (tx.fees or 0.0)) / tx.shares,
-                    0.0,
-                )
-                continue
-
-            if tx.transaction_type == "SELL":
-                proceeds = tx.amount - (tx.fees or 0.0)
-                cash_balance += proceeds
-                realized_pnl += self._apply_sell(
-                    holdings, tx.ticker, tx.shares, tx.price, tx.fees or 0.0
-                )
-
+        self.reset()
+        for tx in sort_transactions(transactions):
+            self.apply(tx)
         return CostBasisSummary(
-            holdings=holdings,
-            realized_pnl=realized_pnl,
-            dividend_income=dividend_income,
-            cash_balance=cash_balance,
+            holdings=self._holdings,
+            realized_pnl=self._realized_pnl,
+            dividend_income=self._dividend_income,
+            cash_balance=self._cash_balance,
         )
 
     def _ledger(self, holdings: dict[str, TickerLedger], ticker: str) -> TickerLedger:

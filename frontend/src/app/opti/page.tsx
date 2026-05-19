@@ -3,6 +3,13 @@
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { percentDecimal } from "@/lib/format";
+import {
+  clampStartDate,
+  defaultAnalysisStart,
+  todayIso,
+  useLedgerAnalysisDates,
+} from "@/lib/portfolio-ledger-bounds";
 import type { Portfolio } from "@/lib/types";
 import {
   AVAILABLE_OPTIMIZATION_METHODS,
@@ -102,10 +109,7 @@ function CmpMetricCard({
 }) {
   const fmtV = (v: number | null | undefined) => {
     if (v == null || !Number.isFinite(v)) return "—";
-    if (format === "percent") {
-      const pct = Math.abs(v) < 2 ? v * 100 : v;
-      return `${pct.toFixed(2)}%`;
-    }
+    if (format === "percent") return percentDecimal(v, 2);
     return v.toFixed(3);
   };
   const pStr = fmtV(portfolioValue);
@@ -286,8 +290,8 @@ function OptiNotebookPageContent() {
   const [methodTuning, setMethodTuning] = useState<OptiMethodTuning>(() =>
     getInitialOptiMethodTuning(AVAILABLE_OPTIMIZATION_METHODS[0]),
   );
-  const [startDate, setStartDate] = useState("2020-01-01");
-  const [endDate, setEndDate] = useState("2025-12-31");
+  const [startDate, setStartDate] = useState(defaultAnalysisStart);
+  const [endDate, setEndDate] = useState(todayIso);
   const [trainFrac, setTrainFrac] = useState(0.7);
   const [benchmarkOpt, setBenchmarkOpt] = useState("AOR");
   const [benchmarkChart, setBenchmarkChart] = useState<string>(NOTEBOOK_BENCHMARK_CHART_TICKER);
@@ -326,6 +330,12 @@ function OptiNotebookPageContent() {
   const selectedPortfolio = useMemo(
     () => portfolios.find((p) => p.id === portfolioId) ?? null,
     [portfolios, portfolioId],
+  );
+  const ledgerFirstTx = useLedgerAnalysisDates(
+    portfolioId,
+    selectedPortfolio,
+    setStartDate,
+    setEndDate,
   );
 
   const numRiskAssets = useMemo(() => {
@@ -1133,7 +1143,11 @@ function OptiNotebookPageContent() {
               className="input"
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              min={ledgerFirstTx ?? undefined}
+              max={endDate}
+              onChange={(e) =>
+                setStartDate(clampStartDate(e.target.value, ledgerFirstTx ?? undefined))
+              }
             />
           </label>
           <label className="label">

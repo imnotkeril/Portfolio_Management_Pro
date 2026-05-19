@@ -3,6 +3,14 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { percentDecimal } from "@/lib/format";
+import {
+  clampStartDate,
+  defaultAnalysisStart,
+  isTransactionsMode,
+  todayIso,
+  useLedgerAnalysisDates,
+} from "@/lib/portfolio-ledger-bounds";
 import type { Portfolio } from "@/lib/types";
 import {
   Area,
@@ -146,10 +154,7 @@ function CmpMetricCard({
 }) {
   const fmtV = (v: number | null | undefined) => {
     if (v == null || !isFinite(v)) return "—";
-    if (format === "percent") {
-      const pct = Math.abs(v) < 2 ? v * 100 : v;
-      return `${pct >= 0 ? "" : ""}${pct.toFixed(2)}%`;
-    }
+    if (format === "percent") return percentDecimal(v, 2);
     return v.toFixed(3);
   };
 
@@ -202,15 +207,14 @@ function fmtPct(v: any, decimals = 2): string {
   if (v == null || v === "" || typeof v === "object") return "—";
   const n = typeof v === "number" ? v : parseFloat(v);
   if (!isFinite(n)) return "—";
-  const val = Math.abs(n) < 2 ? n * 100 : n;
+  const val = n * 100;
   return `${val >= 0 ? "+" : ""}${val.toFixed(decimals)}%`;
 }
 function fmtPctPlain(v: any, decimals = 2): string {
   if (v == null) return "—";
   const n = typeof v === "number" ? v : parseFloat(v);
   if (!isFinite(n)) return "—";
-  const val = Math.abs(n) < 2 ? n * 100 : n;
-  return `${val.toFixed(decimals)}%`;
+  return `${(n * 100).toFixed(decimals)}%`;
 }
 function fmtNum(v: any, decimals = 2): string {
   if (v == null) return "—";
@@ -491,8 +495,8 @@ function AnalysisPageContent() {
   const searchParams = useSearchParams();
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selectedId, setSelectedId] = useState("");
-  const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10); });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(defaultAnalysisStart);
+  const [endDate, setEndDate] = useState(todayIso);
   const [cmpType, setCmpType] = useState<"None" | "Index ETF" | "Portfolio">("None");
   const [cmpValue, setCmpValue] = useState("SPY");
   const [cmpPortfolioId, setCmpPortfolioId] = useState("");
@@ -523,6 +527,13 @@ function AnalysisPageContent() {
 
   const selected = useMemo(() => portfolios.find((p) => p.id === selectedId) ?? null, [portfolios, selectedId]);
   const otherPortfolios = useMemo(() => portfolios.filter((p) => p.id !== selectedId), [portfolios, selectedId]);
+
+  const ledgerFirstTx = useLedgerAnalysisDates(
+    selectedId,
+    selected,
+    setStartDate,
+    setEndDate,
+  );
 
   const calculate = useCallback(async () => {
     if (!selectedId) return;
@@ -656,8 +667,8 @@ function AnalysisPageContent() {
       <div className="panel p-6 space-y-4">
         <h2 className="text-lg font-semibold text-white">Analysis Parameters <Tip text="Configure the analysis period, portfolio, and comparison benchmark" /></h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><label className="label">Start Date <Tip text="Beginning of the analysis period" /></label><input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
-          <div><label className="label">End Date <Tip text="End of the analysis period" /></label><input className="input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
+          <div><label className="label">Start Date <Tip text={ledgerFirstTx ? `From first transaction (${ledgerFirstTx})` : "Beginning of the analysis period"} /></label><input className="input" type="date" min={ledgerFirstTx ?? undefined} max={endDate} value={startDate} onChange={(e) => setStartDate(clampStartDate(e.target.value, ledgerFirstTx ?? undefined))} /></div>
+          <div><label className="label">End Date <Tip text="End of the analysis period" /></label><input className="input" type="date" min={startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -683,7 +694,17 @@ function AnalysisPageContent() {
           <button className="btn btn-primary h-[46px]" onClick={calculate} disabled={loading || !selectedId}>{loading ? "Calculating..." : "Calculate Metrics"}</button>
           <button className="btn btn-secondary h-[46px]" disabled>Update Prices <Tip text="Price update functionality coming soon" /></button>
         </div>
-        {selected && <div className="text-sm text-white/50">Selected: <strong className="text-white/70">{selected.name}</strong> &bull; Risk-free {riskFreeRate}% &bull; {startDate} &rarr; {endDate}</div>}
+        {selected && (
+          <div className="text-sm text-white/50">
+            Selected: <strong className="text-white/70">{selected.name}</strong>
+            {isTransactionsMode(selected) ? (
+              <span className="ml-2 text-[var(--ok)]">With transactions (ledger)</span>
+            ) : (
+              <span className="ml-2">Buy &amp; hold</span>
+            )}
+            {" "}&bull; Risk-free {riskFreeRate}% &bull; {startDate} &rarr; {endDate}
+          </div>
+        )}
         {error && <Alert type="error">{error}</Alert>}
       </div>
 
@@ -2118,7 +2139,12 @@ function AnalysisPageContent() {
               const weights: number[] = rvw.weights ?? [];
               if (!tickers.length) return null;
               const compData = tickers.map((t: string, i: number) => ({ label: t, "Impact on Risk": +riskImpact[i].toFixed(1), "Impact on Return": +returnImpact[i].toFixed(1), "Weight in Portfolio": +weights[i].toFixed(1) }));
-              const outlier = compData.find((d) => Math.abs(d["Impact on Risk"] - d["Weight in Portfolio"]) > 20);
+              const outlier = compData.find(
+                (d) =>
+                  d.label !== "CASH" &&
+                  d["Impact on Risk"] > 1 &&
+                  d["Impact on Risk"] > d["Weight in Portfolio"] + 5,
+              );
               return (
                 <div className="panel p-5">
                   <h3 className="text-lg font-semibold text-white mb-3">Comparison of Risk & Return Impact and Asset Weighting <Tip text="Compares each asset's risk/return contribution vs its portfolio weight" /></h3>

@@ -32,9 +32,13 @@ export function RebalanceStrategyPanel({
   saving,
   showSaveButton,
 }: Props) {
-  const targets = portfolio.positions.filter(
-    (p) => p.ticker !== "CASH" && p.weight_target != null && p.weight_target > 0,
-  );
+  const targets = portfolio.positions
+    .filter((p) => p.weight_target != null && p.weight_target > 0)
+    .sort((a, b) => {
+      if (a.ticker === "CASH") return 1;
+      if (b.ticker === "CASH") return -1;
+      return a.ticker.localeCompare(b.ticker);
+    });
 
   return (
     <div className="panel p-5 space-y-4">
@@ -43,16 +47,32 @@ export function RebalanceStrategyPanel({
           Target-weight rebalancing
         </h3>
         <p className="text-sm text-white/50 mt-1">
-          Targets come from each position&apos;s weight (%). On schedule, the
-          portfolio should be traded back to those targets. Trade execution is
-          planned for a later phase; the schedule is saved now.
+          Splits, dividends, and rebalancing run automatically from your first
+          transaction through today whenever the portfolio is loaded. BUY/SELL
+          rows appear on the Transactions tab on each scheduled date.
         </p>
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
+        {portfolio.rebalance_interval_months ? (
+          <>
+            Active schedule:{" "}
+            <span className="text-white">
+              {rebalanceIntervalLabel(portfolio.rebalance_interval_months)}
+            </span>
+            . First rebalance is{" "}
+            {portfolio.rebalance_interval_months} month(s) after inception, then
+            every {portfolio.rebalance_interval_months} months.
+          </>
+        ) : (
+          <>Rebalancing is off. Choose a frequency and save to enable it.</>
+        )}
       </div>
 
       <div>
         <label className="label">
           Rebalance frequency
-          <Tip text="How often to bring holdings back to target weights" />
+          <Tip text="How often holdings are brought back to target weights (automatic)" />
         </label>
         <select
           className="input"
@@ -65,11 +85,6 @@ export function RebalanceStrategyPanel({
             </option>
           ))}
         </select>
-        {!showSaveButton && (
-          <p className="text-xs text-white/40 mt-1">
-            Current: {rebalanceIntervalLabel(portfolio.rebalance_interval_months)}
-          </p>
-        )}
       </div>
 
       {targets.length > 0 ? (
@@ -94,8 +109,8 @@ export function RebalanceStrategyPanel({
         </div>
       ) : (
         <p className="text-sm text-white/50">
-          No target weights on positions. Set weights when creating or editing
-          positions.
+          Target weights will be inferred from your initial BUY transactions when
+          the ledger is synced.
         </p>
       )}
 

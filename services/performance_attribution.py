@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from core.data_manager.transaction import Transaction
+from core.data_manager.transaction_sort import sort_transactions
 from services.cost_basis import CostBasisCalculator
 from services.holdings import HoldingsBuilder
 
@@ -24,42 +25,48 @@ class PerformanceSummary:
     cash_balance: float
 
 
+def _net_external_contributions(transactions: list[Transaction]) -> float:
+    """Net deposits minus withdrawals from the ledger."""
+    net = 0.0
+    for tx in sort_transactions(transactions):
+        if tx.transaction_type == "DEPOSIT":
+            net += tx.amount
+        elif tx.transaction_type == "WITHDRAWAL":
+            net -= tx.amount
+    return net
+
+
+def _capital_base(transactions: list[Transaction], starting_capital: float) -> float:
+    """
+    Invested capital for return denominators.
+
+    With-transactions portfolios record inception as DEPOSIT; starting_capital
+    is the same number for display — using both double-counts (~-87% bogus TWR).
+    """
+    from_ledger = _net_external_contributions(transactions)
+    if from_ledger > 1e-9:
+        return from_ledger
+    return starting_capital
+
+
+def _ledger_has_external_flows(transactions: list[Transaction]) -> bool:
+    return any(tx.transaction_type in ("DEPOSIT", "WITHDRAWAL") for tx in transactions)
+
+
 def calculate_twr(
     transactions: list[Transaction],
     starting_capital: float,
     end_value: float,
 ) -> float | None:
     """
-    Chain sub-period returns between external cash flows (DEPOSIT/WITHDRAWAL).
+    Simple period return: end value vs net external contributions.
 
-    Uses starting_capital as initial value on first transaction date (or implicit).
+    Uses ledger deposits/withdrawals when present; otherwise starting_capital.
     """
-    if starting_capital <= 0:
+    base = _capital_base(transactions, starting_capital)
+    if base <= 0 or end_value <= 0:
         return None
-
-    cash_flows: list[tuple[date, float]] = []
-    for tx in sorted(transactions, key=lambda t: t.transaction_date):
-        if tx.transaction_type == "DEPOSIT":
-            cash_flows.append((tx.transaction_date, tx.amount))
-        elif tx.transaction_type == "WITHDRAWAL":
-            cash_flows.append((tx.transaction_date, -tx.amount))
-
-    if not cash_flows and end_value <= 0:
-        return None
-
-    # Simplified TWR: treat portfolio as single period with net external flows
-    net_flow = sum(cf for _, cf in cash_flows)
-    denominator = starting_capital + sum(cf for _, cf in cash_flows if cf > 0)
-    if denominator <= 0:
-        denominator = starting_capital
-    if denominator <= 0:
-        return None
-
-    # Modified Dietz-style approximation when only start/end values known
-    adjusted_end = end_value - net_flow
-    if adjusted_end <= 0:
-        return None
-    return (adjusted_end / denominator) - 1.0
+    return (end_value / base) - 1.0
 
 
 def calculate_mwr(
@@ -73,19 +80,23 @@ def calculate_mwr(
 
     Returns None when IRR does not converge.
     """
-    if starting_capital <= 0:
+    base = _capital_base(transactions, starting_capital)
+    if base <= 0:
         return None
 
-    flows: list[tuple[float, float]] = [(0.0, -starting_capital)]
-    for tx in sorted(transactions, key=lambda t: t.transaction_date):
-        days = (tx.transaction_date - end_date).days
-        years = days / 365.25
-        if tx.transaction_type == "DEPOSIT":
-            flows.append((years, -tx.amount))
-        elif tx.transaction_type == "WITHDRAWAL":
-            flows.append((years, tx.amount))
-        elif tx.transaction_type == "DIVIDEND" and not tx.reinvest:
-            flows.append((years, tx.amount))
+    flows: list[tuple[float, float]] = []
+    if _ledger_has_external_flows(transactions):
+        for tx in sort_transactions(transactions):
+            days = (tx.transaction_date - end_date).days
+            years = days / 365.25
+            if tx.transaction_type == "DEPOSIT":
+                flows.append((years, -tx.amount))
+            elif tx.transaction_type == "WITHDRAWAL":
+                flows.append((years, tx.amount))
+            elif tx.transaction_type == "DIVIDEND" and not tx.reinvest:
+                flows.append((years, tx.amount))
+    else:
+        flows.append((0.0, -starting_capital))
 
     last_days = 0.0
     flows.append((last_days, end_value))

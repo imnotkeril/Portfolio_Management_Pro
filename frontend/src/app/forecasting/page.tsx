@@ -3,6 +3,12 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import {
+  clampStartDate,
+  defaultAnalysisStart,
+  todayIso,
+  useLedgerAnalysisDates,
+} from "@/lib/portfolio-ledger-bounds";
 import type { Portfolio } from "@/lib/types";
 import {
   Bar,
@@ -60,14 +66,8 @@ function ForecastingPageContent() {
   const [portfolioId, setPortfolioId] = useState("");
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
 
-  const defaultEnd = () => new Date().toISOString().slice(0, 10);
-  const defaultStart = () => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 1);
-    return d.toISOString().slice(0, 10);
-  };
-  const [startDate, setStartDate] = useState(defaultStart);
-  const [endDate, setEndDate] = useState(defaultEnd);
+  const [startDate, setStartDate] = useState(defaultAnalysisStart);
+  const [endDate, setEndDate] = useState(todayIso);
 
   const [outOfSample, setOutOfSample] = useState(true);
   const [trainingWindowLabel, setTrainingWindowLabel] = useState("30% (Recommended)");
@@ -110,6 +110,17 @@ function ForecastingPageContent() {
       })
       .catch(() => {});
   }, [searchParams]);
+
+  const selectedPortfolio = useMemo(
+    () => portfolios.find((p) => p.id === portfolioId) ?? null,
+    [portfolios, portfolioId],
+  );
+  const ledgerFirstTx = useLedgerAnalysisDates(
+    forecastType === "Portfolio" ? portfolioId : "",
+    forecastType === "Portfolio" ? selectedPortfolio : null,
+    setStartDate,
+    setEndDate,
+  );
 
   const horizonDays = useMemo(() => {
     const v = HORIZON_PRESETS[horizonPreset];
@@ -327,8 +338,13 @@ function ForecastingPageContent() {
               type="date"
               className="input mt-1"
               value={startDate}
+              min={forecastType === "Portfolio" ? ledgerFirstTx ?? undefined : undefined}
               max={endDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) =>
+                setStartDate(
+                  clampStartDate(e.target.value, ledgerFirstTx ?? undefined),
+                )
+              }
             />
           </div>
           <div>
@@ -338,7 +354,7 @@ function ForecastingPageContent() {
               className="input mt-1"
               value={endDate}
               min={startDate}
-              max={defaultEnd()}
+              max={todayIso()}
               onChange={(e) => setEndDate(e.target.value)}
             />
           </div>

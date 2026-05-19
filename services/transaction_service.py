@@ -53,9 +53,10 @@ class TransactionService:
         reinvest: Optional[bool] = None,
         split_ratio: Optional[float] = None,
         currency: str = "USD",
+        sync_positions: bool = True,
     ) -> Transaction:
-        """Add transaction to portfolio and sync positions cache."""
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
+        """Add transaction to portfolio and optionally sync positions cache."""
+        self._portfolio_service.get_portfolio(portfolio_id, user_id)
 
         transaction = Transaction(
             transaction_date=transaction_date,
@@ -71,7 +72,8 @@ class TransactionService:
         )
 
         saved = self._repository.save(transaction, portfolio_id)
-        self._sync_positions(portfolio_id, user_id, portfolio.cost_basis_method)
+        if sync_positions:
+            self.sync_positions_for_portfolio(portfolio_id, user_id)
         logger.info(
             "Added transaction %s to portfolio %s",
             saved.id,
@@ -155,6 +157,13 @@ class TransactionService:
             portfolio.cost_basis_method,
         )
 
+    def sync_positions_for_portfolio(
+        self, portfolio_id: str, user_id: str | None = None
+    ) -> None:
+        """Rebuild position cache from the full transaction ledger."""
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
+        self._sync_positions(portfolio_id, user_id, portfolio.cost_basis_method)
+
     def sync_dividends(
         self,
         portfolio_id: str,
@@ -163,9 +172,10 @@ class TransactionService:
         end_date: date,
         user_id: str | None = None,
         reinvest: bool = False,
+        sync_positions: bool = True,
     ) -> list[Transaction]:
         """Import dividends from market data (idempotent)."""
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
+        self._portfolio_service.get_portfolio(portfolio_id, user_id)
         created = self._dividend_processor.sync_dividends(
             portfolio_id,
             tickers,
@@ -174,8 +184,8 @@ class TransactionService:
             user_id,
             reinvest,
         )
-        if created:
-            self._sync_positions(portfolio_id, user_id, portfolio.cost_basis_method)
+        if created and sync_positions:
+            self.sync_positions_for_portfolio(portfolio_id, user_id)
         return created
 
     def sync_splits(
@@ -185,9 +195,10 @@ class TransactionService:
         start_date: date,
         end_date: date,
         user_id: str | None = None,
+        sync_positions: bool = True,
     ) -> list[Transaction]:
         """Import stock splits from market data (idempotent)."""
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
+        self._portfolio_service.get_portfolio(portfolio_id, user_id)
         created = self._split_processor.sync_splits(
             portfolio_id,
             tickers,
@@ -195,8 +206,8 @@ class TransactionService:
             end_date,
             user_id,
         )
-        if created:
-            self._sync_positions(portfolio_id, user_id, portfolio.cost_basis_method)
+        if created and sync_positions:
+            self.sync_positions_for_portfolio(portfolio_id, user_id)
         return created
 
     def _sync_positions(

@@ -13,6 +13,43 @@ logger = logging.getLogger(__name__)
 TRADING_DAYS_PER_YEAR = 252
 
 
+def _market_value_weights(
+    positions: list,
+    price_data: pd.DataFrame,
+) -> Optional[dict[str, float]]:
+    """
+    Portfolio weights from shares × last price in the window.
+
+    Matches the Positions / Asset Allocation tab (current market weights), not
+    inception or start-of-window notionals.
+    """
+    if not positions or price_data is None or price_data.empty:
+        return None
+
+    notionals: dict[str, float] = {}
+    for pos in positions:
+        ticker = pos.ticker
+        shares = float(getattr(pos, "shares", 0) or 0)
+        if shares <= 0:
+            continue
+        if ticker == "CASH":
+            notionals[ticker] = shares
+            continue
+        if ticker not in price_data.columns:
+            continue
+        prices = price_data[ticker].dropna()
+        if prices.empty:
+            continue
+        notionals[ticker] = shares * float(prices.iloc[-1])
+
+    if not notionals:
+        return None
+    total = sum(notionals.values())
+    if total <= 0:
+        return None
+    return {t: v / total for t, v in notionals.items()}
+
+
 def get_cumulative_returns_data(
     portfolio_returns: pd.Series,
     benchmark_returns: Optional[pd.Series] = None,
@@ -2262,38 +2299,10 @@ def get_asset_impact_on_return_data(
             logger.warning("Price data is empty after date filtering")
             return None
 
-        # Calculate weights based on initial portfolio value
-        total_shares_value = {}
-        for pos in positions:
-            ticker = pos.ticker
-            if ticker == "CASH":
-                # Cash always 1.0
-                total_shares_value[ticker] = pos.shares * 1.0
-            elif ticker in filtered_data.columns:
-                # Get first non-null price
-                prices_series = filtered_data[ticker].dropna()
-                if not prices_series.empty:
-                    first_price = float(prices_series.iloc[0])
-                    total_shares_value[ticker] = pos.shares * first_price
-                else:
-                    logger.warning(f"No price data for {ticker}")
-                    continue
-            else:
-                logger.warning(f"Ticker {ticker} not in price_data columns")
-                continue
-
-        if not total_shares_value:
-            logger.warning("No valid positions with price data")
+        weights = _market_value_weights(positions, filtered_data)
+        if not weights:
+            logger.warning("No valid positions with price data for weights")
             return None
-
-        total_value = sum(total_shares_value.values())
-        if total_value == 0:
-            logger.warning("Total portfolio value is zero")
-            return None
-
-        weights = {
-            ticker: value / total_value for ticker, value in total_shares_value.items()
-        }
 
         # Calculate returns for each asset
         asset_returns = {}
@@ -2359,22 +2368,9 @@ def get_asset_impact_on_risk_data(
         return None
 
     try:
-        # Calculate weights
-        total_shares_value = {}
-        for pos in positions:
-            ticker = pos.ticker
-            if ticker in price_data.columns:
-                first_price = (
-                    price_data[ticker].dropna().iloc[0]
-                    if not price_data[ticker].dropna().empty
-                    else 1.0
-                )
-                total_shares_value[ticker] = pos.shares * first_price
-
-        total_value = sum(total_shares_value.values())
-        weights = {
-            ticker: value / total_value for ticker, value in total_shares_value.items()
-        }
+        weights = _market_value_weights(positions, price_data)
+        if not weights:
+            return None
 
         # Calculate returns for each asset
         returns_data = {}
@@ -2527,22 +2523,9 @@ def get_diversification_coefficient_data(
         return None
 
     try:
-        # Calculate weights
-        total_shares_value = {}
-        for pos in positions:
-            ticker = pos.ticker
-            if ticker in price_data.columns:
-                first_price = (
-                    price_data[ticker].dropna().iloc[0]
-                    if not price_data[ticker].dropna().empty
-                    else 1.0
-                )
-                total_shares_value[ticker] = pos.shares * first_price
-
-        total_value = sum(total_shares_value.values())
-        weights = {
-            ticker: value / total_value for ticker, value in total_shares_value.items()
-        }
+        weights = _market_value_weights(positions, price_data)
+        if not weights:
+            return None
 
         # Calculate individual volatilities
         individual_vols = {}

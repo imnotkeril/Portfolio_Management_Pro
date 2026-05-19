@@ -233,8 +233,9 @@ def portfolio_snapshot_rows(
     portfolio_service: PortfolioService,
     data_service: DataService,
     portfolio_id: str,
+    user_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    portfolio = portfolio_service.get_portfolio(portfolio_id)
+    portfolio = portfolio_service.get_portfolio(portfolio_id, user_id)
     if not portfolio:
         return []
     positions = portfolio.get_all_positions()
@@ -276,8 +277,9 @@ def _current_weights_for_result(
     data_service: DataService,
     portfolio_id: str,
     result_tickers: list[str],
+    user_id: str | None = None,
 ) -> dict[str, float]:
-    portfolio = portfolio_service.get_portfolio(portfolio_id)
+    portfolio = portfolio_service.get_portfolio(portfolio_id, user_id)
     if not portfolio:
         return {}
     positions = portfolio.get_all_positions()
@@ -504,6 +506,7 @@ def _build_notebook_split_bundle(
     include_sensitivity: bool = False,
     sensitivity_analysis_type: str = "returns",
     notebook_train_fraction: float = 0.7,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Row-based train/validation/test split on the user window:
@@ -613,7 +616,7 @@ def _build_notebook_split_bundle(
             "test": float(len(returns_test)) / float(n),
         },
         "portfolio_snapshot": portfolio_snapshot_rows(
-            portfolio_service, data_service, portfolio_id
+            portfolio_service, data_service, portfolio_id, user_id
         ),
         "constraints_applied": constraints or {},
         "method": method,
@@ -642,7 +645,7 @@ def _build_notebook_split_bundle(
 
     optimal_w = result.get_weights_dict()
     current_w = _current_weights_for_result(
-        portfolio_service, data_service, portfolio_id, list(result.tickers)
+        portfolio_service, data_service, portfolio_id, list(result.tickers), user_id
     )
 
     r_opt = _notebook_constant_weight_returns(
@@ -836,6 +839,7 @@ def _build_notebook_split_bundle(
             train_start,
             train_end,
             benchmark_ticker=benchmark_for_charts if benchmark_for_charts else None,
+            user_id=user_id,
         )
     except Exception as exc:
         logger.warning("Analytics for frontier period (notebook) failed: %s", exc)
@@ -962,6 +966,7 @@ def build_optimization_full_bundle(
     sensitivity_analysis_type: str = "returns",
     notebook_split: bool = False,
     notebook_train_fraction: float = 0.7,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Run optimization and assemble charts, metrics, trades, frontier, correlation.
@@ -983,6 +988,7 @@ def build_optimization_full_bundle(
             include_sensitivity=include_sensitivity,
             sensitivity_analysis_type=sensitivity_analysis_type,
             notebook_train_fraction=notebook_train_fraction,
+            user_id=user_id,
         )
 
     data_service = optimization_service._data_service  # noqa: SLF001
@@ -1019,7 +1025,7 @@ def build_optimization_full_bundle(
         "out_of_sample": out_of_sample,
         "training_ratio": training_ratio,
         "portfolio_snapshot": portfolio_snapshot_rows(
-            portfolio_service, data_service, portfolio_id
+            portfolio_service, data_service, portfolio_id, user_id
         ),
         "constraints_applied": constraints or {},
         "method": method,
@@ -1045,6 +1051,7 @@ def build_optimization_full_bundle(
             start_date,
             end_date,
             benchmark_ticker=benchmark_for_charts if benchmark_for_charts else None,
+            user_id=user_id,
         )
     except Exception as exc:
         logger.warning("Analytics for current portfolio failed: %s", exc)
@@ -1112,7 +1119,7 @@ def build_optimization_full_bundle(
     )
 
     current_w = _current_weights_for_result(
-        portfolio_service, data_service, portfolio_id, list(result.tickers)
+        portfolio_service, data_service, portfolio_id, list(result.tickers), user_id
     )
     optimal_w = result.get_weights_dict()
     allocation = []
@@ -1270,6 +1277,7 @@ def build_optimization_full_bundle(
             opt_start,
             opt_end,
             benchmark_ticker=benchmark_for_charts if benchmark_for_charts else None,
+            user_id=user_id,
         )
     except Exception as exc:
         logger.warning("Analytics for frontier period failed: %s", exc)

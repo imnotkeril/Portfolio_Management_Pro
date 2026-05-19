@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import {
@@ -8,14 +8,14 @@ import {
   type TransactionFormPayload,
 } from "@/components/transaction-form";
 import { api } from "@/lib/api";
+import {
+  formatTxShares,
+  sortTransactionsForDisplay,
+} from "@/lib/format-tx-shares";
 import { usd } from "@/lib/format";
+import { formatRebalanceWeights } from "@/lib/rebalance-notes";
 import { netDeposits } from "@/lib/transaction-metrics";
 import type { Transaction } from "@/lib/types";
-
-function formatTxShares(tx: Transaction): string {
-  if (tx.ticker === "CASH") return usd(tx.shares);
-  return String(Math.floor(tx.shares));
-}
 
 export default function PortfolioTransactionsPage() {
   const portfolioId = String(useParams().id);
@@ -65,6 +65,10 @@ export default function PortfolioTransactionsPage() {
   };
 
   const totalInvested = netDeposits(transactions);
+  const sortedTransactions = useMemo(
+    () => sortTransactionsForDisplay(transactions),
+    [transactions],
+  );
 
   return (
     <div className="space-y-6">
@@ -105,11 +109,12 @@ export default function PortfolioTransactionsPage() {
               <th>Price</th>
               <th>Amount</th>
               <th>Fees</th>
+              <th>Weights (rebalance)</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {transactions.map((tx) => (
+            {sortedTransactions.map((tx) => (
               <tr key={tx.id}>
                 <td className="font-mono text-xs">{tx.transaction_date}</td>
                 <td>{tx.transaction_type}</td>
@@ -118,6 +123,9 @@ export default function PortfolioTransactionsPage() {
                 <td>{usd(tx.price)}</td>
                 <td>{usd(tx.amount)}</td>
                 <td>{tx.fees > 0 ? usd(tx.fees) : "—"}</td>
+                <td className="text-xs text-white/70">
+                  {formatRebalanceWeights(tx.notes) || "—"}
+                </td>
                 <td>
                   <button
                     type="button"

@@ -104,7 +104,12 @@ class TransactionRepository:
 
                 query = query.filter(TransactionORM.ticker == ticker.strip().upper())
 
-            query = query.order_by(TransactionORM.transaction_date)
+            query = query.order_by(
+                TransactionORM.transaction_date,
+                TransactionORM.transaction_type,
+                TransactionORM.ticker,
+                TransactionORM.created_at,
+            )
 
             transactions_orm = query.all()
 
