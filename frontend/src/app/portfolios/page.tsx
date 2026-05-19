@@ -20,6 +20,7 @@ import {
   currentWeightPctFromMarket,
   formatShareCount,
   marketValueByTicker,
+  marketValueForPosition,
   targetWeightPct,
 } from "@/lib/portfolio-allocation";
 import type { Holding, Portfolio, Transaction } from "@/lib/types";
@@ -181,26 +182,42 @@ export default function PortfoliosPage() {
   const syncPortfolioLedger = useCallback(async (id: string) => {
     setSyncingLedger(true);
     try {
-      const txs = await api.get<Transaction[]>(
-        `/portfolios/${id}/transactions`,
-      );
-      const [portfolio, holdingsRows] = await Promise.all([
-        api.get<Portfolio>(`/portfolios/${id}`),
+      const portfolio = await api.get<Portfolio>(`/portfolios/${id}`);
+      const isLedger = portfolio.ledger_mode === "transactions";
+
+      if (isLedger) {
+        const maintainRes = await api.post<{
+          maintain_error?: string;
+          catchup_rebalance_error?: string;
+        }>(`/portfolios/${id}/ledger/maintain`, {});
+        const maintainWarn =
+          maintainRes.maintain_error ?? maintainRes.catchup_rebalance_error;
+        if (maintainWarn) {
+          setMessage({
+            type: "error",
+            text: `Ledger maintain: ${maintainWarn}`,
+          });
+        }
+      }
+
+      const [txs, holdingsRows, portfolioFresh] = await Promise.all([
+        api.get<Transaction[]>(
+          `/portfolios/${id}/transactions?sync_ledger=${isLedger ? "false" : "true"}`,
+        ),
         api.get<Holding[]>(`/portfolios/${id}/holdings`),
+        api.get<Portfolio>(`/portfolios/${id}`),
       ]);
       setPortfolios((prev) =>
-        prev.map((p) => (p.id === id ? portfolio : p)),
+        prev.map((p) => (p.id === id ? portfolioFresh : p)),
       );
       setTransactions(txs);
       setHoldings(holdingsRows);
-      syncStrategyIntervalFromPortfolio(portfolio);
+      syncStrategyIntervalFromPortfolio(portfolioFresh);
     } catch (err) {
       setMessage({
         type: "error",
         text: `Ledger sync failed: ${String(err)}`,
       });
-      setTransactions([]);
-      setHoldings([]);
     } finally {
       setSyncingLedger(false);
     }
@@ -708,6 +725,7 @@ export default function PortfoliosPage() {
                         <th>Shares</th>
                         <th>Avg cost</th>
                         <th>Market price</th>
+                        <th>Market value</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -718,6 +736,11 @@ export default function PortfoliosPage() {
                         const curW = currentWeightPctFromMarket(
                           pos.ticker,
                           marketValues,
+                        );
+                        const mv = marketValueForPosition(
+                          pos.ticker,
+                          pos.shares,
+                          holding,
                         );
                         return (
                           <tr key={pos.ticker}>
@@ -739,6 +762,7 @@ export default function PortfoliosPage() {
                                 ? usd(holding.market_price)
                                 : "—"}
                             </td>
+                            <td>{mv != null ? usd(mv) : "—"}</td>
                           </tr>
                         );
                       })}
@@ -768,6 +792,7 @@ export default function PortfoliosPage() {
                       <th>Current (market)</th>
                       <th>Avg cost</th>
                       <th>Market price</th>
+                      <th>Market value</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -778,6 +803,11 @@ export default function PortfoliosPage() {
                       const curW = currentWeightPctFromMarket(
                         pos.ticker,
                         marketValues,
+                      );
+                      const mv = marketValueForPosition(
+                        pos.ticker,
+                        pos.shares,
+                        holding,
                       );
                       return (
                       <tr key={pos.ticker}>
@@ -799,6 +829,7 @@ export default function PortfoliosPage() {
                             ? usd(holding.market_price)
                             : "—"}
                         </td>
+                        <td>{mv != null ? usd(mv) : "—"}</td>
                       </tr>
                       );
                     })}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -68,6 +69,8 @@ from services.schemas import (
     UpdatePositionRequest,
 )
 from services.transaction_service import TransactionService
+
+logger = logging.getLogger(__name__)
 
 
 class AddTransactionRequest(BaseModel):
@@ -556,17 +559,22 @@ def maintain_portfolio_ledger(
     portfolio_id: str,
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
+    maintain_error: str | None = None
+    stats: dict[str, int | str] = {"splits": 0, "dividends": 0, "rebalance": 0}
     try:
         stats = ledger_service.maintain(portfolio_id, current_user.id)
-        return {
-            "portfolio": _serialize_portfolio(
-                portfolio_service.get_portfolio(portfolio_id, current_user.id)
-            ),
-            **stats,
-        }
     except Exception as exc:
-        _handle_error(exc)
-        raise
+        logger.exception("Ledger maintain failed for %s: %s", portfolio_id, exc)
+        maintain_error = str(exc)
+    payload: dict[str, Any] = {
+        "portfolio": _serialize_portfolio(
+            portfolio_service.get_portfolio(portfolio_id, current_user.id)
+        ),
+        **stats,
+    }
+    if maintain_error:
+        payload["maintain_error"] = maintain_error
+    return payload
 
 
 @app.post("/portfolios")
@@ -669,9 +677,17 @@ def get_transactions(
     to_date: date | None = None,
     transaction_type: str | None = None,
     ticker: str | None = None,
+    sync_ledger: bool = Query(
+        True,
+        description="Run splits/dividends/rebalance sync before listing (disable when already synced)",
+    ),
     current_user: User = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
-    _maintain_ledger(portfolio_id, current_user.id)
+    if sync_ledger:
+        try:
+            _maintain_ledger(portfolio_id, current_user.id)
+        except Exception as exc:
+            logger.exception("Ledger maintain during get_transactions failed: %s", exc)
     return [
         _serialize_transaction(tx)
         for tx in transaction_service.get_transactions(
@@ -840,10 +856,16 @@ def preview_rebalance(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
-        as_of = payload.as_of_date or date.today()
-        trades = rebalance_service.preview(portfolio_id, as_of, current_user.id)
+        scheduled = payload.as_of_date or date.today()
+        plan = rebalance_service.preview(portfolio_id, scheduled, current_user.id)
         return {
-            "as_of_date": as_of.isoformat(),
+            "scheduled_date": plan.scheduled_date.isoformat(),
+            "execution_date": plan.execution_date.isoformat(),
+            "as_of_date": plan.execution_date.isoformat(),
+            "cash_target_pct": plan.cash_target_pct,
+            "projected_cash_pct": plan.projected_cash_pct,
+            "complete": plan.complete,
+            "message": plan.message,
             "trades": [
                 {
                     "ticker": t.ticker,
@@ -856,9 +878,9 @@ def preview_rebalance(
                     "current_weight": t.current_weight,
                     "target_weight": t.target_weight,
                 }
-                for t in trades
+                for t in plan.trades
             ],
-            "trade_count": len(trades),
+            "trade_count": len(plan.trades),
         }
     except Exception as exc:
         _handle_error(exc)

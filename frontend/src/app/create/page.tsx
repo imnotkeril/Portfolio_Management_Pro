@@ -641,7 +641,14 @@ export default function CreatePortfolioPage() {
             }
           }
 
-          await api.post(`/portfolios/${result.id}/ledger/maintain`, {});
+          try {
+            await api.post(`/portfolios/${result.id}/ledger/maintain`, {});
+          } catch (maintainErr) {
+            setErrorMsg(
+              `Portfolio created, but ledger sync failed: ${String(maintainErr)}. ` +
+                "Open the portfolio and sync again from Portfolios.",
+            );
+          }
         }
 
         setCreatedPortfolio(result);

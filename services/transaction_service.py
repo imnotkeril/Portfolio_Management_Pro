@@ -92,13 +92,16 @@ class TransactionService:
     ) -> list[Transaction]:
         """Get transactions with optional filters."""
         self._portfolio_service.get_portfolio(portfolio_id, user_id)
-        return self._repository.find_by_portfolio(
+        from core.data_manager.transaction_sort import sort_transactions
+
+        rows = self._repository.find_by_portfolio(
             portfolio_id,
             start_date=start_date,
             end_date=end_date,
             transaction_type=transaction_type,
             ticker=ticker,
         )
+        return sort_transactions(rows)
 
     def get_dividends(
         self,

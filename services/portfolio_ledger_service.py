@@ -9,7 +9,12 @@ from core.data_manager.portfolio import Portfolio
 from core.data_manager.transaction import Transaction
 from services.portfolio_lock import portfolio_maintenance_lock
 from services.portfolio_service import PortfolioService
-from services.rebalance_service import REBALANCE_NOTE, RebalanceService
+from services.rebalance_service import (
+    MAX_REBALANCE_SHIFT_DAYS,
+    RebalanceService,
+    _resolve_execution_date,
+    has_rebalance_for_scheduled,
+)
 from services.transaction_service import TransactionService
 
 logger = logging.getLogger(__name__)
@@ -59,45 +64,76 @@ class PortfolioLedgerService:
         splits = 0
         dividends = 0
         rebalances = 0
+        catchup_error: str | None = None
 
         checkpoints = sorted(set(rebalance_dates + [through]))
         cursor = first_date
 
         for checkpoint in checkpoints:
             if tickers and cursor <= checkpoint:
-                splits += len(
-                    self._transaction_service.sync_splits(
-                        portfolio_id,
-                        tickers,
+                try:
+                    splits += len(
+                        self._transaction_service.sync_splits(
+                            portfolio_id,
+                            tickers,
+                            cursor,
+                            checkpoint,
+                            user_id,
+                            sync_positions=False,
+                        )
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        "Split sync failed %s..%s for %s: %s",
                         cursor,
                         checkpoint,
-                        user_id,
-                        sync_positions=False,
-                    )
-                )
-                dividends += len(
-                    self._transaction_service.sync_dividends(
                         portfolio_id,
-                        tickers,
+                        exc,
+                    )
+                try:
+                    dividends += len(
+                        self._transaction_service.sync_dividends(
+                            portfolio_id,
+                            tickers,
+                            cursor,
+                            checkpoint,
+                            user_id,
+                            sync_positions=False,
+                        )
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        "Dividend sync failed %s..%s for %s: %s",
                         cursor,
                         checkpoint,
-                        user_id,
-                        sync_positions=False,
+                        portfolio_id,
+                        exc,
                     )
-                )
 
-            if checkpoint in rebalance_dates and not self._has_rebalance_on_date(
+            if checkpoint in rebalance_dates and not has_rebalance_for_scheduled(
                 txs, checkpoint
             ):
-                batch = self._rebalance_service.execute(
-                    portfolio_id, checkpoint, user_id
-                )
-                rebalances += len(batch)
-                txs = self._transaction_service.get_transactions(
-                    portfolio_id, user_id=user_id
-                )
+                try:
+                    batch = self._rebalance_service.execute(
+                        portfolio_id, checkpoint, user_id
+                    )
+                    rebalances += len(batch)
+                    txs = self._transaction_service.get_transactions(
+                        portfolio_id, user_id=user_id
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        "Scheduled rebalance failed on %s for %s: %s",
+                        checkpoint,
+                        portfolio_id,
+                        exc,
+                    )
 
             cursor = checkpoint + timedelta(days=1)
+
+        catchup_error = self._cash_catchup_rebalance_if_needed(
+            portfolio, portfolio_id, user_id
+        )
 
         self._transaction_service.sync_positions_for_portfolio(portfolio_id, user_id)
 
@@ -108,19 +144,83 @@ class PortfolioLedgerService:
             dividends,
             rebalances,
         )
-        return {
+        result: dict[str, int | str] = {
             "splits": splits,
             "dividends": dividends,
             "rebalance": rebalances,
         }
+        if catchup_error:
+            result["catchup_rebalance_error"] = catchup_error
+        return result
 
-    def _has_rebalance_on_date(
-        self, transactions: list[Transaction], on_date: date
-    ) -> bool:
-        return any(
-            t.transaction_date == on_date and (t.notes or "").startswith(REBALANCE_NOTE)
-            for t in transactions
+    def _cash_catchup_rebalance_if_needed(
+        self, portfolio: Portfolio, portfolio_id: str, user_id: str | None
+    ) -> str | None:
+        """If cash drifted well above target, run an extra rebalance today."""
+        if not portfolio.rebalance_interval_months:
+            return None
+        cash_target = 0.0
+        for pos in portfolio.get_all_positions():
+            if pos.ticker == "CASH" and pos.weight_target and pos.weight_target > 0:
+                cash_target = float(pos.weight_target)
+                break
+        if cash_target <= 0:
+            return None
+
+        txs = self._transaction_service.get_transactions(portfolio_id, user_id=user_id)
+        if not txs:
+            return None
+        from services.cost_basis import CostBasisCalculator
+
+        summary = CostBasisCalculator(method=portfolio.cost_basis_method).summarize(txs)
+        cash = summary.cash_balance
+
+        stock_weights = {
+            p.ticker: float(p.weight_target)
+            for p in portfolio.get_all_positions()
+            if p.ticker != "CASH"
+            and p.weight_target is not None
+            and p.weight_target > 0
+        }
+        tickers = list(stock_weights.keys())
+        today = date.today()
+        prices: dict[str, float] = {}
+        if tickers:
+            resolved = _resolve_execution_date(
+                self._rebalance_service._data_service,
+                tickers,
+                today,
+                max_shift_days=MAX_REBALANCE_SHIFT_DAYS,
+            )
+            _, prices = resolved
+
+        stock_val = sum(
+            leg.quantity * prices[ticker]
+            for ticker, leg in summary.holdings.items()
+            if ticker in prices
         )
+        total = cash + stock_val
+        if total <= 0:
+            return None
+        cash_pct = cash / total
+        if cash_pct <= cash_target + 0.03:
+            return None
+
+        if has_rebalance_for_scheduled(txs, today):
+            return None
+        try:
+            self._rebalance_service.execute(portfolio_id, today, user_id)
+            logger.info(
+                "Cash catch-up rebalance on %s (cash %.1f%% vs target %.1f%%)",
+                portfolio_id,
+                cash_pct * 100,
+                cash_target * 100,
+            )
+            return None
+        except Exception as exc:
+            msg = f"Cash catch-up rebalance failed: {exc}"
+            logger.warning("%s for %s", msg, portfolio_id)
+            return msg
 
     def _ledger_tickers(self, transactions: list[Transaction]) -> list[str]:
         seen: set[str] = set()

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -2131,6 +2131,29 @@ def get_bull_bear_analysis_data(
         return None
 
 
+def _apply_market_value_weights_to_asset_rows(rows: list[dict[str, Any]]) -> None:
+    """Fill weight (% of portfolio) from shares × price in each row."""
+    notionals: list[tuple[str, float]] = []
+    for row in rows:
+        ticker = str(row.get("ticker", ""))
+        shares = float(row.get("shares") or 0)
+        price = float(row.get("price") or 0)
+        if shares <= 0:
+            continue
+        if ticker == "CASH":
+            notionals.append((ticker, shares))
+        elif price > 0:
+            notionals.append((ticker, shares * price))
+    total = sum(v for _, v in notionals)
+    if total <= 0:
+        return
+    by_ticker = {t: v / total for t, v in notionals}
+    for row in rows:
+        t = str(row.get("ticker", ""))
+        if t in by_ticker:
+            row["weight"] = by_ticker[t] * 100.0
+
+
 def get_asset_metrics_data(
     positions: list,
     price_data: Optional[pd.DataFrame] = None,
@@ -2152,6 +2175,8 @@ def get_asset_metrics_data(
     try:
         import yfinance as yf
 
+        mv_weights = _market_value_weights(positions, price_data) or {}
+
         # Build base data from positions
         data = []
 
@@ -2162,6 +2187,8 @@ def get_asset_metrics_data(
                 if hasattr(pos, "weight_target") and pos.weight_target
                 else 0.0
             )
+            if weight <= 0 and ticker in mv_weights:
+                weight = mv_weights[ticker]
             shares = pos.shares if hasattr(pos, "shares") else 0.0
 
             # Skip CASH special handling
@@ -2201,6 +2228,24 @@ def get_asset_metrics_data(
                             change_pct = (
                                 (current_price - prev_price) / prev_price
                             ) * 100
+                    elif len(prices) == 1:
+                        current_price = float(prices.iloc[-1])
+
+                if current_price <= 0 and getattr(pos, "purchase_price", None):
+                    current_price = float(pos.purchase_price)
+
+                quote_type = (info.get("quoteType") or "").upper()
+                # Yahoo "category" (e.g. Large Value) is fund style, not GICS sector.
+                if quote_type == "ETF":
+                    sector = "Equity ETF"
+                    industry = (
+                        info.get("category")
+                        or info.get("industry")
+                        or "Exchange Traded Fund"
+                    )
+                else:
+                    sector = info.get("sector") or "N/A"
+                    industry = info.get("industry") or "N/A"
 
                 data.append(
                     {
@@ -2208,8 +2253,8 @@ def get_asset_metrics_data(
                         "weight": weight * 100,
                         "shares": shares,
                         "name": info.get("longName") or info.get("shortName") or ticker,
-                        "sector": info.get("sector") or "N/A",
-                        "industry": info.get("industry") or "N/A",
+                        "sector": sector or "N/A",
+                        "industry": industry or "N/A",
                         "currency": info.get("currency") or "USD",
                         "price": float(current_price),
                         "change_pct": float(change_pct),
@@ -2219,6 +2264,7 @@ def get_asset_metrics_data(
             except Exception as e:
                 logger.warning(f"Error fetching info for {ticker}: {e}")
                 # Fallback data
+                fallback_px = float(getattr(pos, "purchase_price", None) or 0)
                 data.append(
                     {
                         "ticker": ticker,
@@ -2228,11 +2274,12 @@ def get_asset_metrics_data(
                         "sector": "N/A",
                         "industry": "N/A",
                         "currency": "USD",
-                        "price": 0.0,
+                        "price": fallback_px,
                         "change_pct": 0.0,
                     }
                 )
 
+        _apply_market_value_weights_to_asset_rows(data)
         df = pd.DataFrame(data)
         return df
 

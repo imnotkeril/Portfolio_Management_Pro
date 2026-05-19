@@ -46,6 +46,9 @@ class DividendProcessor:
         existing_keys = {
             (tx.transaction_date, tx.ticker, round(tx.amount, 4)) for tx in existing
         }
+        existing_ticker_days = {
+            (tx.transaction_date, tx.ticker.upper()) for tx in existing
+        }
 
         all_txs = self._repository.find_by_portfolio(portfolio_id)
         created: list[Transaction] = []
@@ -69,7 +72,7 @@ class DividendProcessor:
                 if float(amount) <= 0:
                     continue
                 key = (div_date, sym, round(float(amount), 4))
-                if key in existing_keys:
+                if key in existing_keys or (div_date, sym) in existing_ticker_days:
                     continue
                 dps = float(amount)
                 shares_held = self._shares_held_on(
@@ -93,6 +96,7 @@ class DividendProcessor:
                 saved = self._repository.save(txn, portfolio_id)
                 created.append(saved)
                 existing_keys.add(key)
+                existing_ticker_days.add((div_date, sym))
 
         return created
 
@@ -103,8 +107,8 @@ class DividendProcessor:
         as_of: date,
         cost_basis_method: str,
     ) -> float:
-        """Share count for ticker at end of as_of (ex-dividend approximation)."""
-        through = [t for t in transactions if t.transaction_date <= as_of]
+        """Shares held before ex-date (same-day BUY does not qualify)."""
+        through = [t for t in transactions if t.transaction_date < as_of]
         summary = CostBasisCalculator(method=cost_basis_method).summarize(through)
         leg = summary.holdings.get(ticker.upper())
         return leg.quantity if leg else 0.0
