@@ -395,3 +395,37 @@ def test_simulate_buy_and_hold_returns_from_weights(
     v0 = float(np.dot(n, prices.iloc[0].values))
     v1 = float(np.dot(n, prices.iloc[1].values))
     assert abs(ret.iloc[0] - (v1 / v0 - 1.0)) < 1e-10
+
+
+def test_simulate_portfolio_returns_from_weights_ledger_synthetic(
+    monkeypatch,
+    analytics_service: AnalyticsService,
+) -> None:
+    """Transaction-led portfolios use synthetic ledger replay for optimized weights."""
+    p = Portfolio(name="L", starting_capital=100_000.0, ledger_mode="transactions")
+    p.id = "ledger-p1"
+
+    def fake_get(pid: str, user_id: str | None = None):
+        return p if pid == "ledger-p1" else None
+
+    monkeypatch.setattr(analytics_service._portfolio_service, "get_portfolio", fake_get)
+    idx = pd.bdate_range("2024-01-02", periods=6, normalize=True)
+    prices = pd.DataFrame(
+        {"AAPL": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]}, index=idx
+    )
+    analytics_service._fetch_portfolio_prices = lambda tickers, sd, ed: prices  # type: ignore[method-assign]
+
+    with patch("services.analytics_service.TransactionRepository") as mock_repo_cls:
+        repo = MagicMock()
+        repo.find_by_portfolio.return_value = []
+        mock_repo_cls.return_value = repo
+
+        r = analytics_service.simulate_portfolio_returns_from_weights(
+            "ledger-p1",
+            {"AAPL": 1.0},
+            date(2024, 1, 2),
+            date(2024, 1, 31),
+            user_id="u1",
+        )
+    assert len(r) >= 1
+    assert r.notna().all()

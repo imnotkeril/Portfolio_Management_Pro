@@ -268,6 +268,10 @@ RISK_FREE_RATE=0.0435
 - Analytics (70+ metrics), optimization (18 methods), risk, forecasting, scenarios  
 - **Next.js + FastAPI + Docker** stack alongside Streamlit  
 - CI: lint, format, types, tests, **core coverage gate**  
+- **Transaction ledger** (`ledger_mode=transactions`) with scheduled rebalance maintenance  
+- **Optimization / Risk / Forecasting parity** for transaction-led portfolios (synthetic optimized ledger mirrors deposits, withdrawals, and rebalance interval — see [Phase 4](docs/production/phases/phase-4-optimization-ledger-parity.md))  
+- **Stripe billing** — Free/Pro tiers, checkout, webhooks, plan limits ([Product Phase 5](docs/production/phase-05-stripe.md))  
+- **Rebalance strategy UI** — target weights editor ([technical runbook](docs/production/phases/phase-5-strategies.md))  
 
 ### In progress
 
@@ -276,9 +280,9 @@ RISK_FREE_RATE=0.0435
 
 ### Planned
 
-See **[docs/production/README.md](docs/production/README.md)** for the full phased plan (PostgreSQL, auth, Stripe, Railway).
+See **[docs/production/README.md](docs/production/README.md)** for the full phased plan (status: [STATUS.md](docs/production/STATUS.md)).
 
-- Authentication & multi-user  
+- Railway deploy, CSV import ([Phase 6+](docs/production/README.md))  
 - Real-time or push-based data updates (where applicable)  
 
 ---

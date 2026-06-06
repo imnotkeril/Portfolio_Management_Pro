@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   REBALANCE_INTERVAL_OPTIONS,
   rebalanceIntervalLabel,
@@ -15,12 +16,21 @@ function Tip({ text }: { text: string }) {
   );
 }
 
+export type StrategyWeightRow = {
+  ticker: string;
+  weightPct: number;
+};
+
 type Props = {
   portfolio: Portfolio;
   intervalValue: string;
   onIntervalChange: (value: string) => void;
+  weightRows: StrategyWeightRow[];
+  onWeightChange: (ticker: string, weightPct: number) => void;
   onSave?: () => void;
+  onPreview?: () => void;
   saving?: boolean;
+  previewing?: boolean;
   showSaveButton?: boolean;
 };
 
@@ -28,17 +38,29 @@ export function RebalanceStrategyPanel({
   portfolio,
   intervalValue,
   onIntervalChange,
+  weightRows,
+  onWeightChange,
   onSave,
+  onPreview,
   saving,
+  previewing,
   showSaveButton,
 }: Props) {
-  const targets = portfolio.positions
-    .filter((p) => p.weight_target != null && p.weight_target > 0)
-    .sort((a, b) => {
-      if (a.ticker === "CASH") return 1;
-      if (b.ticker === "CASH") return -1;
-      return a.ticker.localeCompare(b.ticker);
-    });
+  const totalPct = useMemo(
+    () => weightRows.reduce((s, r) => s + (Number.isFinite(r.weightPct) ? r.weightPct : 0), 0),
+    [weightRows],
+  );
+  const weightsOk = Math.abs(totalPct - 100) < 0.05;
+
+  const sortedRows = useMemo(
+    () =>
+      [...weightRows].sort((a, b) => {
+        if (a.ticker === "CASH") return 1;
+        if (b.ticker === "CASH") return -1;
+        return a.ticker.localeCompare(b.ticker);
+      }),
+    [weightRows],
+  );
 
   return (
     <div className="panel p-5 space-y-4">
@@ -87,21 +109,41 @@ export function RebalanceStrategyPanel({
         </select>
       </div>
 
-      {targets.length > 0 ? (
+      {sortedRows.length > 0 ? (
         <div>
-          <h4 className="text-sm font-medium text-white mb-2">Target weights</h4>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-medium text-white">Target weights</h4>
+            <span
+              className={`text-xs ${weightsOk ? "text-emerald-400" : "text-amber-400"}`}
+            >
+              Total: {totalPct.toFixed(1)}%
+              {!weightsOk ? " (must equal 100%)" : ""}
+            </span>
+          </div>
           <table className="data-table text-sm">
             <thead>
               <tr>
                 <th>Ticker</th>
-                <th>Target</th>
+                <th>Target %</th>
               </tr>
             </thead>
             <tbody>
-              {targets.map((p) => (
-                <tr key={p.ticker}>
-                  <td className="font-mono">{p.ticker}</td>
-                  <td>{((p.weight_target ?? 0) * 100).toFixed(1)}%</td>
+              {sortedRows.map((row) => (
+                <tr key={row.ticker}>
+                  <td className="font-mono">{row.ticker}</td>
+                  <td>
+                    <input
+                      type="number"
+                      className="input w-24"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={row.weightPct}
+                      onChange={(e) =>
+                        onWeightChange(row.ticker, Number(e.target.value) || 0)
+                      }
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -109,21 +151,32 @@ export function RebalanceStrategyPanel({
         </div>
       ) : (
         <p className="text-sm text-white/50">
-          Target weights will be inferred from your initial BUY transactions when
-          the ledger is synced.
+          Add positions or transactions first, then set target weights here.
         </p>
       )}
 
-      {showSaveButton && onSave ? (
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={saving}
-          onClick={onSave}
-        >
-          {saving ? "Saving…" : "Save strategy"}
-        </button>
-      ) : null}
+      <div className="flex flex-wrap gap-2">
+        {showSaveButton && onSave ? (
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={saving || !weightsOk || sortedRows.length === 0}
+            onClick={onSave}
+          >
+            {saving ? "Saving…" : "Save strategy"}
+          </button>
+        ) : null}
+        {onPreview ? (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={previewing || sortedRows.length === 0}
+            onClick={onPreview}
+          >
+            {previewing ? "Previewing…" : "Preview rebalance"}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -399,6 +399,7 @@ class ForecastingService:
         method_params: Optional[dict[str, any]] = None,
         out_of_sample: bool = False,
         training_ratio: float = 0.3,
+        user_id: Optional[str] = None,
     ) -> dict[str, any]:
         """
         Forecast portfolio returns.
@@ -417,7 +418,7 @@ class ForecastingService:
             Dictionary with portfolio forecast result
         """
         # Get portfolio
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
         if not portfolio:
             raise ValueError(f"Portfolio {portfolio_id} not found")
 
@@ -804,6 +805,7 @@ class ForecastingService:
         method_params: Optional[dict[str, dict[str, any]]] = None,
         out_of_sample: bool = False,
         training_ratio: float = 0.3,
+        user_id: Optional[str] = None,
     ) -> dict[str, dict[str, any]]:
         """Run multiple forecasting methods on portfolio value series (same as Streamlit batch)."""
         results: dict[str, dict[str, any]] = {}
@@ -820,6 +822,7 @@ class ForecastingService:
                     method_params=params,
                     out_of_sample=out_of_sample,
                     training_ratio=training_ratio,
+                    user_id=user_id,
                 )
                 results[method] = result
             except Exception as e:

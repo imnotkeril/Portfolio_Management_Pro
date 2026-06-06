@@ -348,10 +348,19 @@
 - Visual comparison with improvement indicators
 - Color-coded differences
 
+**Transaction-led portfolios** (`ledger_mode = transactions`):
+
+- **Current** curve: your real ledger (deposits, withdrawals, buys/sells, dividends, scheduled rebalances to position targets).
+- **Optimized** curve: same **policy shell** as your portfolio — real **DEPOSIT/WITHDRAWAL** (USD, same dates), **rebalance interval** from portfolio settings (`rebalance_interval_months`: 1 / 3 / 6 / 12 months), but trades aim at the **optimizer’s weights**, not your saved position targets.
+- Opening allocation to optimized weights happens on the first day in the analysis window with full prices (whole shares, IB-style fee estimates like live rebalance).
+- **Buy-and-hold** portfolios still use fixed-share drift for the optimized track.
+- **Train/validation/test row split** is disabled for transaction-led runs so charts, metrics, and the efficient frontier share one calendar (a warning is shown if you had split mode on).
+- Technical detail: [docs/production/phases/phase-4-optimization-ledger-parity.md](docs/production/phases/phase-4-optimization-ledger-parity.md).
+
 **Efficient Frontier**:
 - Risk-return curve visualization
 - Current portfolio marked
-- Optimized portfolio marked
+- Optimized portfolio marked (same return model as the performance chart: ledger replay vs buy-and-hold)
 - Interactive: click points to see weights
 
 **Sensitivity Analysis**:

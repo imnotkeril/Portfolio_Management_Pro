@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from models.portfolio import Portfolio
+    from models.subscription import Subscription
 
 from database.session import Base
 
@@ -37,6 +38,12 @@ class User(Base):
     portfolios: Mapped[list["Portfolio"]] = relationship(
         "Portfolio",
         back_populates="user",
+        lazy="select",
+    )
+    subscription: Mapped["Subscription | None"] = relationship(
+        "Subscription",
+        back_populates="user",
+        uselist=False,
         lazy="select",
     )
 

@@ -20,6 +20,7 @@ from streamlit_app.components.charts import (
     plot_sector_allocation,
 )
 from streamlit_app.components.position_table import render_position_table
+from streamlit_app.components.strategy_tab import render_strategy_tab
 from streamlit_app.utils.formatters import format_currency
 
 logger = logging.getLogger(__name__)
@@ -580,14 +581,7 @@ def render_portfolio_editor() -> None:
         render_transactions_tab(portfolio.id)
 
     with tab3:
-        # Strategies tab (placeholder for Phase 5)
-        st.info("Strategy management - coming in Phase 5")
-        st.markdown("""
-        **Strategies can be applied to any portfolio mode:**
-        - Buy-and-Hold portfolios can use strategies for backtesting
-        - Transaction-based portfolios can also use strategies
-        - Strategies generate simulated transactions for analysis
-        """)
+        render_strategy_tab(portfolio.id)
 
 
 def render_portfolio_view() -> None:
@@ -649,14 +643,7 @@ def render_portfolio_view() -> None:
         render_transactions_tab(portfolio.id)
 
     with tab4:
-        # Strategies tab (placeholder for Phase 5)
-        st.info("Strategy management - coming in Phase 5")
-        st.markdown("""
-        **Strategies can be applied to any portfolio mode:**
-        - Buy-and-Hold portfolios can use strategies for backtesting
-        - Transaction-based portfolios can also use strategies
-        - Strategies generate simulated transactions for analysis
-        """)
+        render_strategy_tab(portfolio.id)
 
 
 def _render_portfolio_overview(portfolio, positions, transaction_service):

@@ -57,6 +57,13 @@ type FullBundle = {
     optimized: Record<string, number>;
   };
   interpretation_comparison?: string;
+  rebalance_policy?: {
+    rebalance_interval_months?: number | null;
+    rebalance_interval_label?: string;
+    current_label?: string;
+    optimized_label?: string;
+    strategy_active?: boolean;
+  };
   allocation?: Array<{
     ticker: string;
     current_weight: number;
@@ -1114,6 +1121,13 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
                   />
                 </div>
                 <InterpretBox text={bundle.interpretation_comparison ?? ""} />
+                {bundle.rebalance_policy ? (
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-white/70 space-y-2">
+                    <p className="font-medium text-white">Rebalance policy</p>
+                    <p>{bundle.rebalance_policy.current_label}</p>
+                    <p>{bundle.rebalance_policy.optimized_label}</p>
+                  </div>
+                ) : null}
               </div>
 
               <div className="panel p-6 space-y-3">
@@ -1332,6 +1346,14 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
               {bundle.efficient_frontier && frontierCurve.length > 0 ? (
                 <div className="panel p-6 space-y-3">
                   <h3 className="text-lg text-white">Efficient Frontier</h3>
+                  <p className="text-xs text-white/45 leading-relaxed">
+                    The curve and markers use the <strong>optimization (estimation) window</strong> from the run
+                    summary. If you use out-of-sample mode or a train/validation/test row split, the metric cards
+                    above compare <strong>current vs optimized on a different period</strong> (e.g. test) — higher
+                    Sharpe there does not contradict this chart. The &quot;Current&quot; marker is your realized
+                    portfolio; &quot;Optimized&quot; uses optimal weights with the same return model as the
+                    performance charts (ledger replay for transaction-led portfolios, buy-and-hold otherwise).
+                  </p>
                   <div className="h-[520px] w-full rounded-xl border border-white/10 bg-white/[0.02] p-3">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart

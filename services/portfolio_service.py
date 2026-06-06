@@ -12,13 +12,16 @@ from config.settings import settings
 from core.auth.constants import SYSTEM_USER_ID
 from core.data_manager.portfolio import Portfolio
 from core.data_manager.portfolio_repository import PortfolioRepository
+from core.data_manager.subscription_repository import SubscriptionRepository
 from core.exceptions import (
     ConflictError,
     DataFetchError,
+    PortfolioLimitError,
     PortfolioNotFoundError,
     TickerNotFoundError,
     ValidationError,
 )
+from services.billing.plans import FREE_PORTFOLIO_LIMIT, is_pro_subscription
 from services.data_service import DataService
 from services.schemas import (
     AddPositionRequest,
@@ -74,6 +77,16 @@ class PortfolioService:
             ValidationError: If tickers are invalid
         """
         uid = _resolve_user_id(user_id)
+
+        if settings.billing_enforcement and not settings.auth_disabled:
+            sub = SubscriptionRepository().ensure_free(uid)
+            if not is_pro_subscription(sub):
+                count = self._repository.count_for_user(uid)
+                if count >= FREE_PORTFOLIO_LIMIT:
+                    raise PortfolioLimitError(
+                        f"Free plan allows {FREE_PORTFOLIO_LIMIT} portfolio; "
+                        "upgrade to Pro for unlimited portfolios"
+                    )
 
         # Check for duplicate name
         existing = self._repository.find_by_name(request.name, uid)

@@ -1,8 +1,10 @@
 """Application settings loaded from environment variables."""
 
+import os
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,6 +52,36 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: Path = Path("logs/app.log")
 
+    # Stripe billing (Phase 5)
+    stripe_secret_key: Optional[str] = None
+    stripe_webhook_secret: Optional[str] = None
+    stripe_price_id_pro: Optional[str] = None
+    frontend_url: str = "http://localhost:3000"
+    billing_enforcement: bool = True
+
+    @property
+    def stripe_configured(self) -> bool:
+        """True when Checkout / Portal can be created."""
+        key = self.stripe_secret_key or ""
+        price = self.stripe_price_id_pro or ""
+        return bool(
+            key.startswith("sk_")
+            and len(key) > 20
+            and "..." not in key
+            and (price.startswith("price_") or price.startswith("prod_"))
+        )
+
+    @property
+    def stripe_webhook_configured(self) -> bool:
+        secret = self.stripe_webhook_secret or ""
+        key = self.stripe_secret_key or ""
+        return bool(
+            key.startswith("sk_")
+            and secret.startswith("whsec_")
+            and "..." not in secret
+            and len(secret) > 12
+        )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -59,6 +91,14 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs) -> None:
         """Initialize settings and create necessary directories."""
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        preserved_db_url = os.environ.get("DATABASE_URL")
+        if env_path.is_file():
+            # override=True so .env wins over Windows placeholder STRIPE_* in system env
+            load_dotenv(env_path, override=True)
+        if preserved_db_url:
+            # Docker / CI set DATABASE_URL before startup — do not replace with .env localhost
+            os.environ["DATABASE_URL"] = preserved_db_url
         super().__init__(**kwargs)
         # Create directories if they don't exist
         self.price_cache_dir.mkdir(parents=True, exist_ok=True)

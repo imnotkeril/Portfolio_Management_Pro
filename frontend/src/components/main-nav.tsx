@@ -19,6 +19,7 @@ const appItems = [
   { href: "/optimization", label: "Optimization" },
   { href: "/risk", label: "Risk" },
   { href: "/forecasting", label: "Forecasting" },
+  { href: "/billing", label: "Billing" },
   { href: "/settings", label: "Settings" },
 ];
 

@@ -93,3 +93,27 @@ class PositionNotFoundError(PortfolioError):
     """Position not found in portfolio."""
 
     pass
+
+
+class BillingError(WMCBaseException):
+    """Billing / subscription errors."""
+
+    pass
+
+
+class BillingNotConfiguredError(BillingError):
+    """Stripe keys or price id missing."""
+
+    pass
+
+
+class ProSubscriptionRequiredError(BillingError):
+    """Paid feature requires active Pro plan."""
+
+    pass
+
+
+class PortfolioLimitError(BillingError):
+    """Free tier portfolio limit reached."""
+
+    pass

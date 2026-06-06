@@ -17,6 +17,9 @@ export default function SettingsPage() {
           <p className="text-xs text-white/40">Email</p>
           <p className="text-white mt-1">{user?.email ?? "—"}</p>
         </div>
+        <a href="/billing" className="btn btn-secondary inline-block text-center">
+          Billing & plan
+        </a>
         <button type="button" className="btn btn-secondary" onClick={() => logout()}>
           Sign out
         </button>

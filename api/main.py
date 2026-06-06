@@ -12,8 +12,9 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user, require_pro
 from api.routers import auth as auth_router
+from api.routers import billing as billing_router
 from core.analytics_engine.chart_data import (
     get_asset_impact_on_return_data,
     get_asset_impact_on_risk_data,
@@ -28,10 +29,12 @@ from core.analytics_engine.chart_data import (
 )
 from core.data_manager.transaction import Transaction
 from core.exceptions import (
+    BillingNotConfiguredError,
     CalculationError,
     ConflictError,
     DataFetchError,
     InsufficientDataError,
+    PortfolioLimitError,
     PortfolioNotFoundError,
     ValidationError,
 )
@@ -67,7 +70,9 @@ from services.schemas import (
     CreatePortfolioRequest,
     UpdatePortfolioRequest,
     UpdatePositionRequest,
+    UpdateStrategyRequest,
 )
+from services.strategy_service import StrategyService, serialize_rebalance_plan
 from services.transaction_service import TransactionService
 
 logger = logging.getLogger(__name__)
@@ -114,6 +119,12 @@ class RebalanceRequest(BaseModel):
     as_of_date: date | None = None
     run_scheduled: bool = False
     through_date: date | None = None
+
+
+class StrategyPreviewRequest(BaseModel):
+    """Preview trades to reach saved strategy targets."""
+
+    as_of_date: date | None = None
 
 
 class RiskVarRequest(BaseModel):
@@ -359,6 +370,10 @@ def _handle_error(exc: Exception) -> None:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if isinstance(exc, ConflictError):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if isinstance(exc, PortfolioLimitError):
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if isinstance(exc, BillingNotConfiguredError):
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if isinstance(exc, DataFetchError):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -382,10 +397,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(auth_router.router)
+app.include_router(billing_router.router)
 
 portfolio_service = PortfolioService()
 transaction_service = TransactionService()
 rebalance_service = RebalanceService()
+strategy_service = StrategyService(
+    portfolio_service=portfolio_service,
+    rebalance_service=rebalance_service,
+)
 ledger_service = PortfolioLedgerService(
     portfolio_service=portfolio_service,
     transaction_service=transaction_service,
@@ -849,6 +869,58 @@ def sync_splits(
         raise
 
 
+@app.get("/portfolios/{portfolio_id}/strategy")
+def get_portfolio_strategy(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        snap = strategy_service.get_strategy(portfolio_id, current_user.id)
+        return snap.to_dict()
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
+@app.put("/portfolios/{portfolio_id}/strategy")
+def update_portfolio_strategy(
+    portfolio_id: str,
+    payload: UpdateStrategyRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        strategy_service.update_strategy(portfolio_id, payload, current_user.id)
+        _maintain_ledger(portfolio_id, current_user.id)
+        snap = strategy_service.get_strategy(portfolio_id, current_user.id)
+        return {
+            "strategy": snap.to_dict(),
+            "portfolio": _serialize_portfolio(
+                portfolio_service.get_portfolio(portfolio_id, current_user.id)
+            ),
+        }
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
+@app.post("/portfolios/{portfolio_id}/strategy/preview")
+def preview_portfolio_strategy(
+    portfolio_id: str,
+    payload: StrategyPreviewRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        plan = strategy_service.preview_rebalance(
+            portfolio_id,
+            payload.as_of_date,
+            current_user.id,
+        )
+        return serialize_rebalance_plan(plan)
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+
+
 @app.post("/portfolios/{portfolio_id}/rebalance/preview")
 def preview_rebalance(
     portfolio_id: str,
@@ -858,30 +930,7 @@ def preview_rebalance(
     try:
         scheduled = payload.as_of_date or date.today()
         plan = rebalance_service.preview(portfolio_id, scheduled, current_user.id)
-        return {
-            "scheduled_date": plan.scheduled_date.isoformat(),
-            "execution_date": plan.execution_date.isoformat(),
-            "as_of_date": plan.execution_date.isoformat(),
-            "cash_target_pct": plan.cash_target_pct,
-            "projected_cash_pct": plan.projected_cash_pct,
-            "complete": plan.complete,
-            "message": plan.message,
-            "trades": [
-                {
-                    "ticker": t.ticker,
-                    "action": t.action,
-                    "shares": t.shares,
-                    "price": t.price,
-                    "fees": t.fees,
-                    "current_shares": t.current_shares,
-                    "target_shares": t.target_shares,
-                    "current_weight": t.current_weight,
-                    "target_weight": t.target_weight,
-                }
-                for t in plan.trades
-            ],
-            "trade_count": len(plan.trades),
-        }
+        return serialize_rebalance_plan(plan)
     except Exception as exc:
         _handle_error(exc)
         raise
@@ -1104,7 +1153,7 @@ def calculate_asset_analytics(
 @app.post("/optimization/run")
 def optimize(
     payload: OptimizationRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_pro),
 ) -> dict[str, Any]:
     try:
         _verify_portfolio_access(payload.portfolio_id, current_user)
@@ -1118,6 +1167,7 @@ def optimize(
             method_params=payload.method_params,
             out_of_sample=payload.out_of_sample,
             training_ratio=payload.training_ratio,
+            user_id=current_user.id,
         )
         return _to_jsonable(
             result.to_dict() if hasattr(result, "to_dict") else result.__dict__
@@ -1148,7 +1198,7 @@ def optimization_snapshot(
 @app.post("/optimization/full")
 def optimization_full(
     payload: OptimizationFullRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_pro),
 ) -> dict[str, Any]:
     try:
         _verify_portfolio_access(payload.portfolio_id, current_user)
@@ -1295,7 +1345,11 @@ def stress_tests(
     try:
         _verify_portfolio_access(payload.portfolio_id, current_user)
         return _to_jsonable(
-            risk_service.run_stress_test(payload.portfolio_id, payload.scenario_names)
+            risk_service.run_stress_test(
+                payload.portfolio_id,
+                payload.scenario_names,
+                user_id=current_user.id,
+            )
         )
     except Exception as exc:
         _handle_error(exc)
@@ -1315,6 +1369,7 @@ def stress_tests_full(
             portfolio_service,
             portfolio_id=payload.portfolio_id,
             scenario_keys=payload.scenario_names,
+            user_id=current_user.id,
         )
         return _to_jsonable(bundle)
     except Exception as exc:
@@ -1339,7 +1394,9 @@ def custom_scenario(
         if not ok:
             raise HTTPException(status_code=400, detail=msg)
         return _to_jsonable(
-            risk_service.run_custom_scenario(payload.portfolio_id, scenario)
+            risk_service.run_custom_scenario(
+                payload.portfolio_id, scenario, user_id=current_user.id
+            )
         )
     except HTTPException:
         raise
@@ -1368,7 +1425,9 @@ def scenario_chain(
             scenarios=selected,
         )
         return _to_jsonable(
-            risk_service.run_scenario_chain(payload.portfolio_id, chain)
+            risk_service.run_scenario_chain(
+                payload.portfolio_id, chain, user_id=current_user.id
+            )
         )
     except HTTPException:
         raise
@@ -1378,7 +1437,10 @@ def scenario_chain(
 
 
 @app.post("/forecasting/asset")
-def forecast_asset(payload: ForecastAssetRequest) -> Any:
+def forecast_asset(
+    payload: ForecastAssetRequest,
+    current_user: User = Depends(require_pro),
+) -> Any:
     try:
         return _to_jsonable(
             forecasting_service.forecast_asset(
@@ -1400,7 +1462,7 @@ def forecast_asset(payload: ForecastAssetRequest) -> Any:
 @app.post("/forecasting/portfolio")
 def forecast_portfolio(
     payload: ForecastPortfolioRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_pro),
 ) -> Any:
     try:
         _verify_portfolio_access(payload.portfolio_id, current_user)
@@ -1414,6 +1476,7 @@ def forecast_portfolio(
                 method_params=payload.method_params,
                 out_of_sample=payload.out_of_sample,
                 training_ratio=payload.training_ratio,
+                user_id=current_user.id,
             )
         )
     except Exception as exc:
@@ -1424,7 +1487,7 @@ def forecast_portfolio(
 @app.post("/forecasting/batch")
 def forecast_batch(
     payload: ForecastBatchRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_pro),
 ) -> Any:
     try:
         if payload.scope not in ("asset", "portfolio"):
@@ -1448,6 +1511,7 @@ def forecast_batch(
             out_of_sample=payload.out_of_sample,
             training_ratio=payload.training_ratio,
             create_ensemble=payload.create_ensemble,
+            user_id=current_user.id,
         )
         return _to_jsonable(bundle)
     except HTTPException:

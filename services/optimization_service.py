@@ -88,6 +88,7 @@ class OptimizationService:
         end_date: date,
         *,
         benchmark_ticker: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> tuple[pd.DataFrame, Optional[pd.Series]]:
         """
         Load aligned daily asset returns (plus optional CASH column) for a date window.
@@ -95,7 +96,7 @@ class OptimizationService:
         When ``benchmark_ticker`` is set (tracking-error / alpha methods), returns are
         intersected with benchmark trading dates, same as ``optimize_portfolio``.
         """
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
         if not portfolio:
             raise ValueError(f"Portfolio {portfolio_id} not found")
 
@@ -236,6 +237,7 @@ class OptimizationService:
         method_params: Optional[dict[str, any]] = None,
         out_of_sample: bool = False,
         training_ratio: float = 0.3,
+        user_id: Optional[str] = None,
     ) -> OptimizationResult:
         """
         Optimize portfolio using specified method.
@@ -267,7 +269,7 @@ class OptimizationService:
             )
 
         # Get portfolio
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
         if not portfolio:
             raise ValueError(f"Portfolio {portfolio_id} not found")
 
@@ -302,6 +304,7 @@ class OptimizationService:
             optimization_start,
             optimization_end,
             benchmark_ticker=bench_arg,
+            user_id=user_id,
         )
 
         # Get optimizer class
@@ -377,6 +380,7 @@ class OptimizationService:
         end_date: date,
         n_points: int = 50,
         constraints: Optional[dict[str, any]] = None,
+        user_id: Optional[str] = None,
     ) -> dict[str, any]:
         """
         Generate efficient frontier for portfolio.
@@ -392,7 +396,7 @@ class OptimizationService:
             Dictionary with frontier data
         """
         # Get portfolio and calculate returns (same as optimize_portfolio)
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
         if not portfolio:
             raise ValueError(f"Portfolio {portfolio_id} not found")
 
@@ -513,6 +517,7 @@ class OptimizationService:
         self,
         portfolio_id: str,
         optimal_weights: OptimizationResult,
+        user_id: Optional[str] = None,
     ) -> list[dict[str, any]]:
         """
         Generate trade list to rebalance portfolio to optimal weights.
@@ -524,7 +529,7 @@ class OptimizationService:
         Returns:
             List of trade dictionaries (ticker, action, shares, value)
         """
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
         if not portfolio:
             raise ValueError(f"Portfolio {portfolio_id} not found")
 
@@ -632,6 +637,7 @@ class OptimizationService:
         analysis_type: str = "returns",
         variation_range: float = 0.1,
         num_points: int = 10,
+        user_id: Optional[str] = None,
     ) -> dict[str, any]:
         """
         Perform sensitivity analysis on optimization results.
@@ -657,13 +663,14 @@ class OptimizationService:
             start_date=start_date,
             end_date=end_date,
             constraints=base_constraints,
+            user_id=user_id,
         )
 
         if not base_result.success:
             raise CalculationError(f"Base optimization failed: {base_result.message}")
 
         # Get portfolio and prepare optimizer
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
         positions = portfolio.get_all_positions()
         tickers = [pos.ticker for pos in positions if pos.ticker != "CASH"]
 

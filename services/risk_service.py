@@ -166,6 +166,7 @@ class RiskService:
         self,
         portfolio_id: str,
         scenario_names: list[str],
+        user_id: str | None = None,
     ) -> list[dict[str, any]]:
         """
         Run stress tests using historical scenarios.
@@ -178,7 +179,7 @@ class RiskService:
             List of stress test results
         """
         # Get portfolio
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
 
         # Get positions
         positions = portfolio.get_all_positions()
@@ -263,6 +264,7 @@ class RiskService:
         self,
         portfolio_id: str,
         scenario: CustomScenario,
+        user_id: str | None = None,
     ) -> dict[str, any]:
         """
         Run custom scenario test.
@@ -280,7 +282,7 @@ class RiskService:
             raise ValidationError(f"Invalid scenario: {error_msg}")
 
         # Get portfolio
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
 
         # Get positions
         positions = portfolio.get_all_positions()
@@ -354,6 +356,7 @@ class RiskService:
         self,
         portfolio_id: str,
         chain: ScenarioChain,
+        user_id: str | None = None,
     ) -> dict[str, any]:
         """
         Run scenario chain analysis.
@@ -366,7 +369,7 @@ class RiskService:
             Dictionary with chain analysis results
         """
         # Get portfolio
-        portfolio = self._portfolio_service.get_portfolio(portfolio_id)
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
 
         # Get positions
         positions = portfolio.get_all_positions()

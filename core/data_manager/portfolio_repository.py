@@ -177,6 +177,15 @@ class PortfolioRepository:
 
             return self._orm_to_domain(portfolio_orm)
 
+    def count_for_user(self, user_id: str) -> int:
+        """Count portfolios owned by user."""
+        with get_db_session() as session:
+            return (
+                session.query(PortfolioORM)
+                .filter(PortfolioORM.user_id == user_id)
+                .count()
+            )
+
     def find_all(
         self, user_id: str, limit: int = 100, offset: int = 0
     ) -> list[Portfolio]:

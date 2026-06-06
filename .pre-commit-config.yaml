@@ -1,10 +1,13 @@
 # Install: pip install pre-commit && pre-commit install
 repos:
-  - repo: https://github.com/psf/black
-    rev: 26.3.1
+  # Use system Python — avoids Windows AppLocker blocking black.exe in pre-commit cache
+  - repo: local
     hooks:
       - id: black
-        language_version: python3
+        name: black
+        entry: python -m black
+        language: system
+        types: [python]
 
   - repo: https://github.com/pycqa/isort
     rev: 8.0.1

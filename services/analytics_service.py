@@ -1,4 +1,7 @@
-"""Analytics service for orchestrating portfolio analytics."""
+"""Analytics service for orchestrating portfolio analytics.
+
+Ledger / optimized simulation: docs/production/phases/phase-4-optimization-ledger-parity.md
+"""
 
 import logging
 from datetime import date
@@ -8,16 +11,67 @@ import numpy as np
 import pandas as pd
 
 from core.analytics_engine.engine import AnalyticsEngine
+from core.data_manager.transaction import Transaction
+from core.data_manager.transaction_repository import TransactionRepository
+from core.data_manager.transaction_sort import sort_transactions
 from core.exceptions import InsufficientDataError, ValidationError
+from services.cost_basis import CostBasisCalculator
 from services.data_service import DataService
+from services.ib_commission import estimate_ib_commission
 from services.ledger_portfolio_series import (
     LedgerPortfolioSeriesBuilder,
     first_transaction_date,
 )
 from services.performance_attribution import PerformanceAttributionService
 from services.portfolio_service import PortfolioService
+from services.rebalance_service import (
+    _allocate_target_shares,
+    has_rebalance_for_scheduled,
+    normalize_target_weights,
+    plan_rebalance_to_target_weights,
+    rebalance_plan_to_synthetic_transactions,
+    scheduled_rebalance_dates,
+)
 
 logger = logging.getLogger(__name__)
+
+
+class _PanelCloseDataService:
+    """Minimal DataService duck-type: exact session close from a pre-built price panel."""
+
+    def __init__(self, filled: pd.DataFrame) -> None:
+        self._filled = filled.sort_index()
+
+    def fetch_close_on_nearest_trading_day(
+        self,
+        ticker: str,
+        on_date: date,
+        *,
+        lookback_days: int = 21,
+        lookforward_days: int = 7,
+        use_cache: bool = True,
+        save_to_db: bool = True,
+    ) -> tuple[float, date] | None:
+        del lookback_days, lookforward_days, use_cache, save_to_db
+        if ticker not in self._filled.columns:
+            return None
+        idx = pd.to_datetime(self._filled.index)
+        try:
+            idx = idx.tz_localize(None)
+        except Exception:
+            pass
+        idx_norm = idx.normalize()
+        target = pd.Timestamp(on_date).normalize()
+        match = idx_norm == target
+        arr = match.to_numpy() if hasattr(match, "to_numpy") else np.asarray(match)
+        if not arr.any():
+            return None
+        pos = int(np.argmax(arr))
+        row_ix = self._filled.index[pos]
+        px = float(self._filled.loc[row_ix, ticker])
+        if not np.isfinite(px) or px <= 0:
+            return None
+        return px, on_date
 
 
 class AnalyticsService:
@@ -674,6 +728,210 @@ class AnalyticsService:
             pv_out = pv_aligned
 
         return port, bench, pv_out
+
+    def simulate_portfolio_returns_from_weights(
+        self,
+        portfolio_id: str,
+        weights: dict[str, float],
+        start_date: date,
+        end_date: date,
+        *,
+        user_id: str | None = None,
+        notional: float = 1_000_000.0,
+    ) -> pd.Series:
+        """
+        Hypothetical portfolio returns for a weight vector on [start_date, end_date].
+
+        For ``ledger_mode == "buy_hold"`` this delegates to
+        :meth:`simulate_buy_and_hold_returns_from_weights` (fixed shares).
+
+        For ``ledger_mode == "transactions"`` this replays a synthetic ledger through
+        :class:`LedgerPortfolioSeriesBuilder`: copies real DEPOSIT/WITHDRAWAL through
+        ``end_date``, deploys into optimized weights on the first in-window pricing day
+        (whole-share allocation and IB fee estimates like live rebalancing), then
+        applies ``rebalance_interval_months`` from portfolio settings toward the same
+        optimized targets. If the portfolio has no stored transactions, falls back to a
+        single notional deposit and opening fractional BUYs (legacy behavior).
+        """
+        portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
+        if portfolio is None:
+            return pd.Series(dtype=float)
+
+        mode = getattr(portfolio, "ledger_mode", "buy_hold") or "buy_hold"
+        if mode != "transactions":
+            return self.simulate_buy_and_hold_returns_from_weights(
+                weights, start_date, end_date
+            )
+
+        raw = {str(k).strip().upper(): float(v) for k, v in weights.items()}
+        wsum = sum(abs(w) for w in raw.values())
+        if wsum <= 1e-14:
+            return pd.Series(dtype=float)
+        w_norm = {k: v / wsum for k, v in raw.items()}
+
+        tickers = [t for t in w_norm if t != "CASH" and abs(w_norm[t]) > 1e-12]
+        if not tickers:
+            return pd.Series(dtype=float)
+
+        prices = self._fetch_portfolio_prices(tickers, start_date, end_date)
+        if prices.empty:
+            return pd.Series(dtype=float)
+
+        filled = prices.sort_index().ffill().bfill()
+        cols = [t for t in tickers if t in filled.columns]
+        if not cols:
+            return pd.Series(dtype=float)
+
+        sub = filled[cols]
+        valid = sub.dropna(how="any")
+        if valid.empty:
+            return pd.Series(dtype=float)
+
+        t0 = valid.index[0]
+        t0_date = t0.date() if hasattr(t0, "date") else t0
+        p0 = valid.loc[t0]
+
+        all_real = TransactionRepository().find_by_portfolio(portfolio_id)
+        panel_ds = _PanelCloseDataService(filled)
+        w_target = normalize_target_weights(w_norm)
+
+        if not all_real:
+            txs = [
+                Transaction(
+                    transaction_date=t0_date,
+                    transaction_type="DEPOSIT",
+                    ticker="CASH",
+                    shares=notional,
+                    price=1.0,
+                    notes="pmpro:synthetic-optimized-ledger",
+                )
+            ]
+            for tkr in sorted(cols):
+                w = float(w_norm.get(tkr, 0.0))
+                if w <= 1e-12:
+                    continue
+                px = float(p0[tkr])
+                if not np.isfinite(px) or px <= 0:
+                    continue
+                dollars = notional * w
+                shares = dollars / px
+                if shares <= 0:
+                    continue
+                txs.append(
+                    Transaction(
+                        transaction_date=t0_date,
+                        transaction_type="BUY",
+                        ticker=tkr,
+                        shares=float(shares),
+                        price=px,
+                        fees=0.0,
+                        notes="pmpro:synthetic-optimized-ledger",
+                    )
+                )
+        else:
+            first_schedule = min(t.transaction_date for t in all_real)
+            cashflow_txs = [
+                t
+                for t in all_real
+                if t.transaction_type in ("DEPOSIT", "WITHDRAWAL")
+                and t.transaction_date <= end_date
+            ]
+            extra_deposit: list[Transaction] = []
+            merged_cf = sort_transactions(list(cashflow_txs))
+            txs_for_open = [t for t in merged_cf if t.transaction_date <= t0_date]
+            summary_open = CostBasisCalculator(portfolio.cost_basis_method).summarize(
+                sort_transactions(txs_for_open)
+            )
+            cash_avail = summary_open.cash_balance
+            if cash_avail <= 1e-6 and notional > 0:
+                extra_deposit.append(
+                    Transaction(
+                        transaction_date=t0_date,
+                        transaction_type="DEPOSIT",
+                        ticker="CASH",
+                        shares=notional,
+                        price=1.0,
+                        notes="pmpro:synthetic-optimized-ledger notional fallback",
+                    )
+                )
+            working = sort_transactions(list(cashflow_txs) + extra_deposit)
+            txs_for_open2 = [t for t in working if t.transaction_date <= t0_date]
+            summary_open2 = CostBasisCalculator(portfolio.cost_basis_method).summarize(
+                sort_transactions(txs_for_open2)
+            )
+            cash_open = summary_open2.cash_balance
+
+            opening_buys: list[Transaction] = []
+            stock_weights = {t: w for t, w in w_target.items() if t != "CASH" and w > 0}
+            stock_weight_sum = sum(stock_weights.values())
+            cash_target = min(1.0, max(0.0, w_target.get("CASH", 0.0)))
+            p0_dict = {c: float(p0[c]) for c in cols}
+
+            if cash_open > 1e-6 and stock_weight_sum > 1e-12:
+                investable = cash_open * (1.0 - cash_target)
+                tgt_sh = _allocate_target_shares(
+                    investable, stock_weights, stock_weight_sum, p0_dict
+                )
+                for ticker, sh in tgt_sh.items():
+                    px = p0_dict[ticker]
+                    fees = estimate_ib_commission(int(sh), px)
+                    opening_buys.append(
+                        Transaction(
+                            transaction_date=t0_date,
+                            transaction_type="BUY",
+                            ticker=ticker,
+                            shares=float(sh),
+                            price=px,
+                            fees=fees,
+                            notes="pmpro:synthetic-optimized-ledger opening",
+                        )
+                    )
+            working = sort_transactions(working + opening_buys)
+
+            interval = getattr(portfolio, "rebalance_interval_months", None)
+            if interval:
+                rb_dates = scheduled_rebalance_dates(
+                    first_schedule, int(interval), end_date
+                )
+                for rb_date in rb_dates:
+                    if rb_date < t0_date:
+                        continue
+                    if has_rebalance_for_scheduled(working, rb_date):
+                        continue
+                    try:
+                        plan = plan_rebalance_to_target_weights(
+                            working,
+                            w_target,
+                            rb_date,
+                            portfolio.cost_basis_method,
+                            panel_ds,
+                        )
+                    except ValidationError as exc:
+                        logger.debug(
+                            "Synthetic optimized rebalance skipped on %s: %s",
+                            rb_date,
+                            exc,
+                        )
+                        continue
+                    working.extend(rebalance_plan_to_synthetic_transactions(plan))
+                    working = sort_transactions(working)
+            txs = working
+
+        builder = LedgerPortfolioSeriesBuilder()
+        rets, _, _ = builder.build_returns(
+            txs,
+            start_date,
+            end_date,
+            portfolio.cost_basis_method,
+            self._fetch_portfolio_prices,
+        )
+        if rets is None or rets.empty:
+            return pd.Series(dtype=float)
+        try:
+            rets.index = pd.to_datetime(rets.index).tz_localize(None)
+        except Exception:
+            rets.index = pd.to_datetime(rets.index)
+        return rets
 
     def simulate_buy_and_hold_returns_from_weights(
         self,

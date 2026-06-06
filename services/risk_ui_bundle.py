@@ -534,9 +534,10 @@ def build_stress_historical_display_bundle(
     *,
     portfolio_id: str,
     scenario_keys: list[str],
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     scenarios = get_all_scenarios()
-    results = risk_service.run_stress_test(portfolio_id, scenario_keys)
+    results = risk_service.run_stress_test(portfolio_id, scenario_keys, user_id=user_id)
 
     recovery_series: list[dict[str, Any]] = []
     for r in results:
@@ -582,7 +583,7 @@ def build_stress_historical_display_bundle(
             }
         )
 
-    portfolio = portfolio_service.get_portfolio(portfolio_id)
+    portfolio = portfolio_service.get_portfolio(portfolio_id, user_id)
     positions = portfolio.get_all_positions() if portfolio else []
     weight_by_ticker: dict[str, float] = {}
     for p in positions:
@@ -771,7 +772,7 @@ def build_var_full_bundle(
 
     covariance_block: dict[str, Any] | None = None
     try:
-        portfolio = portfolio_service.get_portfolio(portfolio_id)
+        portfolio = portfolio_service.get_portfolio(portfolio_id, user_id)
         positions = portfolio.get_all_positions() if portfolio else []
         tickers = [p.ticker for p in positions if p.ticker != "CASH"]
         if len(tickers) >= 2:

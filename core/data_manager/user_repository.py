@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from core.auth.constants import SYSTEM_USER_EMAIL, SYSTEM_USER_ID
 from core.auth.password import hash_password
+from core.data_manager.subscription_repository import SubscriptionRepository
 from database.session import get_db_session
 from models.user import User as UserORM
 
@@ -25,6 +26,7 @@ class UserRepository:
             session.flush()
             session.refresh(user)
             session.expunge(user)
+            SubscriptionRepository().ensure_free(user.id)
             return user
 
     def find_by_email(self, email: str) -> Optional[UserORM]:
@@ -52,6 +54,7 @@ class UserRepository:
             )
             if existing:
                 session.expunge(existing)
+                SubscriptionRepository().ensure_free(existing.id)
                 return existing
 
             user = UserORM(
@@ -64,6 +67,7 @@ class UserRepository:
             session.flush()
             session.refresh(user)
             session.expunge(user)
+            SubscriptionRepository().ensure_free(user.id)
             return user
 
     @staticmethod

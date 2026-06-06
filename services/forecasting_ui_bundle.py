@@ -67,8 +67,9 @@ def fetch_historical_portfolio_series(
     portfolio_id: str,
     chart_start: date,
     end_date: date,
+    user_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    portfolio = portfolio_service.get_portfolio(portfolio_id)
+    portfolio = portfolio_service.get_portfolio(portfolio_id, user_id)
     if not portfolio:
         return []
     positions = portfolio.get_all_positions()
@@ -136,6 +137,7 @@ def build_forecast_batch_bundle(
     out_of_sample: bool,
     training_ratio: float,
     create_ensemble: bool,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     if start_date >= end_date:
         raise ValidationError("Start date must be before end date")
@@ -181,6 +183,7 @@ def build_forecast_batch_bundle(
             method_params=mp,
             out_of_sample=out_of_sample,
             training_ratio=training_ratio,
+            user_id=user_id,
         )
         historical = fetch_historical_portfolio_series(
             data_service,
@@ -189,6 +192,7 @@ def build_forecast_batch_bundle(
             portfolio_id,
             chart_start,
             end_date,
+            user_id=user_id,
         )
     else:
         raise ValidationError("scope must be 'asset' or 'portfolio'")

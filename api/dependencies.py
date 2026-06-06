@@ -6,8 +6,10 @@ from jose import JWTError
 
 from config.settings import settings
 from core.auth.tokens import decode_access_token
+from core.data_manager.subscription_repository import SubscriptionRepository
 from core.data_manager.user_repository import UserRepository
 from models.user import User
+from services.billing.plans import is_pro_subscription
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 _user_repository = UserRepository()
@@ -62,3 +64,28 @@ async def get_current_user(
             detail="Inactive user",
         )
     return user
+
+
+_subscription_repository = SubscriptionRepository()
+
+
+def billing_enforcement_active() -> bool:
+    """Skip tier checks for Streamlit dev or explicit opt-out."""
+    if settings.auth_disabled:
+        return False
+    return settings.billing_enforcement
+
+
+async def require_pro(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Require active Pro subscription for paid API features."""
+    if not billing_enforcement_active():
+        return current_user
+    sub = _subscription_repository.ensure_free(current_user.id)
+    if not is_pro_subscription(sub):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pro subscription required",
+        )
+    return current_user

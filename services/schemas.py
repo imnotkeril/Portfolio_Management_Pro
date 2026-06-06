@@ -221,6 +221,48 @@ class AddPositionRequest(BaseModel):
         validate_assignment = True
 
 
+class UpdateStrategyRequest(BaseModel):
+    """Request schema for portfolio rebalance strategy (Phase 5)."""
+
+    rebalance_interval_months: Optional[int] = Field(
+        None,
+        description="Rebalance schedule in months (1, 3, 6, 12); null disables",
+    )
+    targets: Optional[dict[str, float]] = Field(
+        None,
+        description="Target weights by ticker (0–1 fractions, must sum to 1.0)",
+    )
+    replace_targets: bool = Field(
+        True,
+        description="Clear weight_target on positions not listed in targets",
+    )
+
+    @field_validator("rebalance_interval_months")
+    @classmethod
+    def validate_rebalance_interval_strategy(
+        cls,
+        v: Optional[int],
+    ) -> Optional[int]:
+        if v is None:
+            return None
+        if v not in REBALANCE_INTERVALS:
+            raise ValueError("rebalance_interval_months must be 1, 3, 6, 12, or null")
+        return v
+
+    @field_validator("targets")
+    @classmethod
+    def normalize_strategy_tickers(
+        cls, v: Optional[dict[str, float]]
+    ) -> Optional[dict[str, float]]:
+        if v is None:
+            return None
+        return {str(k).strip().upper(): float(val) for k, val in v.items()}
+
+    class Config:
+        str_strip_whitespace = True
+        validate_assignment = True
+
+
 class UpdatePositionRequest(BaseModel):
     """Request schema for updating a position."""
 

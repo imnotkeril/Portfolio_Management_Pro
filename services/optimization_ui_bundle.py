@@ -1,5 +1,7 @@
 """
 Build a JSON-serializable bundle for the Next.js optimization page (Streamlit parity).
+
+Ledger parity: docs/production/phases/phase-4-optimization-ledger-parity.md
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from services.analytics_service import AnalyticsService
 from services.data_service import DataService
 from services.optimization_service import OptimizationService
 from services.portfolio_service import PortfolioService
+from services.strategy_service import StrategyService
 
 logger = logging.getLogger(__name__)
 
@@ -122,20 +125,23 @@ def _interpret_comparison(opt: dict[str, float], cur: dict[str, float]) -> str:
         lines.append(
             f"Max drawdown: Similar ({opt.get('max_drawdown', 0)*100:.2f}% vs {cur.get('max_drawdown', 0)*100:.2f}%)"
         )
-    elif dd < 0:
+    elif dd > 0:
+        # Values are typically negative; less negative = shallower drawdown = better.
         lines.append(
-            f"✓ Max drawdown reduced by {abs(dd)*100:.2f}% ({opt.get('max_drawdown', 0)*100:.2f}% vs {cur.get('max_drawdown', 0)*100:.2f}%)"
+            f"✓ Max drawdown improved (shallower loss) by {abs(dd)*100:.2f} pp "
+            f"({opt.get('max_drawdown', 0)*100:.2f}% vs {cur.get('max_drawdown', 0)*100:.2f}%)"
         )
     else:
         lines.append(
-            f"⚠ Max drawdown increased by {dd*100:.2f}% ({opt.get('max_drawdown', 0)*100:.2f}% vs {cur.get('max_drawdown', 0)*100:.2f}%)"
+            f"⚠ Max drawdown worsened (deeper loss) by {abs(dd)*100:.2f} pp "
+            f"({opt.get('max_drawdown', 0)*100:.2f}% vs {cur.get('max_drawdown', 0)*100:.2f}%)"
         )
     improvements = sum(
         [
             1 if sd > 0.1 else 0,
             1 if rd > 0.01 else 0,
             1 if vd < -0.01 else 0,
-            1 if dd < -0.01 else 0,
+            1 if dd > 0.01 else 0,
         ]
     )
     if improvements >= 3:
@@ -313,25 +319,27 @@ def _build_optimized_returns(
     start_date: date,
     end_date: date,
     current_returns: pd.Series | None,
+    portfolio_id: str,
+    user_id: str | None = None,
 ) -> tuple[pd.Series | None, pd.DataFrame]:
     """
-    Backtest optimal weights using the same buy-and-hold mechanics as the live
-    portfolio in AnalyticsService (fixed share counts from day-0 weights).
+    Backtest optimal weights on [start_date, end_date].
 
-    Using sum(w_i * r_{i,t}) with constant w would imply daily rebalancing and
-    unfairly depress or inflate performance vs the current portfolio series.
+    Uses :meth:`AnalyticsService.simulate_portfolio_returns_from_weights` so
+    ``ledger_mode == "transactions"`` portfolios get synthetic ledger replay
+    (same engine as Analysis), and ``buy_hold`` keeps fixed-share buy-and-hold.
     """
     optimal_weights = result.get_weights_dict()
     try:
-        optimized_returns = (
-            analytics_service.simulate_buy_and_hold_returns_from_weights(
-                optimal_weights,
-                start_date,
-                end_date,
-            )
+        optimized_returns = analytics_service.simulate_portfolio_returns_from_weights(
+            portfolio_id,
+            optimal_weights,
+            start_date,
+            end_date,
+            user_id=user_id,
         )
     except Exception:
-        logger.exception("simulate_buy_and_hold_returns_from_weights failed")
+        logger.exception("simulate_portfolio_returns_from_weights failed")
         return None, pd.DataFrame()
 
     if optimized_returns is None or optimized_returns.empty:
@@ -341,6 +349,39 @@ def _build_optimized_returns(
         aligned = current_returns.index.intersection(optimized_returns.index)
         optimized_returns = optimized_returns.reindex(aligned).dropna()
     return optimized_returns, pd.DataFrame()
+
+
+def _optimized_buy_hold_metrics_for_window(
+    analytics_service: AnalyticsService,
+    result: OptimizationResult,
+    window_start: date,
+    window_end: date,
+    portfolio_id: str,
+    user_id: str | None = None,
+) -> dict[str, float] | None:
+    """
+    Realized vol/return/Sharpe for optimal weights on [window_start, window_end].
+
+    Uses the same return engine as performance charts (ledger synthetic when
+    ``transactions``, else buy-and-hold).
+    """
+    try:
+        weights = result.get_weights_dict()
+        series = analytics_service.simulate_portfolio_returns_from_weights(
+            portfolio_id,
+            weights,
+            window_start,
+            window_end,
+            user_id=user_id,
+        )
+    except Exception:
+        logger.exception(
+            "Returns for efficient frontier optimized point failed (ledger/BH)"
+        )
+        return None
+    if series is None or series.empty or len(series) < 5:
+        return None
+    return _metrics_from_returns(series, RISK_FREE)
 
 
 def _drawdown_pct(values: pd.Series) -> pd.Series:
@@ -406,6 +447,7 @@ def _build_frontier_payload_from_fd(
     result: OptimizationResult,
     current_metrics: dict[str, float],
     fallback_validation_period: bool = False,
+    optimized_point_metrics: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     vols = [float(v) for v in (fd.get("volatilities") or [])]
     rets = [float(r) for r in (fd.get("returns") or [])]
@@ -452,15 +494,25 @@ def _build_frontier_payload_from_fd(
         else current_metrics
     )
 
+    if optimized_point_metrics:
+        om = optimized_point_metrics
+        opt_vol = float(om.get("volatility") or 0.0)
+        opt_ret = float(om.get("annualized_return") or 0.0)
+        opt_sharpe = float(om.get("sharpe_ratio") or 0.0)
+    else:
+        opt_vol = float(result.volatility or 0.0)
+        opt_ret = float(result.expected_return or 0.0)
+        opt_sharpe = float(result.sharpe_ratio or 0.0)
+
     payload: dict[str, Any] = {
         "volatilities_pct": [v * 100 for v in vols],
         "returns_pct": [r * 100 for r in rets],
         "tangency_portfolio": tangency_portfolio,
         "min_variance_portfolio": min_variance_portfolio,
         "optimized_point": {
-            "volatility_pct": float(result.volatility or 0) * 100,
-            "return_pct": float(result.expected_return or 0) * 100,
-            "sharpe": float(result.sharpe_ratio or 0),
+            "volatility_pct": opt_vol * 100,
+            "return_pct": opt_ret * 100,
+            "sharpe": opt_sharpe,
         },
         "current_point": {
             "volatility_pct": float(frontier_current_metrics.get("volatility", 0))
@@ -526,6 +578,7 @@ def _build_notebook_split_bundle(
         start_date,
         end_date,
         benchmark_ticker=bench_for_load,
+        user_id=user_id,
     )
 
     n = len(returns_full)
@@ -583,6 +636,7 @@ def _build_notebook_split_bundle(
         method_params=method_params,
         out_of_sample=False,
         training_ratio=0.3,
+        user_id=user_id,
     )
 
     base: dict[str, Any] = {
@@ -822,7 +876,9 @@ def _build_notebook_split_bundle(
 
     trades: list[dict[str, Any]] = []
     try:
-        trades = optimization_service.generate_trade_list(portfolio_id, result)
+        trades = optimization_service.generate_trade_list(
+            portfolio_id, result, user_id=user_id
+        )
     except Exception as exc:
         logger.warning("Trade list failed: %s", exc)
         warnings_list.append(f"Could not generate trade list: {exc}")
@@ -852,6 +908,15 @@ def _build_notebook_split_bundle(
                 end_date=train_end,
                 n_points=frontier_n_points,
                 constraints=constraints,
+                user_id=user_id,
+            )
+            opt_fm = _optimized_buy_hold_metrics_for_window(
+                analytics_service,
+                result,
+                train_start,
+                train_end,
+                portfolio_id,
+                user_id,
             )
             frontier_payload = _build_frontier_payload_from_fd(
                 fd,
@@ -859,6 +924,7 @@ def _build_notebook_split_bundle(
                 benchmark_for_charts=benchmark_for_charts,
                 result=result,
                 current_metrics=current_metrics,
+                optimized_point_metrics=opt_fm,
             )
         except InsufficientDataError:
             frontier_payload = None
@@ -930,6 +996,7 @@ def _build_notebook_split_bundle(
                     analysis_type=sensitivity_analysis_type,
                     variation_range=0.1,
                     num_points=10,
+                    user_id=user_id,
                 )
                 sens_results = sensitivity_block.get("results") or []
                 base["interpretation_sensitivity"] = _interpret_sensitivity_block(
@@ -970,9 +1037,29 @@ def build_optimization_full_bundle(
 ) -> dict[str, Any]:
     """
     Run optimization and assemble charts, metrics, trades, frontier, correlation.
+
+    Transaction-led portfolios: see docs/production/phases/phase-4-optimization-ledger-parity.md
+    (notebook_split gate, optimized returns via simulate_portfolio_returns_from_weights).
     """
+    warnings_pre: list[str] = []
+    try:
+        p_gate = portfolio_service.get_portfolio(portfolio_id, user_id)
+        if (
+            notebook_split
+            and p_gate is not None
+            and getattr(p_gate, "ledger_mode", "buy_hold") == "transactions"
+        ):
+            notebook_split = False
+            warnings_pre.append(
+                "Row-based train/validation/test split is disabled for transaction-led "
+                "portfolios so metrics, charts, and the efficient frontier use one "
+                "calendar window (aligned with Analysis ledger returns)."
+            )
+    except Exception as exc:
+        logger.warning("Optimization bundle portfolio gate: %s", exc)
+
     if notebook_split:
-        return _build_notebook_split_bundle(
+        base_nb = _build_notebook_split_bundle(
             optimization_service,
             portfolio_service,
             portfolio_id=portfolio_id,
@@ -990,6 +1077,13 @@ def build_optimization_full_bundle(
             notebook_train_fraction=notebook_train_fraction,
             user_id=user_id,
         )
+        if warnings_pre:
+            existing = base_nb.get("warnings")
+            if isinstance(existing, list):
+                base_nb["warnings"] = warnings_pre + existing
+            else:
+                base_nb["warnings"] = list(warnings_pre)
+        return base_nb
 
     data_service = optimization_service._data_service  # noqa: SLF001
     analytics_service = AnalyticsService()
@@ -1008,6 +1102,7 @@ def build_optimization_full_bundle(
         method_params=method_params,
         out_of_sample=out_of_sample,
         training_ratio=training_ratio,
+        user_id=user_id,
     )
 
     base: dict[str, Any] = {
@@ -1033,9 +1128,11 @@ def build_optimization_full_bundle(
     }
 
     if not result.success:
+        if warnings_pre:
+            base["warnings"] = warnings_pre
         return base
 
-    warnings_list: list[str] = []
+    warnings_list: list[str] = list(warnings_pre)
     min_ret = (constraints or {}).get("min_return")
     if min_ret is not None and result.expected_return is not None:
         if result.expected_return < min_ret:
@@ -1061,7 +1158,13 @@ def build_optimization_full_bundle(
         current_returns = None
 
     optimized_returns, optimized_assets_returns = _build_optimized_returns(
-        analytics_service, result, start_date, end_date, current_returns
+        analytics_service,
+        result,
+        start_date,
+        end_date,
+        current_returns,
+        portfolio_id,
+        user_id,
     )
     if method in ("cvar_optimization", "mean_cvar"):
         sample_size = 0 if optimized_returns is None else len(optimized_returns)
@@ -1137,9 +1240,20 @@ def build_optimization_full_bundle(
     base["allocation"] = allocation
     base["interpretation_allocation"] = _interpret_allocation(current_w, optimal_w)
 
+    try:
+        base["rebalance_policy"] = StrategyService().build_policy_summary(
+            portfolio_id,
+            optimized_weights=optimal_w,
+            user_id=user_id,
+        )
+    except Exception as exc:
+        logger.warning("Rebalance policy summary failed: %s", exc)
+
     trades: list[dict[str, Any]] = []
     try:
-        trades = optimization_service.generate_trade_list(portfolio_id, result)
+        trades = optimization_service.generate_trade_list(
+            portfolio_id, result, user_id=user_id
+        )
     except Exception as exc:
         logger.warning("Trade list failed: %s", exc)
         warnings_list.append(f"Could not generate trade list: {exc}")
@@ -1290,6 +1404,15 @@ def build_optimization_full_bundle(
                 end_date=opt_end,
                 n_points=frontier_n_points,
                 constraints=constraints,
+                user_id=user_id,
+            )
+            opt_fm = _optimized_buy_hold_metrics_for_window(
+                analytics_service,
+                result,
+                opt_start,
+                opt_end,
+                portfolio_id,
+                user_id,
             )
             frontier_payload = _build_frontier_payload_from_fd(
                 fd,
@@ -1297,6 +1420,7 @@ def build_optimization_full_bundle(
                 benchmark_for_charts=benchmark_for_charts,
                 result=result,
                 current_metrics=current_metrics,
+                optimized_point_metrics=opt_fm,
             )
         except InsufficientDataError:
             if out_of_sample:
@@ -1307,6 +1431,15 @@ def build_optimization_full_bundle(
                         end_date=end_date,
                         n_points=frontier_n_points,
                         constraints=constraints,
+                        user_id=user_id,
+                    )
+                    opt_fm_fb = _optimized_buy_hold_metrics_for_window(
+                        analytics_service,
+                        result,
+                        start_date,
+                        end_date,
+                        portfolio_id,
+                        user_id,
                     )
                     frontier_payload = _build_frontier_payload_from_fd(
                         fd,
@@ -1315,6 +1448,7 @@ def build_optimization_full_bundle(
                         result=result,
                         current_metrics=current_metrics,
                         fallback_validation_period=True,
+                        optimized_point_metrics=opt_fm_fb,
                     )
                 except Exception:
                     frontier_payload = None
@@ -1389,6 +1523,7 @@ def build_optimization_full_bundle(
                     analysis_type=sensitivity_analysis_type,
                     variation_range=0.1,
                     num_points=10,
+                    user_id=user_id,
                 )
                 sens_results = sensitivity_block.get("results") or []
                 base["interpretation_sensitivity"] = _interpret_sensitivity_block(

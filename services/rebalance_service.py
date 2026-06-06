@@ -1,4 +1,8 @@
-"""Rebalance portfolio to target weights via transaction ledger."""
+"""Rebalance portfolio to target weights via transaction ledger.
+
+Production docs: docs/production/phases/phase-3-transaction-ledger.md,
+docs/production/phases/phase-4-optimization-ledger-parity.md (synthetic planner).
+"""
 
 from __future__ import annotations
 
@@ -55,6 +59,240 @@ class RebalancePlan:
     projected_cash_pct: float
     complete: bool
     message: str
+
+
+def scheduled_rebalance_dates(
+    first_date: date, interval_months: int, through: date
+) -> list[date]:
+    """Scheduled rebalance calendar dates (first event is ``interval`` after inception)."""
+    d = first_date + relativedelta(months=interval_months)
+    out: list[date] = []
+    while d <= through:
+        out.append(d)
+        d = d + relativedelta(months=interval_months)
+    return out
+
+
+def normalize_target_weights(user_weights: dict[str, float]) -> dict[str, float]:
+    """Normalize arbitrary positive weights (incl. CASH) to portfolio-style targets."""
+    weights = {
+        str(k).strip().upper(): float(v)
+        for k, v in user_weights.items()
+        if float(v) > 1e-15
+    }
+    if not weights:
+        return {}
+    total = sum(weights.values())
+    if total <= 0:
+        return {}
+    cash_w = weights.get("CASH", 0.0)
+    if cash_w > 0 and abs(total - 1.0) > 1e-4:
+        stock_sum = sum(w for t, w in weights.items() if t != "CASH")
+        if stock_sum > 0:
+            scale = (1.0 - cash_w) / stock_sum
+            return {
+                t: (cash_w if t == "CASH" else w * scale) for t, w in weights.items()
+            }
+    if abs(total - 1.0) > 1e-4:
+        return {t: w / total for t, w in weights.items()}
+    return weights
+
+
+def plan_rebalance_to_target_weights(
+    txs: list[Transaction],
+    target_weights: dict[str, float],
+    scheduled_date: date,
+    cost_basis_method: str,
+    data_service: DataService,
+) -> RebalancePlan:
+    """Plan trades to move holdings toward ``target_weights`` (same math as live rebalance)."""
+    stock_weights = {t: w for t, w in target_weights.items() if t != "CASH" and w > 0}
+    stock_weight_sum = sum(stock_weights.values())
+    if stock_weight_sum <= 0:
+        raise ValidationError("No stock target weights")
+
+    txs_as_of = [t for t in txs if t.transaction_date <= scheduled_date]
+    if not txs_as_of:
+        raise ValidationError(
+            "No transaction history on or before rebalance schedule date"
+        )
+
+    summary_preview = CostBasisCalculator(method=cost_basis_method).summarize(txs_as_of)
+    tickers_needed = set(stock_weights) | {
+        t
+        for t, leg in summary_preview.holdings.items()
+        if t != "CASH" and leg.quantity > 1e-9
+    }
+
+    execution_date, prices = _resolve_execution_date(
+        data_service, list(tickers_needed), scheduled_date
+    )
+
+    txs_as_of = [t for t in txs if t.transaction_date <= execution_date]
+    summary = CostBasisCalculator(method=cost_basis_method).summarize(txs_as_of)
+
+    cash = summary.cash_balance
+    current_shares: dict[str, float] = {}
+    stock_value = 0.0
+    for ticker, leg in summary.holdings.items():
+        if ticker == "CASH":
+            continue
+        current_shares[ticker] = leg.quantity
+        px = prices.get(ticker)
+        if px and px > 0:
+            stock_value += leg.quantity * px
+
+    total_value = cash + stock_value
+    if total_value <= 0:
+        raise ValidationError("Portfolio value is zero on rebalance date")
+
+    cash_target = min(1.0, max(0.0, target_weights.get("CASH", 0.0)))
+    cash_target_amt = total_value * cash_target
+    investable_stocks = total_value * (1.0 - cash_target)
+
+    target_shares = _allocate_target_shares(
+        investable_stocks, stock_weights, stock_weight_sum, prices
+    )
+    if not target_shares:
+        raise ValidationError("Could not compute stock targets for rebalance")
+
+    logger.info(
+        "Rebalance %s: total $%.0f, cash $%.0f (target $%.0f / %.1f%%), "
+        "stocks target $%.0f",
+        execution_date.isoformat(),
+        total_value,
+        cash,
+        cash_target_amt,
+        cash_target * 100,
+        investable_stocks,
+    )
+
+    trades: list[PlannedTrade] = []
+    all_tickers = set(current_shares) | set(target_shares)
+
+    for ticker in sorted(all_tickers):
+        if ticker not in stock_weights:
+            continue
+        px = prices.get(ticker)
+        if not px or px <= 0:
+            continue
+        cur = int(math.floor(current_shares.get(ticker, 0)))
+        tgt = target_shares.get(ticker, 0)
+        if cur == tgt:
+            continue
+
+        cur_mv = cur * px
+        diff = tgt - cur
+        action = "BUY" if diff > 0 else "SELL"
+        shares_n = abs(diff)
+        trades.append(
+            PlannedTrade(
+                ticker=ticker,
+                action=action,
+                shares=shares_n,
+                price=px,
+                fees=estimate_ib_commission(shares_n, px),
+                current_shares=float(cur),
+                target_shares=tgt,
+                current_weight=cur_mv / total_value if total_value else 0.0,
+                target_weight=target_weights.get(ticker, 0.0),
+            )
+        )
+
+    for ticker, qty in list(current_shares.items()):
+        if ticker in stock_weights or qty <= 1e-9:
+            continue
+        px = prices.get(ticker)
+        if not px or px <= 0:
+            continue
+        cur = int(math.floor(qty))
+        if cur <= 0:
+            continue
+        trades.append(
+            PlannedTrade(
+                ticker=ticker,
+                action="SELL",
+                shares=cur,
+                price=px,
+                fees=estimate_ib_commission(cur, px),
+                current_shares=float(cur),
+                target_shares=0,
+                current_weight=(cur * px / total_value) if total_value else 0.0,
+                target_weight=0.0,
+            )
+        )
+
+    trades = _finalize_rebalance_trades(
+        trades,
+        cash=cash,
+        shares=current_shares,
+        prices=prices,
+        target_shares=target_shares,
+        target_weights=target_weights,
+        cash_target=cash_target,
+        total_value=total_value,
+    )
+
+    projected = _projected_cash_weight(cash, current_shares, trades, prices)
+    sim_cash_end, sim_shares_end = _apply_trades_simulation(
+        cash, current_shares, trades
+    )
+    post_total = _portfolio_market_value(sim_cash_end, sim_shares_end, prices)
+    excess_dollars = max(0.0, sim_cash_end - post_total * cash_target)
+    complete = abs(
+        projected - cash_target
+    ) <= CASH_WEIGHT_TOLERANCE and excess_dollars <= _cash_tolerance_dollars(post_total)
+    message = (
+        f"Projected cash {projected * 100:.2f}% vs target {cash_target * 100:.2f}% "
+        f"(~${excess_dollars:,.0f} above cash target)"
+    )
+    if not complete:
+        message = (
+            f"Rebalance incomplete: {message}. "
+            "Cash sweep could not reach target — check prices or run again."
+        )
+
+    return RebalancePlan(
+        scheduled_date=scheduled_date,
+        execution_date=execution_date,
+        trades=trades,
+        cash_target_pct=cash_target,
+        projected_cash_pct=projected,
+        complete=complete,
+        message=message,
+    )
+
+
+def rebalance_plan_to_synthetic_transactions(
+    plan: RebalancePlan,
+    *,
+    notes_suffix: str = "pmpro:synthetic-optimized-ledger",
+) -> list[Transaction]:
+    """Turn a :class:`RebalancePlan` into ledger rows (not persisted)."""
+    tag = scheduled_rebalance_tag(plan.scheduled_date)
+    out: list[Transaction] = []
+    ordered_trades = sorted(
+        plan.trades,
+        key=lambda t: (0 if t.action == "SELL" else 1, t.ticker),
+    )
+    for trade in ordered_trades:
+        note = (
+            f"{REBALANCE_NOTE} | {tag} | "
+            f"weight {trade.current_weight * 100:.1f}% -> "
+            f"target {trade.target_weight * 100:.1f}% | {notes_suffix}"
+        )
+        out.append(
+            Transaction(
+                transaction_date=plan.execution_date,
+                transaction_type=trade.action,
+                ticker=trade.ticker,
+                shares=float(trade.shares),
+                price=trade.price,
+                fees=trade.fees,
+                notes=note,
+            )
+        )
+    return out
 
 
 def has_rebalance_for_scheduled(
@@ -498,12 +736,7 @@ class RebalanceService:
         self, first_date: date, interval_months: int, through: date
     ) -> list[date]:
         """Dates to rebalance (first event is interval after inception)."""
-        d = first_date + relativedelta(months=interval_months)
-        out: list[date] = []
-        while d <= through:
-            out.append(d)
-            d = d + relativedelta(months=interval_months)
-        return out
+        return scheduled_rebalance_dates(first_date, interval_months, through)
 
     def _plan_trades(
         self,
@@ -518,191 +751,15 @@ class RebalanceService:
         if not target_weights:
             raise ValidationError("No target weights on positions")
 
-        stock_weights = {
-            t: w for t, w in target_weights.items() if t != "CASH" and w > 0
-        }
-        stock_weight_sum = sum(stock_weights.values())
-        if stock_weight_sum <= 0:
-            raise ValidationError("No stock target weights on positions")
-
-        txs_as_of = [t for t in txs if t.transaction_date <= scheduled_date]
-        if not txs_as_of:
-            raise ValidationError(
-                "No transaction history on or before rebalance schedule date"
-            )
-
-        summary_preview = CostBasisCalculator(
-            method=portfolio.cost_basis_method
-        ).summarize(txs_as_of)
-        tickers_needed = set(stock_weights) | {
-            t
-            for t, leg in summary_preview.holdings.items()
-            if t != "CASH" and leg.quantity > 1e-9
-        }
-
-        execution_date, prices = _resolve_execution_date(
-            self._data_service, list(tickers_needed), scheduled_date
-        )
-
-        txs_as_of = [t for t in txs if t.transaction_date <= execution_date]
-        summary = CostBasisCalculator(method=portfolio.cost_basis_method).summarize(
-            txs_as_of
-        )
-
-        cash = summary.cash_balance
-        current_shares: dict[str, float] = {}
-        stock_value = 0.0
-        for ticker, leg in summary.holdings.items():
-            if ticker == "CASH":
-                continue
-            current_shares[ticker] = leg.quantity
-            px = prices.get(ticker)
-            if px and px > 0:
-                stock_value += leg.quantity * px
-
-        total_value = cash + stock_value
-        if total_value <= 0:
-            raise ValidationError("Portfolio value is zero on rebalance date")
-
-        cash_target = min(1.0, max(0.0, target_weights.get("CASH", 0.0)))
-        cash_target_amt = total_value * cash_target
-        # One snapshot: every asset (incl. cash) has a dollar target; stocks share
-        # (total − cash_target). Whole-share targets, then diff vs holdings.
-        investable_stocks = total_value * (1.0 - cash_target)
-
-        target_shares = _allocate_target_shares(
-            investable_stocks, stock_weights, stock_weight_sum, prices
-        )
-        if not target_shares:
-            raise ValidationError("Could not compute stock targets for rebalance")
-
-        logger.info(
-            "Rebalance %s: total $%.0f, cash $%.0f (target $%.0f / %.1f%%), "
-            "stocks target $%.0f",
-            execution_date.isoformat(),
-            total_value,
-            cash,
-            cash_target_amt,
-            cash_target * 100,
-            investable_stocks,
-        )
-
-        trades: list[PlannedTrade] = []
-        all_tickers = set(current_shares) | set(target_shares)
-
-        for ticker in sorted(all_tickers):
-            if ticker not in stock_weights:
-                continue
-            px = prices.get(ticker)
-            if not px or px <= 0:
-                continue
-            cur = int(math.floor(current_shares.get(ticker, 0)))
-            tgt = target_shares.get(ticker, 0)
-            if cur == tgt:
-                continue
-
-            cur_mv = cur * px
-            diff = tgt - cur
-            action = "BUY" if diff > 0 else "SELL"
-            shares_n = abs(diff)
-            trades.append(
-                PlannedTrade(
-                    ticker=ticker,
-                    action=action,
-                    shares=shares_n,
-                    price=px,
-                    fees=estimate_ib_commission(shares_n, px),
-                    current_shares=float(cur),
-                    target_shares=tgt,
-                    current_weight=cur_mv / total_value if total_value else 0.0,
-                    target_weight=target_weights.get(ticker, 0.0),
-                )
-            )
-
-        for ticker, qty in list(current_shares.items()):
-            if ticker in stock_weights or qty <= 1e-9:
-                continue
-            px = prices.get(ticker)
-            if not px or px <= 0:
-                continue
-            cur = int(math.floor(qty))
-            if cur <= 0:
-                continue
-            trades.append(
-                PlannedTrade(
-                    ticker=ticker,
-                    action="SELL",
-                    shares=cur,
-                    price=px,
-                    fees=estimate_ib_commission(cur, px),
-                    current_shares=float(cur),
-                    target_shares=0,
-                    current_weight=(cur * px / total_value) if total_value else 0.0,
-                    target_weight=0.0,
-                )
-            )
-
-        trades = _finalize_rebalance_trades(
-            trades,
-            cash=cash,
-            shares=current_shares,
-            prices=prices,
-            target_shares=target_shares,
-            target_weights=target_weights,
-            cash_target=cash_target,
-            total_value=total_value,
-        )
-
-        projected = _projected_cash_weight(cash, current_shares, trades, prices)
-        sim_cash_end, sim_shares_end = _apply_trades_simulation(
-            cash, current_shares, trades
-        )
-        post_total = _portfolio_market_value(sim_cash_end, sim_shares_end, prices)
-        excess_dollars = max(0.0, sim_cash_end - post_total * cash_target)
-        complete = abs(
-            projected - cash_target
-        ) <= CASH_WEIGHT_TOLERANCE and excess_dollars <= _cash_tolerance_dollars(
-            post_total
-        )
-        message = (
-            f"Projected cash {projected * 100:.2f}% vs target {cash_target * 100:.2f}% "
-            f"(~${excess_dollars:,.0f} above cash target)"
-        )
-        if not complete:
-            message = (
-                f"Rebalance incomplete: {message}. "
-                "Cash sweep could not reach target — check prices or run again."
-            )
-
-        return RebalancePlan(
-            scheduled_date=scheduled_date,
-            execution_date=execution_date,
-            trades=trades,
-            cash_target_pct=cash_target,
-            projected_cash_pct=projected,
-            complete=complete,
-            message=message,
+        return plan_rebalance_to_target_weights(
+            txs,
+            target_weights,
+            scheduled_date,
+            portfolio.cost_basis_method,
+            self._data_service,
         )
 
     def _target_weights(self, portfolio) -> dict[str, float]:
-        weights: dict[str, float] = {}
-        for pos in portfolio.get_all_positions():
-            if pos.weight_target is not None and pos.weight_target > 0:
-                weights[pos.ticker] = pos.weight_target
-        if not weights:
-            return {}
-        total = sum(weights.values())
-        if total <= 0:
-            return {}
-        cash_w = weights.get("CASH", 0.0)
-        if cash_w > 0 and abs(total - 1.0) > 1e-4:
-            stock_sum = sum(w for t, w in weights.items() if t != "CASH")
-            if stock_sum > 0:
-                scale = (1.0 - cash_w) / stock_sum
-                return {
-                    t: (cash_w if t == "CASH" else w * scale)
-                    for t, w in weights.items()
-                }
-        if abs(total - 1.0) > 1e-4:
-            return {t: w / total for t, w in weights.items()}
-        return weights
+        from services.strategy_service import extract_target_weights
+
+        return extract_target_weights(portfolio)

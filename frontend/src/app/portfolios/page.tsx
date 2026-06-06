@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { RebalanceStrategyPanel } from "@/components/rebalance-strategy-panel";
+import {
+  RebalanceStrategyPanel,
+  type StrategyWeightRow,
+} from "@/components/rebalance-strategy-panel";
 import {
   TransactionForm,
   type TransactionFormPayload,
@@ -90,6 +93,36 @@ type ViewMode = "list" | "view" | "edit";
 type TabKey = "overview" | "positions" | "transactions" | "strategies";
 type SortKey = "name" | "assets" | "value";
 
+type StrategyApi = {
+  portfolio_id: string;
+  rebalance_interval_months: number | null;
+  targets: Record<string, number>;
+  targets_normalized: Record<string, number>;
+  total_weight: number;
+  is_active: boolean;
+};
+
+function buildStrategyWeightRows(
+  portfolio: Portfolio,
+  drafts: Record<string, number>,
+): StrategyWeightRow[] {
+  const tickers = new Set<string>();
+  for (const p of portfolio.positions) {
+    if (p.ticker) tickers.add(p.ticker);
+  }
+  return [...tickers].map((ticker) => {
+    const pos = portfolio.positions.find((p) => p.ticker === ticker);
+    const fromPos =
+      pos?.weight_target != null && pos.weight_target > 0
+        ? pos.weight_target * 100
+        : 0;
+    return {
+      ticker,
+      weightPct: drafts[ticker] ?? fromPos,
+    };
+  });
+}
+
 /* =============================================================== */
 /*                          MAIN COMPONENT                         */
 /* =============================================================== */
@@ -128,6 +161,13 @@ export default function PortfoliosPage() {
   const [syncingLedger, setSyncingLedger] = useState(false);
   const [holdings, setHoldings] = useState<Holding[]>([]);
 
+  const [strategyInterval, setStrategyInterval] = useState("");
+  const [strategyWeightDrafts, setStrategyWeightDrafts] = useState<
+    Record<string, number>
+  >({});
+  const [savingStrategy, setSavingStrategy] = useState(false);
+  const [previewingStrategy, setPreviewingStrategy] = useState(false);
+
   /* --- load portfolios --- */
   const loadPortfolios = useCallback(async () => {
     setLoading(true);
@@ -153,6 +193,11 @@ export default function PortfoliosPage() {
     return marketValueByTicker(selected.positions, holdings);
   }, [selected, holdings]);
 
+  const strategyWeightRows = useMemo(() => {
+    if (!selected) return [];
+    return buildStrategyWeightRows(selected, strategyWeightDrafts);
+  }, [selected, strategyWeightDrafts]);
+
   const filtered = useMemo(() => {
     let result = [...portfolios];
     if (searchQuery.trim()) {
@@ -174,9 +219,16 @@ export default function PortfoliosPage() {
 
   /* --- actions --- */
 
-  const syncStrategyIntervalFromPortfolio = (p: Portfolio) => {
+  const syncStrategyFromPortfolio = (p: Portfolio) => {
     const m = p.rebalance_interval_months;
     setStrategyInterval(m != null ? String(m) : "");
+    const drafts: Record<string, number> = {};
+    for (const pos of p.positions) {
+      if (pos.weight_target != null && pos.weight_target > 0) {
+        drafts[pos.ticker] = pos.weight_target * 100;
+      }
+    }
+    setStrategyWeightDrafts(drafts);
   };
 
   const syncPortfolioLedger = useCallback(async (id: string) => {
@@ -212,7 +264,7 @@ export default function PortfoliosPage() {
       );
       setTransactions(txs);
       setHoldings(holdingsRows);
-      syncStrategyIntervalFromPortfolio(portfolioFresh);
+      syncStrategyFromPortfolio(portfolioFresh);
     } catch (err) {
       setMessage({
         type: "error",
@@ -237,30 +289,61 @@ export default function PortfoliosPage() {
     setEditDescription(p.description ?? "");
     setEditCurrency(p.base_currency);
     setEditCapital(p.starting_capital);
-    syncStrategyIntervalFromPortfolio(p);
+    syncStrategyFromPortfolio(p);
     setMode("edit");
     setTab("positions");
     setMessage(null);
   };
 
   const saveRebalanceStrategy = async () => {
-    if (!selectedId) return;
+    if (!selectedId || !selected) return;
+    const rows = buildStrategyWeightRows(selected, strategyWeightDrafts);
+    const targets: Record<string, number> = {};
+    for (const row of rows) {
+      targets[row.ticker] = row.weightPct / 100;
+    }
     setSavingStrategy(true);
     try {
-      const updated = await api.patch<Portfolio>(
-        `/portfolios/${selectedId}`,
-        {
-          rebalance_interval_months: parseRebalanceInterval(strategyInterval),
-        },
-      );
+      const res = await api.put<{
+        strategy: StrategyApi;
+        portfolio: Portfolio;
+      }>(`/portfolios/${selectedId}/strategy`, {
+        rebalance_interval_months: parseRebalanceInterval(strategyInterval),
+        targets,
+        replace_targets: true,
+      });
       setPortfolios((prev) =>
-        prev.map((p) => (p.id === selectedId ? updated : p)),
+        prev.map((p) => (p.id === selectedId ? res.portfolio : p)),
       );
+      syncStrategyFromPortfolio(res.portfolio);
       setMessage({ type: "success", text: "Rebalancing strategy saved." });
     } catch (err) {
       setMessage({ type: "error", text: String(err) });
     } finally {
       setSavingStrategy(false);
+    }
+  };
+
+  const previewStrategyRebalance = async () => {
+    if (!selectedId) return;
+    setPreviewingStrategy(true);
+    try {
+      const plan = await api.post<{
+        trade_count: number;
+        message: string;
+        complete: boolean;
+      }>(`/portfolios/${selectedId}/strategy/preview`, {});
+      setMessage({
+        type: plan.complete ? "success" : "info",
+        text:
+          plan.trade_count > 0
+            ? `Preview: ${plan.trade_count} trade(s). ${plan.message}`
+            : plan.message || "No trades required at current prices.",
+      });
+    } catch (err) {
+      setMessage({ type: "error", text: String(err) });
+    } finally {
+      setPreviewingStrategy(false);
     }
   };
 
@@ -372,9 +455,6 @@ export default function PortfoliosPage() {
       void reloadSelectedPortfolio();
     }
   }, [selectedId, tab, reloadSelectedPortfolio]);
-
-  const [strategyInterval, setStrategyInterval] = useState("");
-  const [savingStrategy, setSavingStrategy] = useState(false);
 
   const reloadTransactions = useCallback(async () => {
     if (!selectedId) return;
@@ -958,8 +1038,17 @@ export default function PortfoliosPage() {
               portfolio={selected}
               intervalValue={strategyInterval}
               onIntervalChange={setStrategyInterval}
+              weightRows={strategyWeightRows}
+              onWeightChange={(ticker, weightPct) =>
+                setStrategyWeightDrafts((prev) => ({
+                  ...prev,
+                  [ticker]: weightPct,
+                }))
+              }
               onSave={() => void saveRebalanceStrategy()}
+              onPreview={() => void previewStrategyRebalance()}
               saving={savingStrategy}
+              previewing={previewingStrategy}
               showSaveButton
             />
           )}
@@ -1294,8 +1383,17 @@ export default function PortfoliosPage() {
               portfolio={selected}
               intervalValue={strategyInterval}
               onIntervalChange={setStrategyInterval}
+              weightRows={strategyWeightRows}
+              onWeightChange={(ticker, weightPct) =>
+                setStrategyWeightDrafts((prev) => ({
+                  ...prev,
+                  [ticker]: weightPct,
+                }))
+              }
               onSave={() => void saveRebalanceStrategy()}
+              onPreview={() => void previewStrategyRebalance()}
               saving={savingStrategy}
+              previewing={previewingStrategy}
               showSaveButton
             />
           )}

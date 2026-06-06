@@ -16,6 +16,7 @@ const PROTECTED_PREFIXES = [
   "/risk",
   "/forecasting",
   "/settings",
+  "/billing",
 ];
 
 function isProtectedPage(pathname: string): boolean {
