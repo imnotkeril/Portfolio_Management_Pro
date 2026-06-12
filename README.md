@@ -54,10 +54,19 @@ CI runs **Ruff, Black, isort, Mypy, Pytest** on **Python 3.11** with **`core/` c
 ## Screenshots
 
 <p align="center">
-  <img width="780" alt="App screenshot 1" src="https://github.com/user-attachments/assets/4a8ebd9a-611c-4e7d-8d81-76232791b85d" />
+  <img  width="1420" height="1007" alt="Снимок экрана 2026-06-12 233130" src="https://github.com/user-attachments/assets/9b129cc4-c246-43d0-a1b2-3e6203ffd919" />
 </p>
 <p align="center">
-  <img width="780" alt="App screenshot 2" src="https://github.com/user-attachments/assets/0288e9ec-88d4-41ce-8cb2-b792a156f2ce" />
+  <img width="1355" height="945" alt="Снимок экрана 2026-06-12 233219" src="https://github.com/user-attachments/assets/823d0397-3715-400b-8ae3-610d14c19cee" />
+</p>
+<p align="center">
+ <img width="1355" height="1008" alt="Снимок экрана 2026-06-12 233313" src="https://github.com/user-attachments/assets/8ffa547f-aa3d-4e1e-a276-787847d5c747" />
+</p>
+<p align="center">
+  <img width="1814" height="1008" alt="Снимок экрана 2026-06-07 060517" src="https://github.com/user-attachments/assets/55c9b4e9-3766-4819-a492-5bdb23dee2e6" />
+</p>
+<p align="center">
+  <img width="1362" height="1011" alt="Снимок экрана 2026-06-12 233341" src="https://github.com/user-attachments/assets/49975018-512f-4b63-ae5b-7586e833f255" />
 </p>
 
 ---
@@ -67,7 +76,6 @@ CI runs **Ruff, Black, isort, Mypy, Pytest** on **Python 3.11** with **`core/` c
 ### Portfolio management
 
 - **4 creation methods**: text, CSV, manual entry, templates  
-- **5-step wizard** for guided creation  
 - **Full CRUD** and **transaction tracking** (BUY / SELL / DEPOSIT / WITHDRAWAL)  
 - **Positions**: validation, inline editing, bulk actions  
 
