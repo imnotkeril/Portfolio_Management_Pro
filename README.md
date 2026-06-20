@@ -3,11 +3,20 @@
 **Professional portfolio management** with analytics, optimization, risk tools, and forecasting.
 
 <p align="center">
-  <a href="https://proportfolio.streamlit.app/"><strong>Live demo (Streamlit)</strong></a>
+  <a href="https://portfolio-management-pro-taupe.vercel.app/"><strong>Live app (Next.js + FastAPI)</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://proportfolio.streamlit.app/">Streamlit demo</a>
   &nbsp;·&nbsp;
   <a href="#full-stack-nextjs--fastapi--docker">Full stack (Docker)</a>
   &nbsp;·&nbsp;
   <a href="USER_GUIDE.md">User guide</a>
+</p>
+
+<p align="center">
+  <strong>Production:</strong>
+  web <a href="https://portfolio-management-pro-taupe.vercel.app/">Vercel</a>
+  · API <a href="https://imnotkeril-portfolio-management-pro-api.hf.space/health">Hugging Face Spaces</a>
+  · DB Supabase Postgres · billing Stripe (test mode)
 </p>
 
 <p align="center">

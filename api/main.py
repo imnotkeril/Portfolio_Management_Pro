@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import date
 from typing import Any
 
@@ -15,6 +16,7 @@ from pydantic import BaseModel, Field
 from api.dependencies import get_current_user, require_pro
 from api.routers import auth as auth_router
 from api.routers import billing as billing_router
+from config.settings import settings
 from core.analytics_engine.chart_data import (
     get_asset_impact_on_return_data,
     get_asset_impact_on_risk_data,
@@ -386,12 +388,24 @@ def _verify_portfolio_access(portfolio_id: str, user: User) -> None:
 
 ensure_database_schema()
 app = FastAPI(title="WMC Portfolio API", version="1.0.0")
+
+# Browser talks to the Next.js BFF (same-origin), which forwards server-side to
+# this API — so CORS is only a safety net. Allow localhost dev plus the
+# configured production frontend (and any extra origins via CORS_ORIGINS).
+_cors_origins = {
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    settings.frontend_url,
+}
+_extra_origins = os.getenv("CORS_ORIGINS", "")
+for _origin in _extra_origins.split(","):
+    _origin = _origin.strip().rstrip("/")
+    if _origin:
+        _cors_origins.add(_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=sorted(o for o in _cors_origins if o),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

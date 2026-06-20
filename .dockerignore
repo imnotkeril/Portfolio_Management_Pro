@@ -9,6 +9,16 @@ __pycache__
 htmlcov
 coverage.xml
 logs
-frontend/node_modules
-frontend/.next
+frontend
+streamlit_app
+tests
+docs
+.github
+.mypy_cache
+.ruff_cache
+.playwright-mcp
+.coverage
+.vscode
+data/cache
+*.md
 

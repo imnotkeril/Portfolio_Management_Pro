@@ -26,8 +26,12 @@ class UserRepository:
             session.flush()
             session.refresh(user)
             session.expunge(user)
-            SubscriptionRepository().ensure_free(user.id)
-            return user
+        # Commit the user (close the transaction above) BEFORE creating the
+        # free subscription: ensure_free() opens its own session/transaction,
+        # which on a real RDBMS cannot see an uncommitted user and would fail
+        # the subscriptions.user_id foreign key.
+        SubscriptionRepository().ensure_free(user.id)
+        return user
 
     def find_by_email(self, email: str) -> Optional[UserORM]:
         """Find user by email (case-insensitive)."""

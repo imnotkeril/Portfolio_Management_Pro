@@ -39,9 +39,9 @@ import {
   YAxis,
 } from "recharts";
 
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  PALETTE                                                               */
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 const C = {
   accent: "#bf9ffb",
   ok: "#74f174",
@@ -63,9 +63,9 @@ const PIE_COLORS = [
 ];
 const ttStyle = { background: C.tooltipBg, border: `1px solid ${C.tooltipBorder}`, borderRadius: 8, fontSize: 12, color: "#eee" };
 
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  TYPES                                                                 */
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 type MainTab = "overview" | "performance" | "risk" | "assets" | "export";
 type PerfSub = "returns" | "periodic" | "distribution";
 type RiskSub = "key" | "drawdown" | "var" | "rolling";
@@ -73,9 +73,9 @@ type AssetSub = "overview" | "correlations" | "details";
 type AnalyticsResult = Record<string, any>;
 type Pt = { x: string; y: number };
 
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  TINY UI COMPONENTS                                                    */
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 
 function Tip({ text }: { text: string }) {
   return (
@@ -117,12 +117,12 @@ function InfoBox({ children }: { children: React.ReactNode }) {
 
   const classify = (s: string): "good" | "bad" | "warn" | "neutral" => {
     const low = s.toLowerCase();
-    if (/^[вњ“вњ”]|good diversif|excellent|positive alpha|outperform|well-diversif|above threshold|all assets show positive|low average|low sensitivity|currently above/.test(low)) return "good";
-    if (/^[вњ—вњ!вљ ]|poor|negative alpha|underperform|high concentration|concentrated risk|no negative|currently below|limited diversif|no low corr|no pairs|high average corr|high sensitivity/.test(low)) return "bad";
-    if (/moderate|caution|consider|some|becoming/.test(low)) return "warn";
+    if (/^[✓✔]|good diversif|excellent|positive alpha|outperform|well-diversif|above threshold|all assets show positive|low average|low sensitivity|currently above|at or near peak|relatively shallow|positive growth|strong growth|slightly outperformed|significantly outperformed/.test(low)) return "good";
+    if (/^[✗✘!⚠]|poor|negative alpha|underperform|high concentration|concentrated risk|no negative|currently below|limited diversif|no low corr|no pairs|high average corr|high sensitivity|deep maximum|severe maximum|significant maximum drawdown|currently in drawdown|frequent drawdown|negative performance/.test(low)) return "bad";
+    if (/moderate|caution|consider|some|becoming|volatile path/.test(low)) return "warn";
     return "neutral";
   };
-  const icon = (cls: string) => cls === "good" ? "вњ“" : cls === "bad" ? "вњ—" : cls === "warn" ? "вљ¬" : "вЂў";
+  const icon = (cls: string) => cls === "good" ? "✓" : cls === "bad" ? "✗" : cls === "warn" ? "⚠" : "•";
   const clr = (cls: string) => cls === "good" ? "text-[var(--ok)]" : cls === "bad" ? "text-[var(--danger)]" : cls === "warn" ? "text-[var(--warn)]" : "text-white/60";
 
   return (
@@ -160,7 +160,7 @@ function CmpMetricCard({
   helpText?: string;
 }) {
   const fmtV = (v: number | null | undefined) => {
-    if (v == null || !isFinite(v)) return "вЂ”";
+    if (v == null || !isFinite(v)) return "—";
     if (format === "percent") return percentDecimal(v, 2);
     return v.toFixed(3);
   };
@@ -206,27 +206,27 @@ function Divider() {
   return <div className="border-t border-white/10 my-4" />;
 }
 
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  FORMATTERS                                                            */
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 
 function fmtPct(v: any, decimals = 2): string {
-  if (v == null || v === "" || typeof v === "object") return "вЂ”";
+  if (v == null || v === "" || typeof v === "object") return "—";
   const n = typeof v === "number" ? v : parseFloat(v);
-  if (!isFinite(n)) return "вЂ”";
+  if (!isFinite(n)) return "—";
   const val = n * 100;
   return `${val >= 0 ? "+" : ""}${val.toFixed(decimals)}%`;
 }
 function fmtPctPlain(v: any, decimals = 2): string {
-  if (v == null) return "вЂ”";
+  if (v == null) return "—";
   const n = typeof v === "number" ? v : parseFloat(v);
-  if (!isFinite(n)) return "вЂ”";
+  if (!isFinite(n)) return "—";
   return `${(n * 100).toFixed(decimals)}%`;
 }
 function fmtNum(v: any, decimals = 2): string {
-  if (v == null) return "вЂ”";
+  if (v == null) return "—";
   const n = typeof v === "number" ? v : parseFloat(v);
-  if (!isFinite(n)) return "вЂ”";
+  if (!isFinite(n)) return "—";
   return n.toFixed(decimals);
 }
 function fmtUsd(v: number): string {
@@ -239,9 +239,9 @@ function isGood(v: any, threshold = 0): boolean | null {
   return n >= threshold;
 }
 
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  DATA HELPERS                                                          */
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 
 function extractSeries(data: any): Pt[] {
   if (!data) return [];
@@ -274,7 +274,7 @@ function cumulative(pts: Pt[]): Pt[] {
   return pts.map((d) => { cum = (1 + cum) * (1 + d.y) - 1; return { x: d.x, y: cum }; });
 }
 
-/** Cumulative return from a NAV (or single-asset price) series вЂ” matches backend total_return from values. */
+/** Cumulative return from a NAV (or single-asset price) series — matches backend total_return from values. */
 function cumulativeFromNav(vals: Pt[]): Pt[] {
   if (vals.length < 2) return [];
   const v0 = vals[0].y;
@@ -352,12 +352,12 @@ function interpretDrawdown(dd: Pt[]): string {
   const currentDd = dd[dd.length - 1].y;
   const timeInDDpct = (dd.filter((d) => d.y < -0.05).length / dd.length * 100);
   const parts: string[] = ["Drawdown Analysis:"];
-  if (maxDd > -0.1) parts.push(`вљ  Maximum drawdown: ${(maxDd * 100).toFixed(1)}% вЂ” Relatively shallow`);
-  else if (maxDd > -0.2) parts.push(`вљ  Significant maximum drawdown: ${(maxDd * 100).toFixed(1)}% вЂ” Portfolio lost 10-20% from peak`);
-  else parts.push(`вљ  Deep maximum drawdown: ${(maxDd * 100).toFixed(1)}% вЂ” Portfolio lost >20% from peak`);
-  if (Math.abs(currentDd) < 0.005) parts.push("вљ  Currently at or near peak");
-  else parts.push(`вљ  Currently in drawdown: ${(currentDd * 100).toFixed(1)}% вЂ” Portfolio is below recent peak`);
-  if (timeInDDpct > 50) parts.push(`вљ  Frequent drawdowns: Portfolio spent ${timeInDDpct.toFixed(1)}% of time in >5% drawdown`);
+  if (maxDd > -0.1) parts.push(`Maximum drawdown: ${(maxDd * 100).toFixed(1)}% — Relatively shallow`);
+  else if (maxDd > -0.2) parts.push(`Significant maximum drawdown: ${(maxDd * 100).toFixed(1)}% — Portfolio lost 10-20% from peak`);
+  else parts.push(`Deep maximum drawdown: ${(maxDd * 100).toFixed(1)}% — Portfolio lost >20% from peak`);
+  if (Math.abs(currentDd) < 0.005) parts.push("At or near peak: Portfolio is performing well");
+  else parts.push(`Currently in drawdown: ${(currentDd * 100).toFixed(1)}% — Portfolio is below recent peak`);
+  if (timeInDDpct > 50) parts.push(`Frequent drawdowns: Portfolio spent ${timeInDDpct.toFixed(1)}% of time in >5% drawdown`);
   else if (timeInDDpct > 20) parts.push(`Portfolio spent ${timeInDDpct.toFixed(1)}% of time in >5% drawdown`);
   return parts.join(" / ");
 }
@@ -381,9 +381,9 @@ function interpretDailyReturns(vals: number[]): string {
   return parts.join(" / ");
 }
 
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  CHART WRAPPERS                                                        */
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 
 function TimeSeriesChart({ data, data2, label1 = "Portfolio", label2 = "Benchmark", height = 300, pct = false }: {
   data: Pt[]; data2?: Pt[]; label1?: string; label2?: string; height?: number; pct?: boolean;
@@ -494,9 +494,9 @@ function RollingLineChart({ data, data2, label1 = "Portfolio", label2 = "Benchma
   );
 }
 
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  MAIN COMPONENT                                                        */
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════════════════════════════════ */
 
 function AnalysisPageContent() {
   const searchParams = useSearchParams();
@@ -713,12 +713,12 @@ function AnalysisPageContent() {
     return res;
   }, [portfolioReturns, benchmarkReturns, rollingWindow, hasBenchmark]);
 
-  /* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ RENDER в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+  /* ═══════════════ RENDER ═══════════════ */
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <h1 className="text-3xl font-bold text-white">Portfolio Analysis</h1>
 
-      {/* в•ђв•ђв•ђ PARAMETERS в•ђв•ђв•ђ */}
+      {/* ═══ PARAMETERS ═══ */}
       <div className="panel p-6 space-y-4">
         <h2 className="text-lg font-semibold text-white">Analysis Parameters <Tip text="Configure the analysis period, portfolio, and comparison benchmark" /></h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -765,7 +765,7 @@ function AnalysisPageContent() {
 
       {!analytics && !loading && <Alert type="info">Click &quot;Calculate Metrics&quot; to start analysis</Alert>}
 
-      {/* в•ђв•ђв•ђ MAIN TABS в•ђв•ђв•ђ */}
+      {/* ═══ MAIN TABS ═══ */}
       {analytics && (<>
         <div className="tab-bar">
           {([["overview","Overview"],["performance","Performance"],["risk","Risk"],["assets","Assets & Correlations"],["export","Export & Reports"]] as [MainTab,string][]).map(([key,label]) => (
@@ -773,9 +773,9 @@ function AnalysisPageContent() {
           ))}
         </div>
 
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {/*  TAB 1: OVERVIEW                                       */}
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {mainTab === "overview" && (<div className="space-y-6">
 
           {/* в”Ђв”Ђ Section 1.1: Key Performance Metrics в”Ђв”Ђ */}
@@ -835,7 +835,7 @@ function AnalysisPageContent() {
                 <DonutChart data={allocationData} height={270} />
                 {allocationData.length > 0 && (() => {
                   const top = allocationData.reduce((a, b) => a.value > b.value ? a : b, allocationData[0]);
-                  return <div className="text-xs text-white/40 mt-2"><strong>Top asset:</strong> {top.name} вЂ” {top.value.toFixed(1)}% of portfolio</div>;
+                  return <div className="text-xs text-white/40 mt-2"><strong>Top asset:</strong> {top.name} — {top.value.toFixed(1)}% of portfolio</div>;
                 })()}
               </div>
               {/* Distribution by Sectors */}
@@ -849,7 +849,7 @@ function AnalysisPageContent() {
                     <DonutChart data={sectorAllocationData} height={270} />
                     {sectorAllocationData[0] && (
                       <div className="text-xs text-white/40 mt-2">
-                        <strong>Top sector:</strong> {sectorAllocationData[0].name} вЂ”{" "}
+                        <strong>Top sector:</strong> {sectorAllocationData[0].name} —{" "}
                         {sectorAllocationData[0].value.toFixed(1)}% of portfolio
                       </div>
                     )}
@@ -886,7 +886,7 @@ function AnalysisPageContent() {
                   return rows.map((r) => {
                     const pN = typeof r.pv === "number" ? r.pv : null;
                     const bN = typeof r.bv === "number" ? r.bv : null;
-                    let deltaStr = "вЂ”";
+                    let deltaStr = "—";
                     let dotColor = "";
                     if (pN != null && bN != null && bN !== 0) {
                       const pctChange = ((pN - bN) / Math.abs(bN)) * 100;
@@ -895,10 +895,10 @@ function AnalysisPageContent() {
                       else if (r.higherBetter === false) dotColor = pctChange <= 0 ? "bg-[var(--ok)]" : "bg-[var(--danger)]";
                       else dotColor = "bg-[var(--warn)]";
                     } else if (pN != null && bN != null && bN === 0) {
-                      deltaStr = "вЂ”";
+                      deltaStr = "—";
                     }
                     const fmtVal = (v: any) => {
-                      if (v == null) return "вЂ”";
+                      if (v == null) return "—";
                       if (r.fmt === "pct") return fmtPctPlain(v);
                       return fmtNum(v, 3);
                     };
@@ -942,13 +942,13 @@ function AnalysisPageContent() {
           </div>
         </div>)}
 
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {/*  TAB 2: PERFORMANCE                                    */}
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {mainTab === "performance" && (<div className="space-y-5">
           <SubTabs tabs={[["returns","Returns Analysis"],["periodic","Periodic Analysis"],["distribution","Distribution"]]} active={perfSub} onChange={setPerfSub} />
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ Returns Analysis в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ Returns Analysis ══════════ */}
           {perfSub === "returns" && (<div className="space-y-5">
             {/* 2.1.1 Cumulative Returns */}
             <div className="panel p-5">
@@ -1014,8 +1014,8 @@ function AnalysisPageContent() {
                       <tr key={r.label}>
                         <td className="text-white/70 font-medium">{r.label}</td>
                         <td className="font-mono">{r.Portfolio.toFixed(2)}%</td>
-                        {hasBenchmark && <td className="font-mono text-white/40">{r.Benchmark != null ? `${r.Benchmark.toFixed(2)}%` : "вЂ”"}</td>}
-                        {hasBenchmark && <td className="font-mono">{r.Diff != null ? `${r.Diff >= 0 ? "+" : ""}${r.Diff.toFixed(2)}%` : "вЂ”"}</td>}
+                        {hasBenchmark && <td className="font-mono text-white/40">{r.Benchmark != null ? `${r.Benchmark.toFixed(2)}%` : "—"}</td>}
+                        {hasBenchmark && <td className="font-mono">{r.Diff != null ? `${r.Diff >= 0 ? "+" : ""}${r.Diff.toFixed(2)}%` : "—"}</td>}
                       </tr>
                     ))}</tbody>
                   </table>
@@ -1041,7 +1041,7 @@ function AnalysisPageContent() {
                       <tr key={tf}>
                         <td className="text-white/70">{tf}</td>
                         <td className="font-mono">{(md * mult * 100).toFixed(2)}%</td>
-                        {hasBenchmark && <td className="font-mono text-white/40">{bm != null ? `${(bm * mult * 100).toFixed(2)}%` : "вЂ”"}</td>}
+                        {hasBenchmark && <td className="font-mono text-white/40">{bm != null ? `${(bm * mult * 100).toFixed(2)}%` : "—"}</td>}
                         {hasBenchmark && bm != null && <td className="font-mono">{((md - bm) * mult * 100).toFixed(2)}%</td>}
                       </tr>
                     ))}</tbody>
@@ -1117,7 +1117,7 @@ function AnalysisPageContent() {
             </div>)}
           </div>)}
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ Periodic Analysis в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ Periodic Analysis ══════════ */}
           {perfSub === "periodic" && (<div className="space-y-5">
             {/* 2.2.1 Annual Returns (EOY) */}
             <div className="panel p-5">
@@ -1159,8 +1159,8 @@ function AnalysisPageContent() {
                   const intensity = Math.min(Math.abs(v) / maxAbs, 1);
                   return v >= 0 ? `rgba(116,241,116,${0.15 + intensity * 0.6})` : `rgba(250,161,164,${0.15 + intensity * 0.6})`;
                 };
-                const bestMonth = monthNames[allVals.indexOf(Math.max(...allVals)) % 12] || "вЂ”";
-                const worstMonth = monthNames[allVals.indexOf(Math.min(...allVals)) % 12] || "вЂ”";
+                const bestMonth = monthNames[allVals.indexOf(Math.max(...allVals)) % 12] || "—";
+                const worstMonth = monthNames[allVals.indexOf(Math.min(...allVals)) % 12] || "—";
                 return (<>
                   <div className="overflow-x-auto">
                     <table className="data-table text-center">
@@ -1187,7 +1187,7 @@ function AnalysisPageContent() {
 
             {/* 2.2.3 Monthly Active Returns (if benchmark) */}
             {hasBenchmark && portfolioReturns.length > 0 && (<div className="panel p-5">
-              <h3 className="text-lg font-semibold text-white mb-3">Monthly Active Returns (%) вЂ” Portfolio vs Benchmark <Tip text="Difference between monthly portfolio and benchmark returns" /></h3>
+              <h3 className="text-lg font-semibold text-white mb-3">Monthly Active Returns (%) — Portfolio vs Benchmark <Tip text="Difference between monthly portfolio and benchmark returns" /></h3>
               {(() => {
                 const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
                 const pGrid: Record<string, Record<number, number>> = {};
@@ -1200,8 +1200,8 @@ function AnalysisPageContent() {
                 const maxAbs = Math.max(Math.abs(Math.min(...activeVals, 0)), Math.abs(Math.max(...activeVals, 0))) || 0.1;
                 const getColor = (v: number) => { const i = Math.min(Math.abs(v) / maxAbs, 1); return v >= 0 ? `rgba(116,241,116,${0.15 + i * 0.6})` : `rgba(250,161,164,${0.15 + i * 0.6})`; };
                 const posMonths = activeVals.filter((v) => v > 0).length;
-                const bestActiveMonth = activeVals.length ? monthNames[activeVals.indexOf(Math.max(...activeVals)) % 12] || "вЂ”" : "вЂ”";
-                const worstActiveMonth = activeVals.length ? monthNames[activeVals.indexOf(Math.min(...activeVals)) % 12] || "вЂ”" : "вЂ”";
+                const bestActiveMonth = activeVals.length ? monthNames[activeVals.indexOf(Math.max(...activeVals)) % 12] || "—" : "—";
+                const worstActiveMonth = activeVals.length ? monthNames[activeVals.indexOf(Math.min(...activeVals)) % 12] || "—" : "—";
                 return (<>
                   <div className="overflow-x-auto">
                     <table className="data-table text-center">
@@ -1223,7 +1223,7 @@ function AnalysisPageContent() {
               })()}
             </div>)}
 
-            {/* 2.2.4 Seasonal Analysis вЂ” 3 columns with benchmark */}
+            {/* 2.2.4 Seasonal Analysis — 3 columns with benchmark */}
             <div className="panel p-5">
               <h3 className="text-lg font-semibold text-white mb-3">Seasonal Analysis <Tip text="Average returns grouped by time periods to identify recurring patterns" /></h3>
               {portfolioReturns.length > 0 && (() => {
@@ -1275,7 +1275,7 @@ function AnalysisPageContent() {
             </div>
           </div>)}
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ Distribution в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ Distribution ══════════ */}
           {perfSub === "distribution" && (<div className="space-y-5">
             {/* 2.3.1 Daily + Monthly Distribution histograms side by side */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -1405,9 +1405,9 @@ function AnalysisPageContent() {
               })()}
             </div>
 
-            {/* 2.3.3 Win Rate Statistics вЂ” Comprehensive */}
+            {/* 2.3.3 Win Rate Statistics — Comprehensive */}
             <div className="panel p-5">
-              <h3 className="text-lg font-semibold text-white mb-3">Win Rate Statistics вЂ” Comprehensive <Tip text="Percentage of positive return periods across different timeframes" /></h3>
+              <h3 className="text-lg font-semibold text-white mb-3">Win Rate Statistics — Comprehensive <Tip text="Percentage of positive return periods across different timeframes" /></h3>
               {portfolioReturns.length > 0 && (() => {
                 const daily = portfolioReturns.map((d) => d.y); const monthly = monthlyFromDaily(portfolioReturns).map((d) => d.value);
                 const weekly: number[] = []; for (let i = 0; i < daily.length; i += 5) { const s = daily.slice(i, i + 5); weekly.push(s.reduce((p, r) => p * (1 + r), 1) - 1); }
@@ -1442,8 +1442,8 @@ function AnalysisPageContent() {
                   <table className="data-table"><thead><tr><th>Timeframe</th><th>Portfolio</th>{hasBenchmark && <th>{cmpLabel}</th>}{hasBenchmark && <th>Difference</th>}</tr></thead>
                     <tbody>{rows.map((r) => (
                       <tr key={r.l}><td className="text-white/70">{r.l}</td><td className="font-mono">{r.p.toFixed(2)}%</td>
-                        {hasBenchmark && <td className="font-mono text-white/40">{r.b != null ? `${r.b.toFixed(2)}%` : "вЂ”"}</td>}
-                        {hasBenchmark && <td className="font-mono">{r.b != null ? `${(r.p - r.b) >= 0 ? "+" : ""}${(r.p - r.b).toFixed(2)}%` : "вЂ”"}</td>}
+                        {hasBenchmark && <td className="font-mono text-white/40">{r.b != null ? `${r.b.toFixed(2)}%` : "—"}</td>}
+                        {hasBenchmark && <td className="font-mono">{r.b != null ? `${(r.p - r.b) >= 0 ? "+" : ""}${(r.p - r.b).toFixed(2)}%` : "—"}</td>}
                       </tr>
                     ))}</tbody>
                   </table>
@@ -1454,7 +1454,7 @@ function AnalysisPageContent() {
 
             {/* 2.3.4 Outlier Analysis */}
             <div className="panel p-5">
-              <h3 className="text-lg font-semibold text-white mb-3">Outlier Analysis вЂ” Tail Events <Tip text="Identifies returns beyond 2 standard deviations from the mean" /></h3>
+              <h3 className="text-lg font-semibold text-white mb-3">Outlier Analysis — Tail Events <Tip text="Identifies returns beyond 2 standard deviations from the mean" /></h3>
               {portfolioReturns.length > 0 && (() => {
                 const vals = portfolioReturns.map((d) => d.y);
                 const m = mean(vals); const sd = stddev(vals);
@@ -1483,15 +1483,15 @@ function AnalysisPageContent() {
           </div>)}
         </div>)}
 
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {/*  TAB 3: RISK                                           */}
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {mainTab === "risk" && (<div className="space-y-5">
           <SubTabs tabs={[["key","Key Metrics"],["drawdown","Drawdown Analysis"],["var","VaR & CVaR"],["rolling","Rolling Risk Metrics"]]} active={riskSub} onChange={setRiskSub} />
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ Key Metrics в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ Key Metrics ══════════ */}
           {riskSub === "key" && (<div className="space-y-5">
-            {/* 3.1.1 Risk Metrics вЂ” 8 cards */}
+            {/* 3.1.1 Risk Metrics — 8 cards */}
             <h3 className="text-lg font-semibold text-white">Risk Metrics</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <CmpMetricCard label="Volatility" portfolioValue={vol} benchmarkValue={cmpMetrics.volatility} format="percent" higherIsBetter={false} helpText="Annualized standard deviation of returns." />
@@ -1527,7 +1527,7 @@ function AnalysisPageContent() {
                     <MetricCard label="PSR (95% confidence)" value={`${psrPct95.toFixed(1)}%`} />
                     <MetricCard label="PSR (99% confidence)" value={`${psrPct99.toFixed(1)}%`} />
                   </div>
-                  <InfoBox>{psrPct95.toFixed(1)}% probability that true Sharpe {">"} 1.0. {psrPct95 > 90 ? "High statistical significance." : psrPct95 > 70 ? "Moderate statistical significance. Sharpe may be influenced by luck." : "Low statistical significance вЂ” Sharpe could be due to chance."}</InfoBox>
+                  <InfoBox>{psrPct95.toFixed(1)}% probability that true Sharpe {">"} 1.0. {psrPct95 > 90 ? "High statistical significance." : psrPct95 > 70 ? "Moderate statistical significance. Sharpe may be influenced by luck." : "Low statistical significance — Sharpe could be due to chance."}</InfoBox>
                 </div>
               );
             })()}
@@ -1554,11 +1554,11 @@ function AnalysisPageContent() {
                   <table className="data-table">
                     <thead><tr><th>Ratio</th><th>Value</th><th>Adjustment</th></tr></thead>
                     <tbody>
-                      <tr><td className="text-white/70">Sharpe Ratio</td><td className="font-mono">{sharpe.toFixed(2)}</td><td className="font-mono text-white/40">вЂ”</td></tr>
+                      <tr><td className="text-white/70">Sharpe Ratio</td><td className="font-mono">{sharpe.toFixed(2)}</td><td className="font-mono text-white/40">—</td></tr>
                       <tr><td className="text-white/70">Smart Sharpe (Autocorrelation adj.)</td><td className="font-mono">{smartSharpe.toFixed(2)}</td><td className="font-mono">{smartAdj >= 0 ? "+" : ""}{smartAdj.toFixed(2)}</td></tr>
-                      <tr><td className="text-white/70">Sortino Ratio</td><td className="font-mono">{sortino.toFixed(2)}</td><td className="font-mono text-white/40">вЂ”</td></tr>
+                      <tr><td className="text-white/70">Sortino Ratio</td><td className="font-mono">{sortino.toFixed(2)}</td><td className="font-mono text-white/40">—</td></tr>
                       <tr><td className="text-white/70">Smart Sortino</td><td className="font-mono">{smartSortino.toFixed(2)}</td><td className="font-mono">{sortAdj >= 0 ? "+" : ""}{sortAdj.toFixed(2)}</td></tr>
-                      <tr><td className="text-white/70">Sortino/&radic;2 (Conservative Est.)</td><td className="font-mono">{conservativeSortino.toFixed(2)}</td><td className="font-mono text-white/40">вЂ”</td></tr>
+                      <tr><td className="text-white/70">Sortino/&radic;2 (Conservative Est.)</td><td className="font-mono">{conservativeSortino.toFixed(2)}</td><td className="font-mono text-white/40">—</td></tr>
                     </tbody>
                   </table>
                   <div className="text-xs text-white/30 mt-2">Note: Smart ratios adjust for autocorrelation and non-normality</div>
@@ -1574,7 +1574,7 @@ function AnalysisPageContent() {
               return (
                 <div className="panel p-5">
                   <h3 className="text-lg font-semibold text-white mb-3">Capture Ratio Visualization <Tip text="Shows upside and downside capture ratios. 100% line = matches benchmark exactly." /></h3>
-                  <h4 className="text-sm text-white/40 mb-2">Capture Ratios вЂ” Asymmetry Analysis</h4>
+                  <h4 className="text-sm text-white/40 mb-2">Capture Ratios — Asymmetry Analysis</h4>
                   <ResponsiveContainer width="100%" height={100}>
                     <BarChart data={[{ name: "Down Capture", value: downC }, { name: "Up Capture", value: upC }]} layout="vertical" margin={{ top: 5, right: 40, left: 80, bottom: 5 }}>
                       <XAxis type="number" tick={{ fill: C.text, fontSize: 10 }} label={{ value: "Capture (%)", position: "insideBottom", offset: -5, fill: C.text, fontSize: 10 }} />
@@ -1674,7 +1674,7 @@ function AnalysisPageContent() {
                   <h3 className="text-lg font-semibold text-white mb-3">Kelly Criterion & Risk of Ruin <Tip text="Kelly Criterion calculates optimal position size for maximum long-term growth" /></h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
-                      <h4 className="text-sm font-semibold text-white/70 mb-2">Kelly Criterion вЂ” Position Sizing</h4>
+                      <h4 className="text-sm font-semibold text-white/70 mb-2">Kelly Criterion — Position Sizing</h4>
                       <MetricCard label="Full Kelly" value={`${(kelly * 100).toFixed(1)}%`} sub="Optimal leverage for max growth" />
                       <div className="mt-2"><MetricCard label="Half-Kelly" value={`${(halfKelly * 100).toFixed(1)}%`} sub="Conservative, reduces volatility" /></div>
                       <div className="mt-2"><MetricCard label="Quarter-Kelly" value={`${(quarterKelly * 100).toFixed(1)}%`} sub="Very conservative" /></div>
@@ -1727,7 +1727,7 @@ function AnalysisPageContent() {
                   { label: "Monthly Volatility", p: fmt2(monthlyVol), b: bD ? fmt2(bSd * Math.sqrt(21) * 100) : null, diff: bD ? `+${(monthlyVol - bSd * Math.sqrt(21) * 100).toFixed(2)}%` : null },
                   { label: "Annual Volatility", p: fmt2(annualVol), b: bD ? fmt2(bSd * Math.sqrt(252) * 100) : null, diff: bD ? `+${(annualVol - bSd * Math.sqrt(252) * 100).toFixed(2)}%` : null },
                   { label: "Max Drawdown", p: fmtD(Math.min(...portDD.map((x) => x.y))), b: benchDD.length ? fmtD(Math.min(...benchDD.map((x) => x.y))) : null, diff: benchDD.length ? fmtD(Math.min(...portDD.map((x) => x.y)) - Math.min(...benchDD.map((x) => x.y))) : null },
-                  { label: "Current Drawdown", p: portDD.length ? fmtD(portDD[portDD.length - 1].y) : "вЂ”", b: benchDD.length ? fmtD(benchDD[benchDD.length - 1].y) : null, diff: (portDD.length && benchDD.length) ? fmtD(portDD[portDD.length - 1].y - benchDD[benchDD.length - 1].y) : null },
+                  { label: "Current Drawdown", p: portDD.length ? fmtD(portDD[portDD.length - 1].y) : "—", b: benchDD.length ? fmtD(benchDD[benchDD.length - 1].y) : null, diff: (portDD.length && benchDD.length) ? fmtD(portDD[portDD.length - 1].y - benchDD[benchDD.length - 1].y) : null },
                   { label: "Average Drawdown", p: fmtD(mean(portDD.filter((x) => x.y < 0).map((x) => x.y))), b: benchDD.length ? fmtD(mean(benchDD.filter((x) => x.y < 0).map((x) => x.y))) : null, diff: null },
                   { label: "VaR 90% (Historical)", p: fmtD(var90), b: bN > 0 ? fmtD(bSorted[Math.floor(bN * 0.1)] ?? 0) : null, diff: bN > 0 ? fmtD(var90 - (bSorted[Math.floor(bN * 0.1)] ?? 0)) : null },
                   { label: "VaR 95% (Historical)", p: fmtD(var95), b: bN > 0 ? fmtD(bSorted[Math.floor(bN * 0.05)] ?? 0) : null, diff: bN > 0 ? fmtD(var95 - (bSorted[Math.floor(bN * 0.05)] ?? 0)) : null },
@@ -1744,7 +1744,7 @@ function AnalysisPageContent() {
                 ];
                 return (<>
                   <table className="data-table"><thead><tr><th>Metric</th><th>Portfolio</th>{hasBenchmark && <th>{cmpLabel}</th>}{hasBenchmark && <th>Difference</th>}</tr></thead>
-                    <tbody>{rows.map((r) => <tr key={r.label}><td className="text-white/70">{r.label}</td><td className="font-mono">{r.p}</td>{hasBenchmark && <td className="font-mono text-white/40">{r.b ?? "вЂ”"}</td>}{hasBenchmark && <td className="font-mono">{r.diff ?? "вЂ”"}</td>}</tr>)}</tbody>
+                    <tbody>{rows.map((r) => <tr key={r.label}><td className="text-white/70">{r.label}</td><td className="font-mono">{r.p}</td>{hasBenchmark && <td className="font-mono text-white/40">{r.b ?? "—"}</td>}{hasBenchmark && <td className="font-mono">{r.diff ?? "—"}</td>}</tr>)}</tbody>
                   </table>
                   <InfoBox>Key Insights: Portfolio volatility: {annualVol.toFixed(1)}% / Max drawdown: {(Math.min(...portDD.map((x) => x.y)) * 100).toFixed(1)}% / Current drawdown: {portDD.length ? (portDD[portDD.length - 1].y * 100).toFixed(1) : 0}%</InfoBox>
                 </>);
@@ -1752,7 +1752,7 @@ function AnalysisPageContent() {
             </div>
           </div>)}
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ Drawdown Analysis в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ Drawdown Analysis ══════════ */}
           {riskSub === "drawdown" && (<div className="space-y-5">
             {/* 3.2.1 Underwater Plot */}
             <div className="panel p-5">
@@ -1826,7 +1826,7 @@ function AnalysisPageContent() {
                   <h3 className="text-lg font-semibold text-white mb-3">Top 5 Drawdowns</h3>
                   <table className="data-table"><thead><tr><th>#</th><th>Start (Peak)</th><th>Bottom (Trough)</th><th>Recovery (End)</th><th>Depth (%)</th><th>Duration (days)</th><th>Recovery (days)</th></tr></thead>
                     <tbody>{top5.map((dd, i) => (
-                      <tr key={i}><td>{i + 1}</td><td className="font-mono text-white/60">{portDD[dd.startIdx].x.slice(0, 10)}</td><td className="font-mono text-white/60">{portDD[dd.troughIdx].x.slice(0, 10)}</td><td className="font-mono text-white/60">{dd.ongoing ? "Ongoing" : portDD[dd.endIdx].x.slice(0, 10)}</td><td className="font-mono text-[var(--danger)]">{(dd.depth * 100).toFixed(2)}%</td><td>{dd.duration}</td><td>{dd.ongoing ? "вЂ”" : dd.recovery}</td></tr>
+                      <tr key={i}><td>{i + 1}</td><td className="font-mono text-white/60">{portDD[dd.startIdx].x.slice(0, 10)}</td><td className="font-mono text-white/60">{portDD[dd.troughIdx].x.slice(0, 10)}</td><td className="font-mono text-white/60">{dd.ongoing ? "Ongoing" : portDD[dd.endIdx].x.slice(0, 10)}</td><td className="font-mono text-[var(--danger)]">{(dd.depth * 100).toFixed(2)}%</td><td>{dd.duration}</td><td>{dd.ongoing ? "—" : dd.recovery}</td></tr>
                     ))}</tbody>
                   </table>
                   <div className="text-xs text-white/40 mt-2"><strong>Summary:</strong> Worst drawdown: {(top5[0].depth * 100).toFixed(2)}% / Longest duration: {Math.max(...top5.map((d) => d.duration))} days / Longest recovery: {Math.max(...top5.filter((d) => !d.ongoing).map((d) => d.recovery), 0)} days</div>
@@ -1838,20 +1838,20 @@ function AnalysisPageContent() {
                     <h3 className="text-lg font-semibold text-white mb-3">Benchmark Comparison</h3>
                     <table className="data-table"><thead><tr><th>#</th><th>Metric</th><th>Portfolio</th><th>{cmpLabel}</th></tr></thead>
                       <tbody>
-                        <tr><td>1</td><td className="text-white/70">Avg Drawdown Depth</td><td className="font-mono">{(avgPDD * 100).toFixed(2)}%</td><td className="font-mono text-white/40">{avgBDD != null ? `${(avgBDD * 100).toFixed(2)}%` : "вЂ”"}</td></tr>
-                        <tr><td>2</td><td className="text-white/70">Avg Drawdown Duration</td><td className="font-mono">{avgPDur.toFixed(0)} days</td><td className="font-mono text-white/40">{avgBDur != null ? `${avgBDur.toFixed(0)} days` : "вЂ”"}</td></tr>
-                        <tr><td>3</td><td className="text-white/70">Avg Recovery Time</td><td className="font-mono">{avgPRec.toFixed(0)} days</td><td className="font-mono text-white/40">{avgBRec != null ? `${avgBRec.toFixed(0)} days` : "вЂ”"}</td></tr>
-                        <tr><td>4</td><td className="text-white/70">Max Recovery Time</td><td className="font-mono">{maxPRec} days</td><td className="font-mono text-white/40">{maxBRec != null ? `${maxBRec} days` : "вЂ”"}</td></tr>
+                        <tr><td>1</td><td className="text-white/70">Avg Drawdown Depth</td><td className="font-mono">{(avgPDD * 100).toFixed(2)}%</td><td className="font-mono text-white/40">{avgBDD != null ? `${(avgBDD * 100).toFixed(2)}%` : "—"}</td></tr>
+                        <tr><td>2</td><td className="text-white/70">Avg Drawdown Duration</td><td className="font-mono">{avgPDur.toFixed(0)} days</td><td className="font-mono text-white/40">{avgBDur != null ? `${avgBDur.toFixed(0)} days` : "—"}</td></tr>
+                        <tr><td>3</td><td className="text-white/70">Avg Recovery Time</td><td className="font-mono">{avgPRec.toFixed(0)} days</td><td className="font-mono text-white/40">{avgBRec != null ? `${avgBRec.toFixed(0)} days` : "—"}</td></tr>
+                        <tr><td>4</td><td className="text-white/70">Max Recovery Time</td><td className="font-mono">{maxPRec} days</td><td className="font-mono text-white/40">{maxBRec != null ? `${maxBRec} days` : "—"}</td></tr>
                       </tbody>
                     </table>
-                    <InfoBox>Benchmark Comparison Analysis: Average drawdown depth: Portfolio {(avgPDD * 100).toFixed(2)}% vs Benchmark {avgBDD != null ? `${(avgBDD * 100).toFixed(2)}%` : "вЂ”"} / Portfolio shows {avgBDD != null && avgPDD < avgBDD ? "shallower" : "deeper"} drawdowns / Average recovery time: Portfolio {avgPRec.toFixed(0)} days vs Benchmark {avgBRec != null ? `${avgBRec.toFixed(0)} days` : "вЂ”"} / {avgBRec != null && avgPRec <= avgBRec ? "Similar" : "Longer"} recovery times</InfoBox>
+                    <InfoBox>Benchmark Comparison Analysis: Average drawdown depth: Portfolio {(avgPDD * 100).toFixed(2)}% vs Benchmark {avgBDD != null ? `${(avgBDD * 100).toFixed(2)}%` : "—"} / Portfolio shows {avgBDD != null && avgPDD < avgBDD ? "shallower" : "deeper"} drawdowns / Average recovery time: Portfolio {avgPRec.toFixed(0)} days vs Benchmark {avgBRec != null ? `${avgBRec.toFixed(0)} days` : "—"} / {avgBRec != null && avgPRec <= avgBRec ? "Similar" : "Longer"} recovery times</InfoBox>
                   </div>
                 )}
               </>);
             })()}
           </div>)}
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ VaR & CVaR в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ VaR & CVaR ══════════ */}
           {riskSub === "var" && (<div className="space-y-5">
             <div className="panel p-5">
               <h3 className="text-lg font-semibold text-white mb-3">Value at Risk (VaR) & Conditional VaR <Tip text="VaR estimates the worst expected loss at a confidence level. CVaR (Expected Shortfall) is the average loss beyond VaR." /></h3>
@@ -1925,7 +1925,7 @@ function AnalysisPageContent() {
             </div>
           </div>)}
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ Rolling Risk Metrics в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ Rolling Risk Metrics ══════════ */}
           {riskSub === "rolling" && (<div className="space-y-5">
             {/* Window Size Selector */}
             <div className="panel p-5">
@@ -1977,7 +1977,7 @@ function AnalysisPageContent() {
 
               {/* Rolling Sortino */}
               <div className="panel p-5">
-                <h3 className="text-lg font-semibold text-white mb-3">Rolling Sortino Ratio ({rollingWindow}d) <Tip text="Sortino ratio calculated over a rolling window вЂ” only penalizes downside volatility" /></h3>
+                <h3 className="text-lg font-semibold text-white mb-3">Rolling Sortino Ratio ({rollingWindow}d) <Tip text="Sortino ratio calculated over a rolling window — only penalizes downside volatility" /></h3>
                 <RollingLineChart data={rollingSortino} data2={hasBenchmark ? (() => {
                   const bD = benchmarkReturns.map((p) => p.y);
                   const result: Pt[] = [];
@@ -2145,19 +2145,19 @@ function AnalysisPageContent() {
           </div>)}
         </div>)}
 
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {/*  TAB 4: ASSETS & CORRELATIONS                          */}
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {mainTab === "assets" && (<div className="space-y-5">
           <SubTabs tabs={[["overview","Asset Overview & Impact"],["correlations","Correlations"],["details","Asset Details & Dynamics"]]} active={assetSub} onChange={setAssetSub} />
 
           {!assetData && <Alert type="info">Asset data is loading... Run analytics calculation first.</Alert>}
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ Asset Overview & Impact в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ Asset Overview & Impact ══════════ */}
           {assetSub === "overview" && assetData && (<div className="space-y-5">
             {/* 4.1.1 Full Details Table */}
             <div className="panel p-5">
-              <h3 className="text-lg font-semibold text-white mb-1">Assets Overview вЂ” Full Details <Tip text="Detailed info for each asset from yfinance" /></h3>
+              <h3 className="text-lg font-semibold text-white mb-1">Assets Overview — Full Details <Tip text="Detailed info for each asset from yfinance" /></h3>
               <p className="text-xs text-white/40 mb-3">Change% shows daily price change (today vs previous trading day)</p>
               {Array.isArray(assetData.asset_metrics) && assetData.asset_metrics.length > 0 ? (
                 <div className="overflow-x-auto">
@@ -2174,8 +2174,8 @@ function AnalysisPageContent() {
                           <td className="text-white/50">{row.sector ?? "N/A"}</td>
                           <td className="text-white/50">{row.industry ?? "N/A"}</td>
                           <td>{row.currency ?? "USD"}</td>
-                          <td className="font-mono">{row.price ? `$${Number(row.price).toFixed(2)}` : "вЂ”"}</td>
-                          <td className={`font-mono ${chg >= 0 ? "text-[var(--ok)]" : "text-[var(--danger)]"}`}>{chg !== 0 ? `${chg >= 0 ? "+" : ""}${Number(chg).toFixed(2)}%` : "вЂ”"}</td>
+                          <td className="font-mono">{row.price ? `$${Number(row.price).toFixed(2)}` : "—"}</td>
+                          <td className={`font-mono ${chg >= 0 ? "text-[var(--ok)]" : "text-[var(--danger)]"}`}>{chg !== 0 ? `${chg >= 0 ? "+" : ""}${Number(chg).toFixed(2)}%` : "—"}</td>
                         </tr>
                       );
                     })}</tbody>
@@ -2198,7 +2198,7 @@ function AnalysisPageContent() {
                 <div className="panel p-5">
                   <h3 className="text-lg font-semibold text-white mb-3">Impact on Assets to Total Return <Tip text="Weighted return contribution of each asset to the portfolio total return" /></h3>
                   <SimpleBarChart data={impactData.map((d) => ({ label: d.ticker, Impact: +d.impact.toFixed(2) }))} bars={[{ key: "Impact", color: C.ok, name: "Weighted Return Contribution (%)" }]} height={280} />
-                  {top && <div className="text-xs text-white/40 mt-2"><strong>Top contributor:</strong> {top.ticker} вЂ” {top.impact.toFixed(2)}% weighted contribution to portfolio return</div>}
+                  {top && <div className="text-xs text-white/40 mt-2"><strong>Top contributor:</strong> {top.ticker} — {top.impact.toFixed(2)}% weighted contribution to portfolio return</div>}
                   <InfoBox>Impact on Total Return Analysis: Top contributor: {top?.ticker} ({top?.impact.toFixed(2)}% of portfolio return) / {top ? (Math.abs(top.impact) / totalImpact * 100 > 40 ? "High" : "Moderate") : ""} concentration: {top?.ticker} accounts for {(top ? Math.abs(top.impact) / totalImpact * 100 : 0).toFixed(1)}% of total contribution / Top 3 assets account for {(top3 / totalImpact * 100).toFixed(1)}% of total return contribution</InfoBox>
                 </div>
               );
@@ -2218,7 +2218,7 @@ function AnalysisPageContent() {
                 <div className="panel p-5">
                   <h3 className="text-lg font-semibold text-white mb-3">Impact on Assets to Overall Portfolio Risk <Tip text="Each asset's marginal contribution to total portfolio volatility (MCR Г— weight)" /></h3>
                   <SimpleBarChart data={riskData.map((d) => ({ label: d.ticker, Risk: +d.risk.toFixed(1) }))} bars={[{ key: "Risk", color: C.danger, name: "Risk Contribution (%)" }]} height={280} />
-                  {topR && <div className="text-xs text-white/40 mt-2"><strong>Biggest risk contributor:</strong> {topR.ticker} вЂ” {topR.risk.toFixed(1)}% of portfolio risk</div>}
+                  {topR && <div className="text-xs text-white/40 mt-2"><strong>Biggest risk contributor:</strong> {topR.ticker} — {topR.risk.toFixed(1)}% of portfolio risk</div>}
                   <InfoBox>Impact on Portfolio Risk Analysis: Biggest risk contributor: {topR?.ticker} ({topR?.risk.toFixed(1)}% of portfolio risk) / {Math.abs(topR?.risk ?? 0) > 30 ? "Concentrated risk" : "Well-distributed risk"}: top contributor accounts for {Math.abs(topR?.risk ?? 0).toFixed(1)}% of total risk / Top 3 assets account for {(top3Risk / totalRisk * 100).toFixed(1)}% of total risk contribution</InfoBox>
                 </div>
               );
@@ -2264,21 +2264,21 @@ function AnalysisPageContent() {
                   <p className="text-sm text-white/50 mb-2"><strong>Formula:</strong> Weighted sum of volatilities ({(wSumVol * 100).toFixed(2)}%) / Portfolio volatility ({(portVolD * 100).toFixed(2)}%)</p>
                   <p className="text-sm text-white/60 mb-3"><strong>Interpretation:</strong></p>
                   <div className="space-y-1 mb-3">
-                    <div className="text-sm text-[var(--ok)]">{divCoeff > 1 ? `вњ“ Value > 1.0 indicates positive diversification effect` : "вњ— Value в‰¤ 1.0 вЂ” no diversification benefit"}</div>
-                    {divCoeff > 1 && <div className="text-sm text-[var(--ok)]">вњ“ {Number(divCoeff).toFixed(2)} means {Number(volReduction).toFixed(1)}% volatility reduction from diversification</div>}
-                    <div className="text-sm text-[var(--ok)]">{divCoeff > 1.2 ? "вњ“ Portfolio is well-diversified" : divCoeff > 1 ? "вњ“ Portfolio has some diversification" : "вњ— Portfolio lacks diversification"}</div>
+                    <div className="text-sm text-[var(--ok)]">{divCoeff > 1 ? `✓ Value > 1.0 indicates positive diversification effect` : "✗ Value ≤ 1.0 — no diversification benefit"}</div>
+                    {divCoeff > 1 && <div className="text-sm text-[var(--ok)]">✓ {Number(divCoeff).toFixed(2)} means {Number(volReduction).toFixed(1)}% volatility reduction from diversification</div>}
+                    <div className="text-sm text-[var(--ok)]">{divCoeff > 1.2 ? "✓ Portfolio is well-diversified" : divCoeff > 1 ? "✓ Portfolio has some diversification" : "✗ Portfolio lacks diversification"}</div>
                   </div>
                   <InfoBox>The diversification coefficient shows the ratio of the weighted sum of individual volatilities to total portfolio volatility. A value above 1 indicates positive effect.</InfoBox>
                 </>);
-              })() : <InfoBox>Portfolio has {positions.length} position{positions.length !== 1 ? "s" : ""}. {positions.length >= 5 ? "Good diversification across multiple assets." : positions.length > 1 ? "Consider adding more assets for better diversification." : "Single-asset portfolio вЂ” no diversification benefit."}</InfoBox>}
+              })() : <InfoBox>Portfolio has {positions.length} position{positions.length !== 1 ? "s" : ""}. {positions.length >= 5 ? "Good diversification across multiple assets." : positions.length > 1 ? "Consider adding more assets for better diversification." : "Single-asset portfolio — no diversification benefit."}</InfoBox>}
             </div>
           </div>)}
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ Correlations в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ Correlations ══════════ */}
           {assetSub === "correlations" && assetData && (<div className="space-y-5">
             <div className="panel p-5">
               <h3 className="text-lg font-semibold text-white mb-1">Correlation Analysis</h3>
-              <h4 className="text-base font-semibold text-white/70 mb-3">Correlation Matrix вЂ” All Assets {hasBenchmark ? "+ Benchmark" : ""}</h4>
+              <h4 className="text-base font-semibold text-white/70 mb-3">Correlation Matrix — All Assets {hasBenchmark ? "+ Benchmark" : ""}</h4>
               {assetData.correlations?.matrix ? (() => {
                 const corrMatrix = assetData.correlations.matrix;
                 const keys: string[] = assetData.correlations.tickers ?? Object.keys(corrMatrix);
@@ -2308,7 +2308,7 @@ function AnalysisPageContent() {
                           {keys.map((col) => {
                             const v = corrMatrix[row]?.[col];
                             const n = typeof v === "number" ? v : 0;
-                            return <td key={col} className="font-mono" style={{ backgroundColor: getCorrColor(n), color: "#fff" }}>{typeof v === "number" ? v.toFixed(2) : "вЂ”"}</td>;
+                            return <td key={col} className="font-mono" style={{ backgroundColor: getCorrColor(n), color: "#fff" }}>{typeof v === "number" ? v.toFixed(2) : "—"}</td>;
                           })}
                         </tr>
                       ))}</tbody>
@@ -2345,9 +2345,9 @@ function AnalysisPageContent() {
                   {/* 4.2.3 Recommendations */}
                   <h3 className="text-lg font-semibold text-white mt-3 mb-3">Correlation Analysis & Recommendations</h3>
                   <div className="space-y-2">
-                    {avgCorr < 0.5 && <div className="p-2 rounded bg-[var(--ok)]/10 text-sm text-[var(--ok)]">вњ“ Moderate average correlation вЂ” Good diversification potential</div>}
-                    {avgCorr >= 0.5 && <div className="p-2 rounded bg-[var(--warn)]/10 text-sm text-[var(--warn)]">вљ  High average correlation вЂ” Limited diversification benefit</div>}
-                    {lowPairs === 0 && <div className="p-2 rounded bg-[var(--warn)]/10 text-sm text-[var(--warn)]">вљ  No pairs with correlation {"<"} 0.2 found. Consider adding assets with lower correlation for better diversification.</div>}
+                    {avgCorr < 0.5 && <div className="p-2 rounded bg-[var(--ok)]/10 text-sm text-[var(--ok)]">✓ Moderate average correlation — Good diversification potential</div>}
+                    {avgCorr >= 0.5 && <div className="p-2 rounded bg-[var(--warn)]/10 text-sm text-[var(--warn)]">⚠ High average correlation — Limited diversification benefit</div>}
+                    {lowPairs === 0 && <div className="p-2 rounded bg-[var(--warn)]/10 text-sm text-[var(--warn)]">⚠ No pairs with correlation {"<"} 0.2 found. Consider adding assets with lower correlation for better diversification.</div>}
                     {negPairs === 0 && <div className="p-2 rounded bg-[var(--danger)]/10 text-sm text-[var(--danger)]">! No negative correlations found. Consider adding assets with negative correlation (e.g., bonds vs stocks) for hedging.</div>}
                   </div>
 
@@ -2392,7 +2392,7 @@ function AnalysisPageContent() {
             </div>
           </div>)}
 
-          {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ Asset Details & Dynamics в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+          {/* ══════════ Asset Details & Dynamics ══════════ */}
           {assetSub === "details" && assetData && (<div className="space-y-5">
             {/* 4.3.1 Asset Price Dynamics */}
             {assetData.asset_returns && (() => {
@@ -2496,7 +2496,7 @@ function AnalysisPageContent() {
                     const aFinal = last?.[curAsset] ?? 0; const pFinal = last?.Portfolio ?? 0;
                     const bFinal = last?.[`${cmpValue} (Benchmark)`] ?? 0;
                     return (<>
-                      <h4 className="text-base font-semibold text-white mt-4 mb-2">Comparison of Return вЂ” {curAsset} vs Portfolio vs {cmpValue}</h4>
+                      <h4 className="text-base font-semibold text-white mt-4 mb-2">Comparison of Return — {curAsset} vs Portfolio vs {cmpValue}</h4>
                       <ResponsiveContainer width="100%" height={280}>
                         <LineChart data={compChart.filter((_, i) => i % Math.max(1, Math.floor(compChart.length / 200)) === 0)} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
                           <CartesianGrid stroke={C.grid} strokeDasharray="3 3" />
@@ -2509,7 +2509,7 @@ function AnalysisPageContent() {
                           {hasBenchmark && <Line dataKey={`${cmpValue} (Benchmark)`} stroke={C.line2} strokeWidth={1} dot={false} strokeDasharray="4 2" />}
                         </LineChart>
                       </ResponsiveContainer>
-                      <InfoBox>Return Comparison Analysis вЂ” {curAsset}: Asset total return: {aFinal >= 0 ? "+" : ""}{aFinal.toFixed(2)}% / Portfolio total return: {pFinal >= 0 ? "+" : ""}{pFinal.toFixed(2)}% {aFinal < pFinal ? `/ Asset underperforms portfolio by ${(pFinal - aFinal).toFixed(2)}%` : `/ Asset outperforms portfolio by ${(aFinal - pFinal).toFixed(2)}%`} {hasBenchmark ? `/ Benchmark total return: ${bFinal >= 0 ? "+" : ""}${bFinal.toFixed(2)}%` : ""}</InfoBox>
+                      <InfoBox>Return Comparison Analysis — {curAsset}: Asset total return: {aFinal >= 0 ? "+" : ""}{aFinal.toFixed(2)}% / Portfolio total return: {pFinal >= 0 ? "+" : ""}{pFinal.toFixed(2)}% {aFinal < pFinal ? `/ Asset underperforms portfolio by ${(pFinal - aFinal).toFixed(2)}%` : `/ Asset outperforms portfolio by ${(aFinal - pFinal).toFixed(2)}%`} {hasBenchmark ? `/ Benchmark total return: ${bFinal >= 0 ? "+" : ""}${bFinal.toFixed(2)}%` : ""}</InfoBox>
                     </>);
                   })()}
 
@@ -2522,9 +2522,9 @@ function AnalysisPageContent() {
                     if (!corrs.length) return null;
                     const topCorr = corrs[0]; const bottomCorr = corrs[corrs.length - 1];
                     return (<>
-                      <h4 className="text-base font-semibold text-white mt-4 mb-2">Correlations with Other Assets вЂ” {curAsset}</h4>
+                      <h4 className="text-base font-semibold text-white mt-4 mb-2">Correlations with Other Assets — {curAsset}</h4>
                       <SimpleBarChart data={corrs} bars={[{ key: "Correlation", color: corrs[0]?.Correlation > 0.5 ? C.danger : C.warn, name: `Correlation with ${curAsset}` }]} height={220} />
-                      <InfoBox>Correlation Analysis вЂ” {curAsset}: Highest correlation: {topCorr.label} ({topCorr.Correlation}) {topCorr.Correlation > 0.7 ? "- High correlation" : "- Moderate correlation"} - {topCorr.Correlation > 0.5 ? "Some" : "Good"} diversification benefit / Lowest correlation: {bottomCorr.label} ({bottomCorr.Correlation})</InfoBox>
+                      <InfoBox>Correlation Analysis — {curAsset}: Highest correlation: {topCorr.label} ({topCorr.Correlation}) {topCorr.Correlation > 0.7 ? "- High correlation" : "- Moderate correlation"} - {topCorr.Correlation > 0.5 ? "Some" : "Good"} diversification benefit / Lowest correlation: {bottomCorr.label} ({bottomCorr.Correlation})</InfoBox>
                     </>);
                   })()}
                 </div>
@@ -2538,9 +2538,9 @@ function AnalysisPageContent() {
           </div>)}
         </div>)}
 
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {/*  TAB 5: EXPORT & REPORTS                               */}
-        {/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */}
+        {/* ═══════════════════════════════════════════════════════ */}
         {mainTab === "export" && (<div className="space-y-5">
           <div className="panel p-6 space-y-4">
             <h3 className="text-lg font-semibold text-white">Export & Reports</h3>
@@ -2574,8 +2574,8 @@ function AnalysisPageContent() {
 
             <Expander title="About Reports">
               <div className="space-y-2 text-sm text-white/60">
-                <p><strong className="text-white/80">JSON Export</strong> вЂ” Downloads the complete analytics response including all metrics, time series data, and raw calculations.</p>
-                <p><strong className="text-white/80">PDF Reports</strong> вЂ” PDF generation with full-page screenshots is available in the Streamlit version. A dedicated report generation feature for the Next.js version is planned.</p>
+                <p><strong className="text-white/80">JSON Export</strong> — Downloads the complete analytics response including all metrics, time series data, and raw calculations.</p>
+                <p><strong className="text-white/80">PDF Reports</strong> — PDF generation with full-page screenshots is available in the Streamlit version. A dedicated report generation feature for the Next.js version is planned.</p>
               </div>
             </Expander>
           </div>
@@ -2587,7 +2587,7 @@ function AnalysisPageContent() {
 
 export default function AnalysisPage() {
   return (
-    <Suspense fallback={<p className="text-white/60">LoadingвЂ¦</p>}>
+    <Suspense fallback={<p className="text-white/60">Loading…</p>}>
       <AnalysisPageContent />
     </Suspense>
   );
