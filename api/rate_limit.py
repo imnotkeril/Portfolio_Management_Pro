@@ -28,6 +28,15 @@ _storage = MemoryStorage()
 _limiter = FixedWindowRateLimiter(_storage)
 
 
+def _client_ip(request: Request) -> str:
+    """Real client IP. Hosting proxies (HF Spaces, Vercel) put it in
+    X-Forwarded-For; ``request.client.host`` is only the proxy edge."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "anonymous"
+
+
 def rate_limit(limit: str) -> Callable[[Request], None]:
     """Build a dependency enforcing ``limit`` (e.g. ``"20/minute"``) per IP."""
     item = parse(limit)
@@ -35,7 +44,7 @@ def rate_limit(limit: str) -> Callable[[Request], None]:
     def _dependency(request: Request) -> None:
         if not settings.rate_limit_enabled:
             return
-        client_ip = request.client.host if request.client else "anonymous"
+        client_ip = _client_ip(request)
         if not _limiter.hit(item, client_ip, request.url.path):
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
