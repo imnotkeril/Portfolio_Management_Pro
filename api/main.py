@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from api.dependencies import get_current_user, require_pro
+from api.rate_limit import rate_limit
 from api.routers import auth as auth_router
 from api.routers import billing as billing_router
 from config.settings import settings
@@ -499,12 +500,12 @@ def dashboard_indices() -> list[dict[str, Any]]:
     return result
 
 
-@app.post("/validate-tickers")
+@app.post("/validate-tickers", dependencies=[Depends(rate_limit("30/minute"))])
 def validate_tickers(tickers: list[str]) -> dict[str, bool]:
     return data_service.validate_tickers(tickers)
 
 
-@app.get("/ticker-price/{ticker}")
+@app.get("/ticker-price/{ticker}", dependencies=[Depends(rate_limit("60/minute"))])
 def ticker_price(
     ticker: str,
     on_date: date | None = Query(

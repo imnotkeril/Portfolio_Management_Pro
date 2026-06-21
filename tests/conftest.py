@@ -5,6 +5,9 @@ from pathlib import Path
 
 # Use isolated SQLite before settings/engine import in test collection
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+# Disable IP rate limiting: the TestClient shares one client IP, so repeated
+# register/login across tests would otherwise trip the limiter.
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 import pytest
 

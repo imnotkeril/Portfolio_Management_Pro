@@ -43,6 +43,7 @@ stripe>=7.0.0
 # API
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
+limits>=3.6               # IP-based rate limiting (auth + public endpoints)
 plotly>=5.17.0
 
 # PDF generation (WeasyPrint/ReportLab path; no Playwright)

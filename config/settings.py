@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     app_name: str = "Portfolio Management Terminal"
     app_version: str = "1.0.0"
     debug: bool = False
+    # Deployment environment: "development" | "production".
+    # Production enforces a non-default JWT secret (see __init__).
+    environment: str = "development"
+
+    # Security
+    rate_limit_enabled: bool = True
 
     # Auth (Phase 2)
     jwt_secret: str = "change-me-in-production"
@@ -100,9 +106,33 @@ class Settings(BaseSettings):
             # Docker / CI set DATABASE_URL before startup — do not replace with .env localhost
             os.environ["DATABASE_URL"] = preserved_db_url
         super().__init__(**kwargs)
+        self._enforce_production_secrets()
         # Create directories if they don't exist
         self.price_cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    _DEFAULT_JWT_SECRET = "change-me-in-production"
+
+    def _enforce_production_secrets(self) -> None:
+        """Refuse to boot in production with the placeholder JWT secret.
+
+        Forged tokens are trivial if the signing secret is the public default,
+        so a real deployment (ENVIRONMENT=production) must override JWT_SECRET.
+        Development/tests keep the default for convenience.
+        """
+        if self.jwt_secret == self._DEFAULT_JWT_SECRET:
+            if self.environment.strip().lower() == "production":
+                raise RuntimeError(
+                    "JWT_SECRET is still the insecure default. Set a strong "
+                    'JWT_SECRET (e.g. `python -c "import secrets; '
+                    'print(secrets.token_urlsafe(64))"`) in production.'
+                )
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "JWT_SECRET is the insecure default; set a strong secret "
+                "before deploying (ENVIRONMENT=production enforces this)."
+            )
 
 
 # Singleton instance

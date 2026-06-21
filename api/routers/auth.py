@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import IntegrityError
 
 from api.dependencies import get_current_user
+from api.rate_limit import rate_limit
 from api.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserOut
 from core.auth.password import verify_password
 from core.auth.tokens import create_access_token
@@ -15,7 +16,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _user_repository = UserRepository()
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit("10/minute"))],
+)
 def register(payload: RegisterRequest) -> User:
     """Register a new user account."""
     if _user_repository.find_by_email(payload.email):
@@ -32,13 +38,21 @@ def register(payload: RegisterRequest) -> User:
         ) from exc
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit("20/minute"))],
+)
 def login_form(form: OAuth2PasswordRequestForm = Depends()) -> TokenResponse:
     """Login with OAuth2 password form (username field = email)."""
     return _authenticate(form.username, form.password)
 
 
-@router.post("/login/json", response_model=TokenResponse)
+@router.post(
+    "/login/json",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit("20/minute"))],
+)
 def login_json(payload: LoginRequest) -> TokenResponse:
     """Login with JSON body (convenient for frontend)."""
     return _authenticate(payload.email, payload.password)
