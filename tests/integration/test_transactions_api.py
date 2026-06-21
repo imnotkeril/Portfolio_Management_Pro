@@ -99,9 +99,12 @@ def test_filter_transactions_by_ticker(api_client: TestClient) -> None:
             headers=headers,
         )
 
+    # Disable ledger sync: it would fetch live dividends/splits from the market
+    # and append extra AAPL-tickered rows, making the filter count flaky. This
+    # test verifies the ticker filter, not the auto-sync.
     resp = api_client.get(
         f"/portfolios/{pid}/transactions",
-        params={"ticker": "AAPL"},
+        params={"ticker": "AAPL", "sync_ledger": False},
         headers=headers,
     )
     assert resp.status_code == 200

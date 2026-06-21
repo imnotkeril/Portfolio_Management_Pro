@@ -136,10 +136,10 @@ class PerformanceAttributionService:
         basis = CostBasisCalculator(method=cost_basis_method).summarize(transactions)
         holdings = self._holdings_builder.build(transactions, cost_basis_method)
 
-        market_value = sum(h.market_value or 0.0 for h in holdings)
+        market_value: float | None = sum(h.market_value or 0.0 for h in holdings)
         if not holdings:
             market_value = None
-        unrealized = sum(
+        unrealized: float | None = sum(
             h.unrealized_pnl or 0.0 for h in holdings if h.unrealized_pnl is not None
         )
         if not any(h.unrealized_pnl is not None for h in holdings):

@@ -6,7 +6,7 @@ extend-exclude = "/(migrations|node_modules)/"
 [tool.isort]
 profile = "black"
 line_length = 88
-known_first_party = ["api", "config", "core", "database", "models", "services", "streamlit_app"]
+known_first_party = ["api", "config", "core", "database", "models", "services"]
 skip = ["database/migrations"]
 skip_glob = ["**/node_modules/**", "**/frontend/node_modules/**"]
 
@@ -57,7 +57,6 @@ exclude = [
     "dist/",
     "node_modules/",
     "frontend/node_modules/",
-    "streamlit_app/",
     "scripts/",
     "tests/",
 ]

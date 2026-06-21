@@ -3,9 +3,7 @@
 **Professional portfolio management** with analytics, optimization, risk tools, and forecasting.
 
 <p align="center">
-  <a href="https://portfolio-management-pro-taupe.vercel.app/"><strong>Live app (Next.js + FastAPI)</strong></a>
-  &nbsp;·&nbsp;
-  <a href="https://proportfolio.streamlit.app/">Streamlit demo</a>
+  <a href="https://portfolio-management-pro-taupe.vercel.app/"><strong>Live app</strong></a>
   &nbsp;·&nbsp;
   <a href="#full-stack-nextjs--fastapi--docker">Full stack (Docker)</a>
   &nbsp;·&nbsp;
@@ -25,16 +23,11 @@
   <a href="https://codecov.io/gh/imnotkeril/Portfolio_Management_Pro"><img src="https://codecov.io/gh/imnotkeril/Portfolio_Management_Pro/graph/badge.svg" alt="Codecov"></a>
   <img src="https://img.shields.io/badge/CI%20Python-3.11-3776AB?logo=python&logoColor=white" alt="CI Python 3.11">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License MIT"></a>
-  <a href="https://streamlit.io/"><img src="https://img.shields.io/badge/Streamlit-UI-red?logo=streamlit&logoColor=white" alt="Streamlit"></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white" alt="FastAPI"></a>
   <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-frontend-black?logo=next.js&logoColor=white" alt="Next.js"></a>
 </p>
 
-**Two ways to use the app**
-
-| | **Streamlit** | **Next.js + FastAPI (Docker)** |
-|---|----------------|--------------------------------|
-| **Role** | Fast online preview; full feature set in the original UI | Modern web UI + API, same `core/` and `services/` |
-| **Try it** | [proportfolio.streamlit.app](https://proportfolio.streamlit.app/) | `docker compose up --build` → [http://localhost:3000](http://localhost:3000) |
+**Architecture** — a framework-agnostic `core/` + `services/` layer behind a **FastAPI** API, with a **Next.js** web UI. Runs as one `docker compose` stack locally and is deployed to Vercel (web) + Hugging Face Spaces (API) + Supabase (Postgres).
 
 CI runs **Ruff, Black, isort, Mypy, Pytest** on **Python 3.11** with **`core/` coverage ≥ 70%** (see `.coveragerc`).
 
@@ -48,7 +41,6 @@ CI runs **Ruff, Black, isort, Mypy, Pytest** on **Python 3.11** with **`core/` c
 - [Project structure](#project-structure)
 - [Run locally](#run-locally)
   - [Full stack (Next.js + FastAPI + Docker)](#full-stack-nextjs--fastapi--docker)
-  - [Streamlit (local)](#streamlit-local)
 - [Testing & code quality](#testing--code-quality)
 - [Performance](#performance)
 - [Configuration](#configuration)
@@ -139,10 +131,6 @@ Portfolio_Management_Pro/
 ├── services/             # Orchestration over core
 ├── api/                  # FastAPI app (uses services + core)
 ├── frontend/             # Next.js UI
-├── streamlit_app/        # Streamlit UI (live demo + legacy-style UI)
-│   ├── app.py
-│   ├── pages/
-│   └── components/
 ├── models/               # SQLAlchemy models
 ├── database/             # Session, migrations
 ├── config/               # Settings
@@ -157,7 +145,7 @@ Portfolio_Management_Pro/
 ### Full stack (Next.js + FastAPI + Docker)
 
 - `api/main.py` — FastAPI on top of `services/*` and `core/*`
-- `frontend/` — Next.js, aligned with Streamlit navigation where applicable
+- `frontend/` — Next.js web UI (talks to the API through a same-origin BFF proxy)
 - `docker-compose.yml` — **PostgreSQL** + API + web (migrations run on API startup)
 
 ```bash
@@ -180,7 +168,7 @@ alembic upgrade head
 uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-**Develop without Docker (SQLite only — Streamlit / quick API)**
+**Develop without Docker (SQLite only — quick API)**
 
 ```bash
 # .env: DATABASE_URL=sqlite:///./data/wmc.db
@@ -194,15 +182,6 @@ cd frontend
 npm install
 npm run dev
 ```
-
-### Streamlit (local)
-
-```bash
-pip install -r requirements.txt
-streamlit run streamlit_app/app.py
-```
-
-Use a `.env` file if you override database or cache paths (see [Configuration](#configuration)).
 
 ---
 
@@ -256,7 +235,7 @@ Create `.env` in the project root (optional; defaults exist in `config/settings.
 # Docker / production (see .env.example)
 DATABASE_URL=postgresql+psycopg2://portfolio:portfolio@localhost:5432/portfolio
 
-# Streamlit / local quick start without Postgres:
+# Local quick start without Postgres (SQLite):
 # DATABASE_URL=sqlite:///./data/wmc.db
 
 LOG_LEVEL=INFO
@@ -283,7 +262,7 @@ RISK_FREE_RATE=0.0435
 
 - Portfolio management (CRUD, transactions, multiple creation flows)  
 - Analytics (70+ metrics), optimization (18 methods), risk, forecasting, scenarios  
-- **Next.js + FastAPI + Docker** stack alongside Streamlit  
+- **Next.js + FastAPI + Docker** full-stack web app, deployed to production  
 - CI: lint, format, types, tests, **core coverage gate**  
 - **Transaction ledger** (`ledger_mode=transactions`) with scheduled rebalance maintenance  
 - **Optimization / Risk / Forecasting parity** for transaction-led portfolios (synthetic optimized ledger mirrors deposits, withdrawals, and rebalance interval — see [Phase 4](docs/production/phases/phase-4-optimization-ledger-parity.md))  
@@ -293,7 +272,7 @@ RISK_FREE_RATE=0.0435
 ### In progress
 
 - Reports & export (e.g. PDF) polish  
-- Next.js **parity** and UX polish vs Streamlit where needed  
+- Continued UX polish across the Next.js app  
 
 ### Planned
 
@@ -328,5 +307,5 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Acknowledgments
 
-- **yfinance**, **Streamlit**, **Next.js**, **FastAPI**, **Plotly**  
+- **yfinance**, **Next.js**, **FastAPI**, **Plotly**  
 - **CVXPy**, **NumPy**, **Pandas**, **scikit-learn**, **TensorFlow** (where used in forecasting)  

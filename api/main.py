@@ -1025,7 +1025,9 @@ def calculate_asset_analytics(
             first_tx = first_transaction_date(txs)
             if first_tx and effective_start < first_tx:
                 effective_start = first_tx
-            positions = positions_snapshot_at(
+            # Two structurally-compatible position types (snapshot vs live);
+            # only `.ticker` is read below, so a common list[Any] is sufficient.
+            positions: list[Any] = positions_snapshot_at(
                 txs, payload.end_date, portfolio.cost_basis_method
             )
         else:

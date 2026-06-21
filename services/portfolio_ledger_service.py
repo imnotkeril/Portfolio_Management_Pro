@@ -33,7 +33,9 @@ class PortfolioLedgerService:
         self._transaction_service = transaction_service or TransactionService()
         self._rebalance_service = rebalance_service or RebalanceService()
 
-    def maintain(self, portfolio_id: str, user_id: str | None = None) -> dict[str, int]:
+    def maintain(
+        self, portfolio_id: str, user_id: str | None = None
+    ) -> dict[str, int | str]:
         """
         Sync splits and dividends up to each rebalance date, then rebalance.
 
@@ -44,11 +46,12 @@ class PortfolioLedgerService:
 
     def _maintain_unlocked(
         self, portfolio_id: str, user_id: str | None = None
-    ) -> dict[str, int]:
+    ) -> dict[str, int | str]:
         portfolio = self._portfolio_service.get_portfolio(portfolio_id, user_id)
         txs = self._transaction_service.get_transactions(portfolio_id, user_id=user_id)
         if not txs:
-            return {"splits": 0, "dividends": 0, "rebalance": 0}
+            empty: dict[str, int | str] = {"splits": 0, "dividends": 0, "rebalance": 0}
+            return empty
 
         portfolio = self._ensure_target_weights(portfolio, txs, user_id)
         first_date = min(t.transaction_date for t in txs)
