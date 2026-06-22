@@ -3,7 +3,7 @@
 **Professional portfolio management** with analytics, optimization, risk tools, and forecasting.
 
 <p align="center">
-  <a href="https://portfolio-management-pro-taupe.vercel.app/"><strong>Live app</strong></a>
+  <a href="https://portfolio-lenz.vercel.app/"><strong>Live app</strong></a>
   &nbsp;·&nbsp;
   <a href="#full-stack-nextjs--fastapi--docker">Full stack (Docker)</a>
   &nbsp;·&nbsp;
