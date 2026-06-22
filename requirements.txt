@@ -30,6 +30,7 @@ stripe>=7.0.0
 
 # API Framework
 fastapi>=0.115.0
+python-multipart>=0.0.9   # FastAPI form data (OAuth2 login)
 uvicorn[standard]>=0.34.0
 limits>=3.6               # IP-based rate limiting (auth + public endpoints)
 plotly>=5.17.0
