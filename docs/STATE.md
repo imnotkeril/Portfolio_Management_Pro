@@ -8,3 +8,4 @@
 - [x] backend/B6 +35 tests (subscription_repository, optimization constraints/base) — 385 passed, core cov 78.33% (was 70.98%)
 - [x] frontend/F2 eslint 46 errors (26 any, 20 set-state-in-effect after eslint-config bump) -> 0; ci.yml frontend job (npm ci, eslint, tsc, build) — eslint 0 errors/18 warnings, tsc ok, build ok
 - [x] frontend/F3 proxy first-segment allowlist (src/lib/proxy-path.ts), traversal/encoded -> 404, upstream down -> 502; next.config security headers (nosniff, DENY, referrer, permissions; no CSP: Next inline scripts need nonce) — live curl check on standalone server
+- [x] frontend/F4 Dockerfile runs as USER node (chown'd standalone), HOSTNAME=0.0.0.0 — docker build audit-pmp-web:test ok; container id uid=1000(node), /login 200
