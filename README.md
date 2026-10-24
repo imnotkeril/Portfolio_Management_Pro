@@ -109,7 +109,7 @@ CI runs **Ruff, Black, isort, Mypy, Pytest** on **Python 3.11** with **`core/` c
 
 ## Requirements
 
-- **Python** 3.9+ locally (CI uses **3.11**)
+- **Python** 3.11 (CI and Docker use 3.11)
 - **OS**: Windows, macOS, or Linux  
 - **Network** for market data ([yfinance](https://github.com/ranaroussi/yfinance))  
 - **RAM** 4GB+ recommended for large portfolios  
@@ -246,6 +246,13 @@ CACHE_DIR=data/cache
 
 RISK_FREE_RATE=0.0435
 ```
+
+**Production checklist**
+
+- `ENVIRONMENT=production` and a strong `JWT_SECRET` (`python -c "import secrets; print(secrets.token_urlsafe(64))"`); the API refuses to boot with the default secret.
+- Keep `AUTH_DISABLED=false` and `DEBUG=false`.
+- Frontend behind HTTPS: `COOKIE_SECURE=true`. Extra API origins: `CORS_ORIGINS`.
+- Billing: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_PRO`.
 
 ---
 
