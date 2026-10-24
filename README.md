@@ -249,7 +249,8 @@ RISK_FREE_RATE=0.0435
 
 **Production checklist**
 
-- `ENVIRONMENT=production` and a strong `JWT_SECRET` (`python -c "import secrets; print(secrets.token_urlsafe(64))"`); the API refuses to boot with the default secret.
+- `ENVIRONMENT=production` and a strong `JWT_SECRET` (`python -c "import secrets; print(secrets.token_urlsafe(64))"`); the API refuses to boot with the default or a short (<32 chars) secret, or with `AUTH_DISABLED=true`. In production `/docs`, `/redoc` and `/openapi.json` are disabled and HSTS is sent.
+- `TRUSTED_PROXY_COUNT` = number of reverse proxies in front of the API (default `0`: `X-Forwarded-For` is ignored and rate limits key on the socket IP). Set `1` behind a single proxy such as HF Spaces so per-client rate limiting works; a wrong value lets clients spoof their IP.
 - Keep `AUTH_DISABLED=false` and `DEBUG=false`.
 - Frontend behind HTTPS: `COOKIE_SECURE=true`. Extra API origins: `CORS_ORIGINS`.
 - Billing: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_PRO`.

@@ -17,6 +17,7 @@ from api.dependencies import get_current_user, require_pro
 from api.rate_limit import rate_limit
 from api.routers import auth as auth_router
 from api.routers import billing as billing_router
+from api.security_headers import SecurityHeadersMiddleware, docs_kwargs, is_production
 from config.settings import settings
 from core.analytics_engine.chart_data import (
     get_asset_impact_on_return_data,
@@ -388,7 +389,11 @@ def _verify_portfolio_access(portfolio_id: str, user: User) -> None:
 
 
 ensure_database_schema()
-app = FastAPI(title="WMC Portfolio API", version="1.0.0")
+app = FastAPI(
+    title="WMC Portfolio API",
+    version="1.0.0",
+    **docs_kwargs(settings.environment),
+)
 
 # Browser talks to the Next.js BFF (same-origin), which forwards server-side to
 # this API — so CORS is only a safety net. Allow localhost dev plus the
@@ -410,6 +415,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+# Added after CORS so it is outermost and decorates every response.
+app.add_middleware(
+    SecurityHeadersMiddleware, production=is_production(settings.environment)
 )
 app.include_router(auth_router.router)
 app.include_router(billing_router.router)
@@ -723,9 +732,8 @@ def get_transactions(
             _maintain_ledger(portfolio_id, current_user.id)
         except Exception as exc:
             logger.exception("Ledger maintain during get_transactions failed: %s", exc)
-    return [
-        _serialize_transaction(tx)
-        for tx in transaction_service.get_transactions(
+    try:
+        rows = transaction_service.get_transactions(
             portfolio_id,
             start_date=from_date,
             end_date=to_date,
@@ -733,7 +741,10 @@ def get_transactions(
             ticker=ticker,
             user_id=current_user.id,
         )
-    ]
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+    return [_serialize_transaction(tx) for tx in rows]
 
 
 @app.post("/portfolios/{portfolio_id}/transactions")
