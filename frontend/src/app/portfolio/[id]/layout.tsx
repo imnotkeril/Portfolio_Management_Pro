@@ -15,14 +15,22 @@ export default function PortfolioLayout({
   const params = useParams();
   const id = String(params.id);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [notFound, setNotFound] = useState(false);
+  const [failedId, setFailedId] = useState<string | null>(null);
+  const notFound = failedId === id;
 
   useEffect(() => {
-    setNotFound(false);
+    let cancelled = false;
     api
       .get<Portfolio>(`/portfolios/${id}`)
-      .then(setPortfolio)
-      .catch(() => setNotFound(true));
+      .then((p) => {
+        if (!cancelled) setPortfolio(p);
+      })
+      .catch(() => {
+        if (!cancelled) setFailedId(id);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (notFound) {

@@ -169,6 +169,7 @@ export default function PortfoliosPage() {
   const [previewingStrategy, setPreviewingStrategy] = useState(false);
 
   /* --- load portfolios --- */
+  /** Manual refresh (button / back to list). */
   const loadPortfolios = useCallback(async () => {
     setLoading(true);
     try {
@@ -181,9 +182,24 @@ export default function PortfoliosPage() {
     }
   }, []);
 
+  /** Initial load (state starts with loading=true). */
   useEffect(() => {
-    loadPortfolios();
-  }, [loadPortfolios]);
+    let cancelled = false;
+    api
+      .get<Portfolio[]>("/portfolios")
+      .then((list) => {
+        if (!cancelled) setPortfolios(list);
+      })
+      .catch((err) => {
+        if (!cancelled) setMessage({ type: "error", text: String(err) });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /* --- derived --- */
   const selected = portfolios.find((p) => p.id === selectedId) ?? null;
@@ -452,6 +468,7 @@ export default function PortfoliosPage() {
   useEffect(() => {
     if (!selectedId) return;
     if (tab === "overview" || tab === "positions") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- refetch on tab/selection change; setState happens after the awaited requests
       void reloadSelectedPortfolio();
     }
   }, [selectedId, tab, reloadSelectedPortfolio]);

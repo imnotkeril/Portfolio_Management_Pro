@@ -90,10 +90,7 @@ export function TransactionForm({
   }, [isCashFlow, txTicker, txDate, txShares, txType, applyDefaultFees]);
 
   useEffect(() => {
-    if (isCashFlow) {
-      setTxFees(0);
-      return;
-    }
+    if (isCashFlow) return;
     const t = window.setTimeout(() => {
       void loadHistoricalPrice();
     }, 400);
@@ -102,6 +99,7 @@ export function TransactionForm({
 
   useEffect(() => {
     if (isCashFlow) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fees are auto-derived from shares/price/type until the user edits them
     applyDefaultFees(txShares, txPrice, txType);
   }, [txShares, txPrice, txType, isCashFlow, applyDefaultFees]);
 

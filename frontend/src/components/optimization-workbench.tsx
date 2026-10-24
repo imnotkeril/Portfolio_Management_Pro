@@ -302,6 +302,7 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
   useEffect(() => {
     if (!useMinW) return;
     if (minWPct > maxAllowedMinPct) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clamp the editable value when the allowed maximum shrinks
       setMinWPct(maxAllowedMinPct);
     }
   }, [useMinW, minWPct, maxAllowedMinPct]);
@@ -309,6 +310,7 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
   useEffect(() => {
     if (!selectedMethod) return;
     const preset = getMethodPreset(selectedMethod);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the whole constraint form to the method's preset when the method changes
     setLongOnly(preset.longOnly);
     setMaxCashPct(preset.maxCashPct);
     setUseMinW(preset.useMinW);

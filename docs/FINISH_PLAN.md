@@ -10,7 +10,7 @@ Owner: B=backend-dev, F=frontend-dev, D=docs. Check = command proving it.
 - [x] B6 raise core/ coverage to >=75% (optimization_engine base/constraints, subscription_repository)
 ## Frontend/CI (F)
 - [x] F1 next/sharp/postcss bump, npm audit --omit=dev clean or documented; build passes
-- [ ] F2 fix 30 eslint errors; add eslint + tsc + build job to .github/workflows/ci.yml
+- [x] F2 fix 30 eslint errors; add eslint + tsc + build job to .github/workflows/ci.yml
 - [ ] F3 BFF proxy path allowlist; next.config security headers
 - [ ] F4 non-root user in frontend/Dockerfile
 - [ ] F5 buy_hold portfolio overview shows $0 / no holdings: fix

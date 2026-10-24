@@ -35,23 +35,30 @@ export default function PortfolioOverviewPage() {
 
   useEffect(() => {
     if (!id || id === "undefined") return;
-    setLoading(true);
-    setError(null);
+    let cancelled = false;
     Promise.all([
       api.get<Portfolio>(`/portfolios/${id}`),
       api.get<Holding[]>(`/portfolios/${id}/holdings`).catch(() => [] as Holding[]),
       api.get<PnlSummary>(`/portfolios/${id}/pnl`).catch(() => null),
     ])
       .then(([p, h, pnlRes]) => {
+        if (cancelled) return;
         setPortfolio(p);
         setHoldings(Array.isArray(h) ? h : []);
         setPnl(pnlRes);
+        setError(null);
       })
       .catch((err) => {
+        if (cancelled) return;
         setPortfolio(null);
         setError(String(err).replace(/^Error: /, ""));
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const overviewRows: OverviewRow[] = useMemo(() => {

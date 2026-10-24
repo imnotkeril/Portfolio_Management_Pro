@@ -220,9 +220,11 @@ export default function CreatePortfolioPage() {
   const [description, setDescription] = useState("");
   const [baseCurrency, setBaseCurrency] = useState("USD");
   const [capital, setCapital] = useState(100000);
-  const [nameStatus, setNameStatus] = useState<
-    "idle" | "checking" | "available" | "taken" | "invalid"
-  >("idle");
+  /** Result of the async uniqueness check, keyed by the name it was run for. */
+  const [nameCheck, setNameCheck] = useState<{
+    name: string;
+    result: "available" | "taken";
+  } | null>(null);
 
   /* --- step 2 --- */
   const [method, setMethod] = useState<InputMethod>("text");
@@ -317,6 +319,16 @@ export default function CreatePortfolioPage() {
     );
   }, [positions, validationMap]);
 
+  const trimmedName = name.trim();
+  const nameStatus: "idle" | "checking" | "available" | "taken" | "invalid" =
+    !trimmedName
+      ? "idle"
+      : trimmedName.length > 100
+        ? "invalid"
+        : nameCheck?.name === trimmedName
+          ? nameCheck.result
+          : "checking";
+
   const canProceedStep1 = name.trim().length > 0 && nameStatus === "available";
 
   const canProceedStep3 = (() => {
@@ -329,24 +341,17 @@ export default function CreatePortfolioPage() {
 
   /* --- name validation --- */
   useEffect(() => {
-    if (!name.trim()) {
-      setNameStatus("idle");
-      return;
-    }
-    if (name.trim().length > 100) {
-      setNameStatus("invalid");
-      return;
-    }
-    setNameStatus("checking");
+    const checked = name.trim();
+    if (!checked || checked.length > 100) return;
     const timeout = setTimeout(async () => {
       try {
         const list = await api.get<{ name: string }[]>("/portfolios");
         const exists = list.some(
-          (p) => p.name.toLowerCase() === name.trim().toLowerCase(),
+          (p) => p.name.toLowerCase() === checked.toLowerCase(),
         );
-        setNameStatus(exists ? "taken" : "available");
+        setNameCheck({ name: checked, result: exists ? "taken" : "available" });
       } catch {
-        setNameStatus("available");
+        setNameCheck({ name: checked, result: "available" });
       }
     }, 400);
     return () => clearTimeout(timeout);
@@ -476,6 +481,7 @@ export default function CreatePortfolioPage() {
       const tpl = TEMPLATES[selectedTemplate];
       if (tpl) {
         const text = customizeTemplate ? customTemplateText : tpl.assets;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds the editable draft when entering step 3; positions stay user-editable afterwards
         setPositions(parseTextPositions(text));
       }
     }
@@ -484,6 +490,7 @@ export default function CreatePortfolioPage() {
   /* --- go to step 3 from file --- */
   useEffect(() => {
     if (step === 3 && method === "file" && filePositions.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds the editable draft when entering step 3; positions stay user-editable afterwards
       setPositions(filePositions);
     }
   }, [step, method, filePositions]);
@@ -497,7 +504,7 @@ export default function CreatePortfolioPage() {
       try {
         const raw =
           method === "file" ? filePositions : positions;
-        let rows = raw.filter((p) => {
+        const rows = raw.filter((p) => {
           if (Object.keys(validationMap).length > 0) {
             return validationMap[p.ticker]?.valid !== false;
           }

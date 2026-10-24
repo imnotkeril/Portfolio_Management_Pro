@@ -18,8 +18,7 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const list = await api.get<Portfolio[]>("/portfolios");
-      setPortfolios(list);
+      setPortfolios(await api.get<Portfolio[]>("/portfolios"));
     } catch (err) {
       setError(String(err));
     } finally {
@@ -28,8 +27,22 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    api
+      .get<Portfolio[]>("/portfolios")
+      .then((list) => {
+        if (!cancelled) setPortfolios(list);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const remove = async (id: string, name: string) => {
     if (!confirm(`Delete portfolio "${name}"?`)) return;
