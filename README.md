@@ -198,13 +198,14 @@ Open <http://localhost:3000>. With no environment variables the frontend proxies
 pytest
 ```
 
-`pytest.ini` runs the whole suite with coverage of `core/` and the 70% gate (`--cov-fail-under=70`); it also writes `htmlcov/` and `coverage.xml`. Last run: 385 passed, `core/` coverage 78.43%.
+`pytest.ini` runs the whole suite with coverage of `core/` and the 70% gate (`--cov-fail-under=70`); it also writes `htmlcov/` and `coverage.xml`. Last run: 388 passed, `core/` coverage 78.45%.
 
 ```bash
 pytest --cov=core --cov-config=.coveragerc --cov-report=html --cov-report=term-missing
-pytest tests/unit/          # 353 tests
-pytest tests/integration/   # 29 tests
-pytest tests/performance/   # 3 tests
+# Subsets: add --no-cov, otherwise the 70% gate of pytest.ini applies to the partial run
+pytest tests/unit/ --no-cov          # 355 tests
+pytest tests/integration/ --no-cov   # 30 tests
+pytest tests/performance/ --no-cov   # 3 tests
 ```
 
 ```bash
