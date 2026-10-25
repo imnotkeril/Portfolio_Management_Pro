@@ -5,10 +5,18 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# requirements.lock.txt pins every (transitive) version -> reproducible builds.
+COPY requirements.txt requirements.lock.txt /app/
+RUN pip install --no-cache-dir -c /app/requirements.lock.txt -r /app/requirements.txt
 
-COPY . /app
+# Run as an unprivileged user (UID 1000, matches typical Linux hosts so the
+# ./data bind mount in docker-compose stays writable).
+RUN useradd -m -u 1000 app
+
+COPY --chown=app:app . /app
+RUN mkdir -p /app/data/cache/prices /app/logs && chown -R app:app /app/data /app/logs
+
+USER app
 
 EXPOSE 8000
 
