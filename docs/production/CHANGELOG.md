@@ -7,6 +7,7 @@ Record of phase deliveries (high level). Detail lives in `phases/*.md`.
 - Security: production guards (JWT_SECRET >= 32 chars, AUTH_DISABLED refused), trusted-proxy rate limiting (`TRUSTED_PROXY_COUNT`), docs hidden in production, security headers (API + Next.js), BFF proxy path allowlist.
 - Fixes: 404 instead of 500 for transactions of foreign/missing portfolios; buy-and-hold positions shown on portfolio overview; `frontend/src/lib` was git-ignored and is now tracked.
 - Build: pinned `requirements.lock.txt`, non-root containers, Next 16.4.3 (npm audit clean), frontend job in CI (eslint, tsc, build); core coverage 78%.
+- Docs: README, USER_GUIDE and `.env.example` checked against the code and rewritten where they described the retired Streamlit app; commands and results in `docs/DOCS_CHECK.md`.
 
 ## 2026-05-22 — Product Phase 5: Stripe subscriptions
 
