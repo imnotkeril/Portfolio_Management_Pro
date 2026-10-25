@@ -27,8 +27,10 @@ ENV HOME=/home/user \
 
 WORKDIR /app
 
-COPY --chown=user:user requirements-deploy.txt /app/requirements-deploy.txt
-RUN pip install --no-cache-dir -r /app/requirements-deploy.txt
+# requirements.lock.txt pins every version (frozen from the working API image);
+# it is a superset of requirements-deploy.txt, applied as pip constraints.
+COPY --chown=user:user requirements-deploy.txt requirements.lock.txt /app/
+RUN pip install --no-cache-dir -c /app/requirements.lock.txt -r /app/requirements-deploy.txt
 
 COPY --chown=user:user . /app
 

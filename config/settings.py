@@ -21,6 +21,10 @@ class Settings(BaseSettings):
 
     # Security
     rate_limit_enabled: bool = True
+    # Number of trusted reverse proxies in front of the API (HF Spaces, Vercel,
+    # nginx...). 0 = ignore X-Forwarded-For entirely and use the socket peer IP.
+    # N > 0 = take the N-th entry from the right of X-Forwarded-For.
+    trusted_proxy_count: int = 0
 
     # Auth (Phase 2)
     jwt_secret: str = "change-me-in-production"
@@ -113,20 +117,34 @@ class Settings(BaseSettings):
 
     _DEFAULT_JWT_SECRET = "change-me-in-production"
 
-    def _enforce_production_secrets(self) -> None:
-        """Refuse to boot in production with the placeholder JWT secret.
+    _MIN_JWT_SECRET_LENGTH = 32
 
-        Forged tokens are trivial if the signing secret is the public default,
-        so a real deployment (ENVIRONMENT=production) must override JWT_SECRET.
+    def _enforce_production_secrets(self) -> None:
+        """Refuse to boot in production with unsafe auth configuration.
+
+        Forged tokens are trivial if the signing secret is the public default
+        or short, and AUTH_DISABLED hands a system user to every caller. A real
+        deployment (ENVIRONMENT=production) must therefore set a strong
+        JWT_SECRET (>= 32 chars) and keep AUTH_DISABLED=false.
         Development/tests keep the default for convenience.
         """
-        if self.jwt_secret == self._DEFAULT_JWT_SECRET:
-            if self.environment.strip().lower() == "production":
+        if self.environment.strip().lower() == "production":
+            if self.auth_disabled:
+                raise RuntimeError(
+                    "AUTH_DISABLED=true is not allowed when ENVIRONMENT=production."
+                )
+            if self.jwt_secret == self._DEFAULT_JWT_SECRET:
                 raise RuntimeError(
                     "JWT_SECRET is still the insecure default. Set a strong "
                     'JWT_SECRET (e.g. `python -c "import secrets; '
                     'print(secrets.token_urlsafe(64))"`) in production.'
                 )
+            if len(self.jwt_secret) < self._MIN_JWT_SECRET_LENGTH:
+                raise RuntimeError(
+                    f"JWT_SECRET must be at least {self._MIN_JWT_SECRET_LENGTH} "
+                    "characters in production."
+                )
+        elif self.jwt_secret == self._DEFAULT_JWT_SECRET:
             import logging
 
             logging.getLogger(__name__).warning(

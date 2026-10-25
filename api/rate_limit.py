@@ -1,9 +1,10 @@
 """IP-based rate limiting exposed as a FastAPI dependency.
 
 Implemented with the ``limits`` library and in-process fixed-window storage.
-Keyed by client IP: for BFF-proxied traffic that is the proxy's egress IP (so
-limits are generous), while direct calls to the public API carry the real IP —
-the brute-force / abuse vector we most want to throttle.
+Keyed by client IP (see ``_client_ip``; X-Forwarded-For is honoured only per
+``TRUSTED_PROXY_COUNT``). For BFF-proxied traffic that is the proxy's egress IP
+(so limits are generous), while direct calls to the public API carry the real
+IP — the brute-force / abuse vector we most want to throttle.
 
 A dependency (not the SlowAPI decorator) is used on purpose: ``api.main`` uses
 ``from __future__ import annotations``, and wrapping the route function breaks
@@ -29,12 +30,25 @@ _limiter = FixedWindowRateLimiter(_storage)
 
 
 def _client_ip(request: Request) -> str:
-    """Real client IP. Hosting proxies (HF Spaces, Vercel) put it in
-    X-Forwarded-For; ``request.client.host`` is only the proxy edge."""
+    """Client IP, trusting X-Forwarded-For only behind known proxies.
+
+    ``TRUSTED_PROXY_COUNT`` = number of reverse proxies we control in front of
+    the API. Each appends the address it saw to X-Forwarded-For, so the real
+    client is the N-th entry from the right; anything further left is
+    attacker-controlled and ignored. With 0 (default) the header is ignored
+    and the socket peer address is used.
+    """
+    peer = request.client.host if request.client else "anonymous"
+    hops = settings.trusted_proxy_count
+    if hops <= 0:
+        return peer
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "anonymous"
+    if not forwarded:
+        return peer
+    parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+    if len(parts) < hops:
+        return peer
+    return parts[-hops]
 
 
 def rate_limit(limit: str) -> Callable[[Request], None]:

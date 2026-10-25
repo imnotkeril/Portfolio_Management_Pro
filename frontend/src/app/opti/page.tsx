@@ -356,10 +356,12 @@ function OptiNotebookPageContent() {
 
   useEffect(() => {
     if (!useMinW) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clamp the editable value when the allowed maximum shrinks
     if (minWPct > maxAllowedMinPct) setMinWPct(maxAllowedMinPct);
   }, [useMinW, minWPct, maxAllowedMinPct]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the whole constraint form to the method's preset when the method changes
     setMethodTuning(getInitialOptiMethodTuning(method));
     const preset = getMethodPreset(method);
     setLongOnly(preset.longOnly);

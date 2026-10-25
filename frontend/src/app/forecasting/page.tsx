@@ -86,7 +86,7 @@ function ForecastingPageContent() {
   const [resultsTab, setResultsTab] = useState<"comparison" | "individual" | "quality" | "detailed">(
     "comparison",
   );
-  const [individualMethod, setIndividualMethod] = useState<string>("");
+  const [individualPick, setIndividualPick] = useState<string>("");
 
   useEffect(() => {
     const idFromUrl = searchParams.get("id");
@@ -157,13 +157,10 @@ function ForecastingPageContent() {
     [forecasts],
   );
 
-  useEffect(() => {
-    if (individualMethod && !successfulKeys.includes(individualMethod)) {
-      setIndividualMethod(successfulKeys[0] ?? "");
-    } else if (!individualMethod && successfulKeys.length) {
-      setIndividualMethod(successfulKeys[0]);
-    }
-  }, [successfulKeys, individualMethod]);
+  // Selected method falls back to the first successful forecast when the pick is missing/stale.
+  const individualMethod = successfulKeys.includes(individualPick)
+    ? individualPick
+    : (successfulKeys[0] ?? "");
 
   async function runBatch() {
     if (!methodsToRun.length) {
@@ -594,7 +591,7 @@ function ForecastingPageContent() {
                 <select
                   className="input mt-1"
                   value={individualMethod}
-                  onChange={(e) => setIndividualMethod(e.target.value)}
+                  onChange={(e) => setIndividualPick(e.target.value)}
                 >
                   {successfulKeys.map((k) => (
                     <option key={k} value={k}>
@@ -677,7 +674,7 @@ function ForecastingPageContent() {
                 <select
                   className="input mt-1"
                   value={individualMethod}
-                  onChange={(e) => setIndividualMethod(e.target.value)}
+                  onChange={(e) => setIndividualPick(e.target.value)}
                 >
                   {successfulKeys.map((k) => (
                     <option key={k} value={k}>

@@ -10,6 +10,7 @@ import {
   marketValueByTicker,
   targetWeightPct,
 } from "@/lib/portfolio-allocation";
+import { buyHoldHoldings, buyHoldPnl } from "@/lib/buy-hold-holdings";
 import type { Holding, PnlSummary, Portfolio } from "@/lib/types";
 
 type OverviewRow = Holding & {
@@ -35,23 +36,40 @@ export default function PortfolioOverviewPage() {
 
   useEffect(() => {
     if (!id || id === "undefined") return;
-    setLoading(true);
-    setError(null);
+    let cancelled = false;
     Promise.all([
       api.get<Portfolio>(`/portfolios/${id}`),
       api.get<Holding[]>(`/portfolios/${id}/holdings`).catch(() => [] as Holding[]),
       api.get<PnlSummary>(`/portfolios/${id}/pnl`).catch(() => null),
     ])
-      .then(([p, h, pnlRes]) => {
+      .then(async ([p, h, pnlRes]) => {
+        let rows = Array.isArray(h) ? h : [];
+        let pnlOut = pnlRes;
+        // Buy-and-hold portfolios have no ledger transactions: derive from positions.
+        if (rows.length === 0 && p.ledger_mode !== "transactions") {
+          rows = await buyHoldHoldings(p.positions);
+          if (rows.length > 0) pnlOut = buyHoldPnl(rows, pnlRes);
+        }
+        return { p, rows, pnlOut };
+      })
+      .then(({ p, rows, pnlOut }) => {
+        if (cancelled) return;
         setPortfolio(p);
-        setHoldings(Array.isArray(h) ? h : []);
-        setPnl(pnlRes);
+        setHoldings(rows);
+        setPnl(pnlOut);
+        setError(null);
       })
       .catch((err) => {
+        if (cancelled) return;
         setPortfolio(null);
         setError(String(err).replace(/^Error: /, ""));
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const overviewRows: OverviewRow[] = useMemo(() => {
@@ -160,14 +178,14 @@ export default function PortfolioOverviewPage() {
       ) : null}
       <section>
         <h2 className="text-lg font-semibold text-white mb-1">
-          Holdings (from transactions)
+          Holdings
         </h2>
         <p className="text-xs text-white/40 mb-3">
           Current % and return % use live market prices. Target % is your
           strategy weight (incl. cash).
         </p>
         {overviewRows.length === 0 ? (
-          <div className="alert alert-info">No holdings yet. Add a BUY transaction.</div>
+          <div className="alert alert-info">No holdings yet. Add a position or a BUY transaction.</div>
         ) : (
           <table className="data-table">
             <thead>

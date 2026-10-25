@@ -22,3 +22,8 @@ docs
 data/cache
 *.md
 
+
+# Local databases must never be baked into images
+*.db
+*.sqlite
+*.sqlite3
