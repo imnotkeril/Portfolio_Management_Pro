@@ -800,11 +800,15 @@ def delete_transaction_legacy(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, bool]:
     """Deprecated: prefer DELETE /portfolios/{id}/transactions/{tx_id}."""
-    return {
-        "deleted": transaction_service.delete_transaction(
-            transaction_id, current_user.id
-        )
-    }
+    try:
+        return {
+            "deleted": transaction_service.delete_transaction(
+                transaction_id, current_user.id
+            )
+        }
+    except Exception as exc:
+        _handle_error(exc)
+        raise
 
 
 @app.get("/portfolios/{portfolio_id}/holdings")
