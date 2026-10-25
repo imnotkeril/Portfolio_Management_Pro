@@ -257,7 +257,7 @@ Create `.env` in the project root (`cp .env.example .env`). Every variable is op
 | `COOKIE_SECURE` | `false` | Frontend session cookie `Secure` flag; set `true` behind HTTPS |
 | `PORT` | `7860` | Port for the Hugging Face Spaces image (`Dockerfile`) |
 
-`.env.example` also lists settings that no code reads yet (for example `YAHOO_FINANCE_ENABLED`, `CACHE_TTL_SECONDS`, `MAX_WORKERS`); they are marked `[unused]` there.
+`.env.example` also lists settings that no code reads yet; they are marked `[unused]` there: `APP_NAME`, `APP_VERSION`, `ALPHA_VANTAGE_API_KEY`, `IEX_CLOUD_API_KEY`, `YAHOO_FINANCE_ENABLED`, `CACHE_ENABLED`, `CACHE_TTL_SECONDS`, `MAX_WORKERS`, `CALCULATION_TIMEOUT_SECONDS`, `RISK_FREE_RATE`, `MAX_PORTFOLIO_POSITIONS`, `MIN_POSITION_WEIGHT`, `MAX_POSITION_WEIGHT`.
 
 **Production checklist**
 
