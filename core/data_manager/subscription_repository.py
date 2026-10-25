@@ -84,6 +84,13 @@ class SubscriptionRepository:
             )
             return True
 
+    def unmark_event(self, stripe_event_id: str) -> None:
+        """Forget a processed event so a Stripe retry can be handled again."""
+        with get_db_session() as session:
+            session.query(StripeEventORM).filter(
+                StripeEventORM.stripe_event_id == stripe_event_id
+            ).delete(synchronize_session=False)
+
     def update_pro_from_checkout(
         self,
         user_id: str,

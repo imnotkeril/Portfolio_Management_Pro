@@ -129,3 +129,10 @@ def test_mark_event_processed_idempotent(repo: SubscriptionRepository) -> None:
     evt = f"evt_{uuid.uuid4().hex}"
     assert repo.mark_event_processed(evt, "checkout.session.completed") is True
     assert repo.mark_event_processed(evt, "checkout.session.completed") is False
+
+
+def test_unmark_event_allows_reprocessing(repo: SubscriptionRepository) -> None:
+    evt = f"evt_{uuid.uuid4().hex}"
+    assert repo.mark_event_processed(evt, "invoice.paid") is True
+    repo.unmark_event(evt)
+    assert repo.mark_event_processed(evt, "invoice.paid") is True

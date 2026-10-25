@@ -175,7 +175,13 @@ class BillingService:
         }.get(event.type)
 
         if handler:
-            handler(event.data.object)
+            try:
+                handler(event.data.object)
+            except Exception:
+                # The event was marked before handling (dedupe for concurrent
+                # deliveries); un-mark it so Stripe's retry is not dropped.
+                self._repo.unmark_event(event_id)
+                raise
         else:
             logger.info("Unhandled Stripe event type: %s", event.type)
 
