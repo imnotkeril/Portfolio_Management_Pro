@@ -5,7 +5,14 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import IntegrityError
 
 from api.dependencies import get_current_user
-from api.rate_limit import rate_limit
+from api.rate_limit import (
+    LOGIN_IP_LIMIT,
+    LOGIN_IP_SCOPE,
+    clear_login_failures,
+    login_attempt_allowed,
+    rate_limit,
+    record_login_failure,
+)
 from api.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserOut
 from core.auth.password import verify_password
 from core.auth.tokens import create_access_token
@@ -41,7 +48,7 @@ def register(payload: RegisterRequest) -> User:
 @router.post(
     "/login",
     response_model=TokenResponse,
-    dependencies=[Depends(rate_limit("20/minute"))],
+    dependencies=[Depends(rate_limit(LOGIN_IP_LIMIT, scope=LOGIN_IP_SCOPE))],
 )
 def login_form(form: OAuth2PasswordRequestForm = Depends()) -> TokenResponse:
     """Login with OAuth2 password form (username field = email)."""
@@ -51,7 +58,7 @@ def login_form(form: OAuth2PasswordRequestForm = Depends()) -> TokenResponse:
 @router.post(
     "/login/json",
     response_model=TokenResponse,
-    dependencies=[Depends(rate_limit("20/minute"))],
+    dependencies=[Depends(rate_limit(LOGIN_IP_LIMIT, scope=LOGIN_IP_SCOPE))],
 )
 def login_json(payload: LoginRequest) -> TokenResponse:
     """Login with JSON body (convenient for frontend)."""
@@ -65,8 +72,14 @@ def me(current_user: User = Depends(get_current_user)) -> User:
 
 
 def _authenticate(email: str, password: str) -> TokenResponse:
+    if not login_attempt_allowed(email):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed attempts, try again later.",
+        )
     user = _user_repository.find_by_email(email)
     if user is None or not verify_password(password, user.password_hash):
+        record_login_failure(email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -77,5 +90,6 @@ def _authenticate(email: str, password: str) -> TokenResponse:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user",
         )
+    clear_login_failures(email)
     token = create_access_token(subject=user.id)
     return TokenResponse(access_token=token)

@@ -243,7 +243,7 @@ Create `.env` in the project root (`cp .env.example .env`). Every variable is op
 | `DATABASE_URL` | `sqlite:///./data/wmc.db` | SQLAlchemy URL; Docker uses Postgres |
 | `DATABASE_ECHO` | `false` | Log SQL statements |
 | `RATE_LIMIT_ENABLED` | `true` | IP-based rate limits on auth and public endpoints |
-| `TRUSTED_PROXY_COUNT` | `0` | Number of reverse proxies in front of the API (0 = ignore `X-Forwarded-For`) |
+| `TRUSTED_PROXY_COUNT` | `0` | Trusted hops in front of the API; client IP = Nth entry from the right of `X-Forwarded-For` (0 = ignore it). BFF -> API directly: `1`; BFF -> HF Spaces proxy -> API: `2` |
 | `CORS_ORIGINS` | empty | Extra allowed browser origins, comma-separated (read in `api/main.py`) |
 | `PRICE_CACHE_DIR` | `data/cache/prices` | Price cache directory |
 | `LOG_LEVEL` | `INFO` | Log level |
@@ -263,7 +263,7 @@ Create `.env` in the project root (`cp .env.example .env`). Every variable is op
 **Production checklist**
 
 - `ENVIRONMENT=production` and a strong `JWT_SECRET` (`python -c "import secrets; print(secrets.token_urlsafe(64))"`); the API refuses to boot with the default or a short (<32 chars) secret, or with `AUTH_DISABLED=true`. In production `/docs`, `/redoc` and `/openapi.json` are disabled and HSTS is sent.
-- `TRUSTED_PROXY_COUNT` = number of reverse proxies in front of the API. Set `1` behind a single proxy such as HF Spaces so per-client rate limiting works; a wrong value lets clients spoof their IP.
+- `TRUSTED_PROXY_COUNT` = number of trusted hops in front of the API. The Next.js BFF sets `X-Forwarded-For` to the visitor IP (from `x-real-ip`, else the last `x-forwarded-for` entry) on login, register and proxied calls; each proxy after it appends one entry, so count the BFF plus every proxy between BFF and API (BFF straight to API: `1`; BFF via the HF Spaces proxy: `2`). A value that is too high lets direct API callers spoof their IP. Login is limited per IP (20/min, one bucket shared by `/auth/login` and `/auth/login/json`) and per account (5 failed attempts per 15 minutes per email, case-insensitive; a successful login resets it). Limiter state is in-process memory, so it is per worker.
 - Keep `AUTH_DISABLED=false` and `DEBUG=false`.
 - Frontend behind HTTPS: `COOKIE_SECURE=true`. Extra API origins: `CORS_ORIGINS`.
 - Billing: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_PRO`, `FRONTEND_URL`. The webhook endpoint is `https://<api-host>/stripe/webhook` (not reachable through the browser proxy).

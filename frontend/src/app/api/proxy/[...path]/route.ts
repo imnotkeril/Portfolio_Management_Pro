@@ -5,6 +5,7 @@ import {
   getBackendUrl,
   isPublicProxyPath,
 } from "@/lib/auth-cookie";
+import { forwardedForHeaders } from "@/lib/client-ip";
 import { sanitizeProxyPath } from "@/lib/proxy-path";
 
 type RouteContext = { params: Promise<{ path: string[] }> };
@@ -29,7 +30,7 @@ async function proxyRequest(
     target.searchParams.set(key, value);
   });
 
-  const headers: HeadersInit = {};
+  const headers: Record<string, string> = { ...forwardedForHeaders(request) };
   const contentType = request.headers.get("content-type");
   if (contentType) headers["Content-Type"] = contentType;
   if (token) headers.Authorization = `Bearer ${token}`;

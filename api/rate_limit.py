@@ -16,6 +16,7 @@ Disabled via ``RATE_LIMIT_ENABLED=false`` (tests share one client IP).
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 
 from fastapi import HTTPException, Request, status
@@ -51,18 +52,53 @@ def _client_ip(request: Request) -> str:
     return parts[-hops]
 
 
-def rate_limit(limit: str) -> Callable[[Request], None]:
-    """Build a dependency enforcing ``limit`` (e.g. ``"20/minute"``) per IP."""
+def rate_limit(limit: str, scope: str | None = None) -> Callable[[Request], None]:
+    """Build a dependency enforcing ``limit`` (e.g. ``"20/minute"``) per IP.
+
+    Routes passing the same ``scope`` share one bucket (default: one bucket
+    per URL path).
+    """
     item = parse(limit)
 
     def _dependency(request: Request) -> None:
         if not settings.rate_limit_enabled:
             return
         client_ip = _client_ip(request)
-        if not _limiter.hit(item, client_ip, request.url.path):
+        if not _limiter.hit(item, client_ip, scope or request.url.path):
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Too many requests, please slow down.",
             )
 
     return _dependency
+
+
+# --- login: per-account failure throttle (S-04) -------------------------------
+# The IP bucket alone is not enough: behind a proxy many users share an IP, and
+# an attacker rotating IPs is unlimited. Failed attempts are therefore also
+# counted per normalized email; a success clears the counter.
+LOGIN_IP_LIMIT = "20/minute"
+LOGIN_IP_SCOPE = "login"  # shared by /auth/login and /auth/login/json
+_login_email_item = parse("5 per 15 minute")
+
+
+def _email_key(email: str) -> str:
+    digest = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()
+    return f"login-email:{digest}"
+
+
+def login_attempt_allowed(email: str) -> bool:
+    """False while this account has used up its failed-login budget."""
+    if not settings.rate_limit_enabled:
+        return True
+    return _limiter.test(_login_email_item, _email_key(email))
+
+
+def record_login_failure(email: str) -> None:
+    if settings.rate_limit_enabled:
+        _limiter.hit(_login_email_item, _email_key(email))
+
+
+def clear_login_failures(email: str) -> None:
+    if settings.rate_limit_enabled:
+        _limiter.clear(_login_email_item, _email_key(email))
