@@ -45,19 +45,22 @@ def test_monte_carlo_rejects_oversized(
     assert resp.status_code == 422, resp.text
 
 
-@pytest.mark.parametrize("path", ["/risk/var", "/risk/var/full"])
-@pytest.mark.parametrize(
-    "extra",
-    [
+_VAR_CASES = [
+    (path, extra)
+    for path in ("/risk/var", "/risk/var/full")
+    for extra in (
         {"num_simulations": 5_000_000},
         {"time_horizon": 100_000},
         {"rolling_window": 10_000_000},
         {"confidence_level": 5},
-    ],
-)
+    )
+    # rolling_window exists only on the full request
+    if not ("rolling_window" in extra and not path.endswith("/full"))
+]
+
+
+@pytest.mark.parametrize(("path", "extra"), _VAR_CASES)
 def test_var_rejects_oversized(api_client: TestClient, path: str, extra: dict) -> None:
-    if "rolling_window" in extra and not path.endswith("/full"):
-        pytest.skip("rolling_window exists only on the full request")
     resp = api_client.post(path, headers=_headers(api_client), json={**_BASE, **extra})
     assert resp.status_code == 422, resp.text
 
