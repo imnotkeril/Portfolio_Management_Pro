@@ -5,13 +5,13 @@ from __future__ import annotations
 import logging
 import os
 from datetime import date
-from typing import Any
+from typing import Annotated, Any
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from api.dependencies import get_current_user, require_pro
 from api.rate_limit import rate_limit
@@ -100,10 +100,25 @@ class AddTransactionRequest(BaseModel):
     currency: str = "USD"
 
 
+# Upper bounds on request sizes (S-03): one request must not be able to
+# allocate unbounded memory or CPU.
+MAX_SIMULATIONS = 50_000
+MAX_HORIZON_DAYS = 2_520
+MAX_SIMULATED_CELLS = 20_000_000  # num_simulations * time_horizon
+MAX_TICKERS = 100
+MAX_TICKER_LEN = 20
+MAX_FORECAST_HORIZON = 365
+
+TickerList = Annotated[
+    list[Annotated[str, Field(min_length=1, max_length=MAX_TICKER_LEN)]],
+    Field(max_length=MAX_TICKERS),
+]
+
+
 class DividendSyncRequest(BaseModel):
     """Sync dividends from market data."""
 
-    tickers: list[str]
+    tickers: TickerList
     start_date: date
     end_date: date
     reinvest: bool = False
@@ -112,7 +127,7 @@ class DividendSyncRequest(BaseModel):
 class SplitSyncRequest(BaseModel):
     """Sync stock splits from market data."""
 
-    tickers: list[str]
+    tickers: TickerList
     start_date: date
     end_date: date
 
@@ -135,24 +150,36 @@ class RiskVarRequest(BaseModel):
     portfolio_id: str
     start_date: date
     end_date: date
-    confidence_level: float = 0.95
+    confidence_level: float = Field(0.95, ge=0.5, le=0.9999)
     include_monte_carlo: bool = True
-    num_simulations: int = 10000
-    time_horizon: int = 1
+    num_simulations: int = Field(10000, ge=100, le=MAX_SIMULATIONS)
+    time_horizon: int = Field(1, ge=1, le=MAX_HORIZON_DAYS)
+
+    @model_validator(mode="after")
+    def _bound_total_work(self) -> RiskVarRequest:
+        if self.num_simulations * self.time_horizon > MAX_SIMULATED_CELLS:
+            raise ValueError("num_simulations * time_horizon is too large")
+        return self
 
 
 class RiskMonteCarloRequest(BaseModel):
     portfolio_id: str
     start_date: date
     end_date: date
-    time_horizon: int = 252
-    num_simulations: int = 10000
-    initial_value: float = 1.0
-    model: str = "gbm"
+    time_horizon: int = Field(252, ge=1, le=MAX_HORIZON_DAYS)
+    num_simulations: int = Field(10000, ge=100, le=MAX_SIMULATIONS)
+    initial_value: float = Field(1.0, gt=0, le=1e12)
+    model: str = Field("gbm", max_length=32)
+
+    @model_validator(mode="after")
+    def _bound_total_work(self) -> RiskMonteCarloRequest:
+        if self.num_simulations * self.time_horizon > MAX_SIMULATED_CELLS:
+            raise ValueError("num_simulations * time_horizon is too large")
+        return self
 
 
 class RiskVarFullRequest(RiskVarRequest):
-    rolling_window: int = 63
+    rolling_window: int = Field(63, ge=2, le=MAX_HORIZON_DAYS)
 
 
 class RiskMonteCarloFullRequest(RiskMonteCarloRequest):
@@ -212,7 +239,7 @@ class OptimizationFullRequest(OptimizationRequest):
 
     benchmark_for_charts: str | None = None
     include_efficient_frontier: bool = True
-    frontier_n_points: int = 150
+    frontier_n_points: int = Field(150, ge=2, le=300)
     include_sensitivity: bool = False
     sensitivity_analysis_type: str = "returns"
     notebook_split: bool = False
@@ -223,7 +250,7 @@ class ForecastAssetRequest(BaseModel):
     ticker: str
     start_date: date
     end_date: date
-    horizon: int
+    horizon: int = Field(ge=1, le=MAX_FORECAST_HORIZON)
     method: str
     method_params: dict[str, Any] | None = None
     out_of_sample: bool = False
@@ -234,7 +261,7 @@ class ForecastPortfolioRequest(BaseModel):
     portfolio_id: str
     start_date: date
     end_date: date
-    horizon: int
+    horizon: int = Field(ge=1, le=MAX_FORECAST_HORIZON)
     method: str
     method_params: dict[str, Any] | None = None
     out_of_sample: bool = False
@@ -249,8 +276,8 @@ class ForecastBatchRequest(BaseModel):
     portfolio_id: str | None = None
     start_date: date
     end_date: date
-    horizon: int
-    methods: list[str]
+    horizon: int = Field(ge=1, le=MAX_FORECAST_HORIZON)
+    methods: list[str] = Field(max_length=20)
     method_params: dict[str, dict[str, Any]] = Field(default_factory=dict)
     out_of_sample: bool = True
     training_ratio: float = 0.3
@@ -510,7 +537,9 @@ def dashboard_indices() -> list[dict[str, Any]]:
 
 
 @app.post("/validate-tickers", dependencies=[Depends(rate_limit("30/minute"))])
-def validate_tickers(tickers: list[str]) -> dict[str, bool]:
+def validate_tickers(
+    tickers: Annotated[TickerList, Body()],
+) -> dict[str, bool]:
     return data_service.validate_tickers(tickers)
 
 
