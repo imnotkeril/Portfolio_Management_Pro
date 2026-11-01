@@ -155,3 +155,39 @@ Verified in the API image: pytest 436 passed (includes tests another agent added
 |---|---|---|---|
 | S-03 remainder (P1) | fixed | see `git log` ("fix(risk): bound Monte Carlo response") | `tests/integration/test_monte_carlo_limits.py`: `test_service_returns_at_most_100_sample_paths` (response under 3 MB; was ~376 MB), `test_work_cap_is_two_million_cells` (422 above `MAX_SIMULATED_CELLS = 2,000,000`), `test_default_request_is_within_cap` (default simulations lowered to 5000), `test_busy_server_returns_503` (semaphore of 2 per process, 503 + `Retry-After`), `test_display_bundle_keeps_paths_chart_data_and_is_bounded`. `RiskService.run_monte_carlo_simulation` now returns at most 100 evenly spaced paths plus `path_envelope` (max/min/median over all paths), which `risk_ui_bundle` uses so the paths chart keeps working. The concurrency cap is applied to `/risk/monte-carlo` and `/risk/monte-carlo/full` (same memory cost). Limit is per process. |
 | S-18 (P1, regression of S-04) | fixed | see `git log` ("fix(auth): key login failures by (email, client IP)") | `test_attacker_ip_failures_do_not_lock_victim_on_another_ip`, `test_same_ip_repeated_failures_for_one_email_get_429`. Failures are counted per (email, client IP), so a correct password is never refused because of other IPs' failures. Residual: an attacker sharing the victim's IP (or any IP when `TRUSTED_PROXY_COUNT` is wrong) can still throttle that pair; README notes that `TRUSTED_PROXY_COUNT` must match the real chain. S-19 (P2) is not addressed. |
+
+## Re-verification round 2 (2026-11-01, security-reviewer)
+
+**Scope:** `30065e7` (fixes `970b581` S-03 remainder, `338748f` S-18). Fresh images `audit-pmp-sec3-img` (Dockerfile.api) and `audit-pmp-sec3-web` (frontend). Throwaway stack `audit-pmp-sec3-{pg,api,web,client}` on `audit-pmp-sec3-net`, ports 127.0.0.1:29431/29432, API with `ENVIRONMENT=production`, `TRUSTED_PROXY_COUNT=1`, memory limit 1.5 GB. All containers, network and images were removed afterwards. No code edits.
+
+**Final result: P0 = 0, P1 = 1.** S-03 and S-18 are fixed. S-19 moves from P2 to **P1**: now that the per-account cap is gone (S-18 fix), a spoofable client IP is the only thing standing between an attacker and unlimited password guessing against one account. Release gate **still not met**.
+
+| ID | Status | Evidence |
+|---|---|---|
+| S-03 (P1) | **fixed** | 6 concurrent max-size requests from one Free account (3x `/risk/monte-carlo` + 3x `/full`; shapes 50000x40, 7936x252, 793x2520; `jump_diffusion`): 2x200, 4x503 (concurrency cap 2). Response 0.6-1.0 MB, **peak RSS 359 MB / 1.47 GB, no OOM**. `/full` at max sizes: 1.1 MB and 9.1 MB, 200. 50000x41 -> 422 (cap 2M cells). Envelope correctness (793x2520): 100 sample paths x 2520 steps, `max`/`min` bound every sample at every step, `max[-1] == max(final_values)`, `min[-1] == min(final_values)`, `median[-1] == median(final_values)` (9.473968), sample finals match `final_values`. |
+| S-18 (P1) | **fixed** | Attacker with no spoofing sends 6 bad logins for `victim@` -> 5x401 then 429 for the attacker's own (email, IP) pair. **Victim with the correct password via the BFF from another container -> 200.** |
+| S-19 | **escalated P2 -> P1** | See below. |
+
+### New / changed findings
+| ID | Sev | Where | OWASP/CWE + STRIDE | Exploit scenario / evidence. Fix. |
+|---|---|---|---|---|
+| S-19 | **P1** | `api/rate_limit.py:41-51` (`TRUSTED_PROXY_COUNT>=1` trusts client-supplied XFF), `:85-92` (failure key = email + that IP); `frontend/src/lib/client-ip.ts:13-20` (BFF trusts `x-real-ip` / last XFF entry) | A07, CWE-307 + CWE-348 - S | **Unlimited password guessing against one account.** Both the IP bucket and the (email, IP) failure counter are keyed on an IP the caller chooses. Live (TPC=1, direct API): **40 wrong guesses for `victim@` with a rotating `X-Forwarded-For` -> 40x401, 0x429, then the correct password from another spoofed IP -> 200.** Control, same header with a fixed value: 5x401 then 429. The documented production value (`TRUSTED_PROXY_COUNT=2` for BFF -> HF -> API) lets any direct caller of the public HF URL do this. Through a self-hosted BFF, a rotating `X-Real-IP` does the same (round 1). Only bcrypt speed limits it. With TPC=0 there is no spoofing, but an attacker with N real IPs gets N x 5 guesses per 15 min per account. **Fix (any one closes the P1, together is best):** (1) the BFF signs the client IP (`X-Client-IP` + HMAC with a shared secret), the API trusts only signed values and otherwise uses the peer or HF-appended right-most address (TPC=1 for direct traffic); (2) add a per-account global soft limit (e.g. after 20 failures/hour for the email from any IP, add a progressive delay or CAPTCHA, never a hard refusal, so S-18 does not come back); (3) notify the user on repeated failures. |
+| S-21 | P2 | `api/main.py:1346-1360` (`MAX_CONCURRENT_MONTE_CARLO = 2`, global non-blocking semaphore, immediate 503) | A04, CWE-400 - D | **One Free account denies Monte Carlo to everyone.** The 2 slots are global per process and not per user, and there is no per-user rate limit on `/risk/*`. Live: an attacker looping 4 workers of 7936x252 requests for 30 s -> **a legitimate user got 503 on 15/15 attempts**; 200 again right after. Other routes stayed up (`/health` 200), so the whole API is no longer at risk, only the feature. **Fix:** give each user at most 1 concurrent run (reject the second with 429) plus a per-user rate limit (e.g. 10/min on `/risk/monte-carlo*`), and briefly queue (blocking acquire with a 5-10 s timeout) before returning 503. |
+
+### Still open after round 2
+- **P1:** S-19.
+- **P2:**
+  - S-05: enumeration (409 on register, bcrypt-skip timing).
+  - S-06: open redirect via `?from=`.
+  - S-07: `/validate-tickers` per-ticker retry cost; its IP cap is spoofable (S-19).
+  - S-09: no Origin check, login CSRF.
+  - S-10: cookie `Secure` is opt-in.
+  - S-11: checkout guard / idempotency / Stripe call on every status request / double-subscription downgrade.
+  - S-21: new, above.
+- **P3:** S-12 error text, S-13 no JWT revocation, S-14 python-jose, S-15 ledger 500, S-16 compose ports, S-17 environment fails open.
+
+### Trap-worthy
+- 2026-11-01 - **Rate-limit keys must not be attacker-chosen.** Moving the login failure counter from `email` to `(email, ip)` fixed the lockout DoS, but where the IP comes from a client-controlled header it turned the counter into a no-op (40 guesses, 0 throttles). Fix where the IP comes from (signed BFF header) before refining the key.
+- 2026-11-01 - **A global concurrency cap without per-user fairness becomes a DoS tool.** Make the cap per user, or add a per-user limit in front of it.
+
+Read (round 2): git show 970b581 338748f (diffs: api/main.py, services/risk_service.py, services/risk_ui_bundle.py, api/rate_limit.py, api/routers/auth.py).
