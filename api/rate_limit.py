@@ -73,32 +73,39 @@ def rate_limit(limit: str, scope: str | None = None) -> Callable[[Request], None
     return _dependency
 
 
-# --- login: per-account failure throttle (S-04) -------------------------------
-# The IP bucket alone is not enough: behind a proxy many users share an IP, and
-# an attacker rotating IPs is unlimited. Failed attempts are therefore also
-# counted per normalized email; a success clears the counter.
+# --- login: per-(account, client IP) failure throttle (S-04, S-18) ------------
+# The IP bucket alone is not enough: behind a proxy many users share an IP.
+# Failed attempts are therefore also counted per (normalized email, client IP).
+# Keying on the pair, not the email alone, means an attacker's failures from
+# their own IP cannot lock the real owner out from a different IP; a correct
+# password is never refused because of OTHER IPs' failures. A success clears
+# the counter for that pair.
 LOGIN_IP_LIMIT = "20/minute"
 LOGIN_IP_SCOPE = "login"  # shared by /auth/login and /auth/login/json
 _login_email_item = parse("5 per 15 minute")
 
 
-def _email_key(email: str) -> str:
+def client_ip(request: Request) -> str:
+    return _client_ip(request)
+
+
+def _email_key(email: str, ip: str) -> str:
     digest = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()
-    return f"login-email:{digest}"
+    return f"login-email:{digest}:{ip}"
 
 
-def login_attempt_allowed(email: str) -> bool:
+def login_attempt_allowed(email: str, ip: str) -> bool:
     """False while this account has used up its failed-login budget."""
     if not settings.rate_limit_enabled:
         return True
-    return _limiter.test(_login_email_item, _email_key(email))
+    return _limiter.test(_login_email_item, _email_key(email, ip))
 
 
-def record_login_failure(email: str) -> None:
+def record_login_failure(email: str, ip: str) -> None:
     if settings.rate_limit_enabled:
-        _limiter.hit(_login_email_item, _email_key(email))
+        _limiter.hit(_login_email_item, _email_key(email, ip))
 
 
-def clear_login_failures(email: str) -> None:
+def clear_login_failures(email: str, ip: str) -> None:
     if settings.rate_limit_enabled:
-        _limiter.clear(_login_email_item, _email_key(email))
+        _limiter.clear(_login_email_item, _email_key(email, ip))

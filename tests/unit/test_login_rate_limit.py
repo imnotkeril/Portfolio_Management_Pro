@@ -135,3 +135,33 @@ def test_forwarded_ip_used_only_when_proxy_trusted(
         ).status_code
         == 401
     )
+
+
+def test_attacker_ip_failures_do_not_lock_victim_on_another_ip(
+    api_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S-18: failures are keyed by (email, client IP), not by email alone."""
+    monkeypatch.setattr(settings, "trusted_proxy_count", 1)
+    victim, pw = _register(api_client)
+    attacker = {"X-Forwarded-For": "6.6.6.6"}
+    for _ in range(5):
+        assert _bad_json(api_client, victim, headers=attacker).status_code == 401
+    # attacker is now throttled for this account ...
+    assert _bad_json(api_client, victim, headers=attacker).status_code == 429
+    # ... but the victim, from another IP, still logs in with the right password
+    ok = api_client.post(
+        "/auth/login/json",
+        json={"email": victim, "password": pw},
+        headers={"X-Forwarded-For": "7.7.7.7"},
+    )
+    assert ok.status_code == 200
+
+
+def test_same_ip_repeated_failures_for_one_email_get_429(
+    api_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "trusted_proxy_count", 1)
+    victim, _ = _register(api_client)
+    hdr = {"X-Forwarded-For": "5.5.5.5"}
+    codes = [_bad_json(api_client, victim, headers=hdr).status_code for _ in range(7)]
+    assert codes == [401] * 5 + [429] * 2
