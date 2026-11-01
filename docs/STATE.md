@@ -13,3 +13,4 @@
 - [x] D1/D2/F5 done; finish phase complete. Next: owner items only.
 - [x] docs/README - 24 commands verified, 1 failing (SQLite quick start: API does not boot), /llms.txt missing; details docs/DOCS_CHECK.md
 - [x] security/S-01..S-04,S-08(S-05 in brief),R-06 fixes - P0=P1=0; 429 passed 1 skipped; commits 47cfaa9 78a64dd f4d2099 5f44431 a7bac81
+- [x] security/S-03 remainder + S-18 fixed - 436 passed; MC response bounded, login failures keyed by (email, IP)

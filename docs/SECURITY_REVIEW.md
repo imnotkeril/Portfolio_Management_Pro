@@ -146,3 +146,12 @@ Fixes on `chore/audit`, each verified in the API image (`docker build -f Dockerf
 - 2026-11-01 - **Bounding input sizes is not enough if the response echoes the whole computation.** A 20M-cell cap still produced a 376 MB JSON body and an OOM after 3 concurrent requests.
 
 Read (re-verification): git show 47cfaa9 78a64dd f4d2099 5f44431 (diffs), api/rate_limit.py, api/routers/auth.py, frontend/src/lib/client-ip.ts, services/risk_service.py:140-166, .dockerignore, docs/SECURITY_REVIEW.md (Resolution section by the fix owner).
+
+### Resolution, round 2 (re-verification: 2 P1)
+
+Verified in the API image: pytest 436 passed (includes tests another agent added), ruff/black/isort/mypy clean, eslint 0 errors, tsc clean.
+
+| ID | Status | Commit | Tests |
+|---|---|---|---|
+| S-03 remainder (P1) | fixed | see `git log` ("fix(risk): bound Monte Carlo response") | `tests/integration/test_monte_carlo_limits.py`: `test_service_returns_at_most_100_sample_paths` (response under 3 MB; was ~376 MB), `test_work_cap_is_two_million_cells` (422 above `MAX_SIMULATED_CELLS = 2,000,000`), `test_default_request_is_within_cap` (default simulations lowered to 5000), `test_busy_server_returns_503` (semaphore of 2 per process, 503 + `Retry-After`), `test_display_bundle_keeps_paths_chart_data_and_is_bounded`. `RiskService.run_monte_carlo_simulation` now returns at most 100 evenly spaced paths plus `path_envelope` (max/min/median over all paths), which `risk_ui_bundle` uses so the paths chart keeps working. The concurrency cap is applied to `/risk/monte-carlo` and `/risk/monte-carlo/full` (same memory cost). Limit is per process. |
+| S-18 (P1, regression of S-04) | fixed | see `git log` ("fix(auth): key login failures by (email, client IP)") | `test_attacker_ip_failures_do_not_lock_victim_on_another_ip`, `test_same_ip_repeated_failures_for_one_email_get_429`. Failures are counted per (email, client IP), so a correct password is never refused because of other IPs' failures. Residual: an attacker sharing the victim's IP (or any IP when `TRUSTED_PROXY_COUNT` is wrong) can still throttle that pair; README notes that `TRUSTED_PROXY_COUNT` must match the real chain. S-19 (P2) is not addressed. |
