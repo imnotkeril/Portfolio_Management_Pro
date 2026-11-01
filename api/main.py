@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from datetime import date
 from typing import Annotated, Any
 
@@ -104,7 +105,7 @@ class AddTransactionRequest(BaseModel):
 # allocate unbounded memory or CPU.
 MAX_SIMULATIONS = 50_000
 MAX_HORIZON_DAYS = 2_520
-MAX_SIMULATED_CELLS = 20_000_000  # num_simulations * time_horizon
+MAX_SIMULATED_CELLS = 2_000_000  # num_simulations * time_horizon
 MAX_TICKERS = 100
 MAX_TICKER_LEN = 20
 MAX_FORECAST_HORIZON = 365
@@ -167,7 +168,7 @@ class RiskMonteCarloRequest(BaseModel):
     start_date: date
     end_date: date
     time_horizon: int = Field(252, ge=1, le=MAX_HORIZON_DAYS)
-    num_simulations: int = Field(10000, ge=100, le=MAX_SIMULATIONS)
+    num_simulations: int = Field(5000, ge=100, le=MAX_SIMULATIONS)
     initial_value: float = Field(1.0, gt=0, le=1e12)
     model: str = Field("gbm", max_length=32)
 
@@ -1340,7 +1341,26 @@ def risk_var_full(
         raise
 
 
-@app.post("/risk/monte-carlo")
+# Per-process cap on concurrent Monte Carlo runs (S-03): each holds a
+# simulations x horizon float matrix in memory.
+MAX_CONCURRENT_MONTE_CARLO = 2
+_MC_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_MONTE_CARLO)
+
+
+def _monte_carlo_slot():
+    if not _MC_SLOTS.acquire(blocking=False):
+        raise HTTPException(
+            status_code=503,
+            detail="Server is busy running simulations, retry shortly.",
+            headers={"Retry-After": "5"},
+        )
+    try:
+        yield
+    finally:
+        _MC_SLOTS.release()
+
+
+@app.post("/risk/monte-carlo", dependencies=[Depends(_monte_carlo_slot)])
 def risk_monte_carlo(
     payload: RiskMonteCarloRequest,
     current_user: User = Depends(get_current_user),
@@ -1364,7 +1384,7 @@ def risk_monte_carlo(
         raise
 
 
-@app.post("/risk/monte-carlo/full")
+@app.post("/risk/monte-carlo/full", dependencies=[Depends(_monte_carlo_slot)])
 def risk_monte_carlo_full(
     payload: RiskMonteCarloFullRequest,
     current_user: User = Depends(get_current_user),

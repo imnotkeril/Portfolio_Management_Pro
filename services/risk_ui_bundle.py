@@ -905,6 +905,8 @@ def build_monte_carlo_display_bundle(
         model=model,
         user_id=user_id,
     )
+    raw = dict(raw)
+    envelope_raw = raw.pop("path_envelope", None)
     finals = np.array(raw.get("final_values") or [], dtype=float)
     hist: list[dict[str, float]] = []
     normal_curve: list[dict[str, float]] = []
@@ -1041,12 +1043,10 @@ def build_monte_carlo_display_bundle(
     if include_sample_paths and raw.get("simulated_paths"):
         sp = np.array(raw["simulated_paths"], dtype=float)
         if sp.ndim == 2 and sp.shape[0] > 0:
-            if len(finals) == sp.shape[0]:
-                max_path = sp.max(axis=0)
-                min_path = sp.min(axis=0)
-                p50 = float(np.percentile(finals, 50))
-                mid_i = int(np.argmin(np.abs(finals - p50)))
-                median_path = sp[mid_i]
+            if envelope_raw and len(finals):
+                max_path = np.asarray(envelope_raw["max"], dtype=float)
+                min_path = np.asarray(envelope_raw["min"], dtype=float)
+                median_path = np.asarray(envelope_raw["median"], dtype=float)
                 path_envelope = {
                     "max": [
                         {"day": float(d), "value": float(v)}
@@ -1061,7 +1061,7 @@ def build_monte_carlo_display_bundle(
                         for d, v in enumerate(median_path.tolist())
                     ],
                 }
-                fv_paths = [float(sp[i, -1]) for i in range(sp.shape[0])]
+                fv_paths = [float(x) for x in finals]
                 path_std = float(np.std(fv_paths))
                 path_mean = float(np.mean(fv_paths))
                 path_cv = path_std / path_mean if path_mean > 0 else 0.0
@@ -1071,7 +1071,7 @@ def build_monte_carlo_display_bundle(
                     else 0.0
                 )
                 pl = ["**Simulation Paths Analysis:**"]
-                pl.append(f"{sp.shape[0]} paths over {time_horizon} days")
+                pl.append(f"{len(finals)} paths over {time_horizon} days")
                 if path_cv > 0.3:
                     pl.append(f"High path divergence (CV {path_cv:.2f})")
                 elif path_cv > 0.15:
