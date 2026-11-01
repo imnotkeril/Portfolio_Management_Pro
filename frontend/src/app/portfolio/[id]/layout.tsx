@@ -14,7 +14,11 @@ export default function PortfolioLayout({
 }) {
   const params = useParams();
   const id = String(params.id);
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; portfolio: Portfolio } | null>(
+    null,
+  );
+  // Never show another portfolio's name while this one loads.
+  const portfolio = loaded?.id === id ? loaded.portfolio : null;
   const [failedId, setFailedId] = useState<string | null>(null);
   const notFound = failedId === id;
 
@@ -23,7 +27,7 @@ export default function PortfolioLayout({
     api
       .get<Portfolio>(`/portfolios/${id}`)
       .then((p) => {
-        if (!cancelled) setPortfolio(p);
+        if (!cancelled) setLoaded({ id, portfolio: p });
       })
       .catch(() => {
         if (!cancelled) setFailedId(id);

@@ -28,11 +28,22 @@ function growthPct(avgCost: number, marketPrice: number | null | undefined): str
 
 export default function PortfolioOverviewPage() {
   const id = String(useParams().id);
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [pnl, setPnl] = useState<PnlSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Result is tagged with the id it was loaded for; anything for another id is
+  // ignored, so navigating A -> B shows the loading state without resetting
+  // state synchronously inside the effect.
+  const [loaded, setLoaded] = useState<{
+    id: string;
+    portfolio: Portfolio | null;
+    holdings: Holding[];
+    pnl: PnlSummary | null;
+    error: string | null;
+  } | null>(null);
+  const current = loaded?.id === id ? loaded : null;
+  const portfolio = current?.portfolio ?? null;
+  const holdings = useMemo(() => current?.holdings ?? [], [current]);
+  const pnl = current?.pnl ?? null;
+  const loading = current === null;
+  const error = current?.error ?? null;
 
   useEffect(() => {
     if (!id || id === "undefined") return;
@@ -54,18 +65,17 @@ export default function PortfolioOverviewPage() {
       })
       .then(({ p, rows, pnlOut }) => {
         if (cancelled) return;
-        setPortfolio(p);
-        setHoldings(rows);
-        setPnl(pnlOut);
-        setError(null);
+        setLoaded({ id, portfolio: p, holdings: rows, pnl: pnlOut, error: null });
       })
       .catch((err) => {
         if (cancelled) return;
-        setPortfolio(null);
-        setError(String(err).replace(/^Error: /, ""));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        setLoaded({
+          id,
+          portfolio: null,
+          holdings: [],
+          pnl: null,
+          error: String(err).replace(/^Error: /, ""),
+        });
       });
     return () => {
       cancelled = true;
