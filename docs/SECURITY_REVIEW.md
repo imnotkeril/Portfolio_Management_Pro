@@ -239,8 +239,8 @@ The live S-19 reproduction from round 2 (40 wrong guesses, then 200) should be r
   - S-10: cookie `Secure` is opt-in.
   - S-11: checkout guard / idempotency / double subscription.
   - S-21: global Monte Carlo slots can be held by 2 accounts.
-  - S-22: RELEASE.md says `TRUSTED_PROXY_COUNT=2`.
-  - S-23: a missing signing key fails open.
+  - S-22: RELEASE.md said `TRUSTED_PROXY_COUNT=2` (fixed in e558398: production value is 0 with the signed client IP).
+  - S-23: a missing signing key fails open. Partly fixed in e833e62: a key shorter than 32 chars is refused in production; an unset key only logs a warning (still open as a P2 decision for the owner: set the key on both sides).
   - S-24: brake blocks request threads.
 - **Open P3:** S-12, S-13, S-14, S-15, S-16, S-17, S-25, S-26.
 

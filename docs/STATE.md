@@ -18,3 +18,9 @@
 - [x] qa/<final> — pytest 443 passed/0 failed/0 skipped (core cov 78.35%); live Tier-A 108 checks (106 pass, F-1/F-5 open), rate 19/19, UI E2E 7 steps; verdict RED (F-1 ledger/maintain 500, F-2 price step bug, F-5 no account deletion); see docs/QA.md
 - [x] qa/F-1,F-2,F-3,F-7,S-23 fixed - 448 passed, 0 skipped; commits 00a3888 e1af502 5cb837e e833e62 d69385e
 - [x] docs/README rewrite (2026-11-02) - 32 commands run, see docs/DOCS_CHECK.md; 5 screenshots in assets/screenshots (commit 96d9484); open: isort fails with an in-repo .venv (README documents --skip), SQLite does not boot, /llms.txt missing, production URLs unhealthy
+- [x] review/correctness + security review: docs/REVIEW.md (a29d108), docs/SECURITY_REVIEW.md rounds 1-3 (P0=P1=0 by code review round 3; S-19 live attack proof by QA rate rows)
+- [x] release-prep: docs/RELEASE.md (3a97628, e558398 fix S-22); HF Dockerfile verified locally (non-root, migrations, /docs 404, weak-secret refusal)
+- [x] audit/docs: docs/AUDIT_DOCS.md (40ff170) verdict FIX; stale statements corrected (S-22/S-23/R-06/test counts)
+- [x] final verify on 6bf0aeb: ruff/black/isort/mypy clean, eslint 0 err/18 warn, tsc clean, npm audit 0, docker builds ok, pytest 448 passed 0 skipped cov 78.35%
+## Missing vs framework
+- /llms.txt for API; owner guide (plans/prices, refunds, MRR, key rotation); Stripe CLI webhook forwarding doc; design gate screenshots 375/768/1440; docs/checks/*.md artifacts; AC table; known-traps additions; account deletion endpoint (F-5); open P2: S-05,S-06,S-07,S-09,S-10,S-11,S-21,S-23(unset key),S-24; SQLite boot bug; F-3/F-2 unverified in browser

@@ -22,7 +22,7 @@ Code side: ready for a release candidate. Blockers before switching to live mone
 | D4 | `docs/` is gitignored; this file and other docs are force-added. Decide whether to un-ignore. | decide |
 | D5 | README SQLite quick start does not boot (documented). `/llms.txt` is missing (rule `rules/api.md`; the API has 52 operations). Not release blockers. | note |
 
-Test-suite state per docs: 436 passed, 1 skipped; round-2 fixes for S-03 remainder and S-18 are committed (970b581, 338748f) and marked fixed by the fix owner; an independent re-check of those two is not in the docs yet.
+Test-suite state (final run on 6bf0aeb): 448 passed, 0 skipped, core coverage 78.35%. S-03 remainder and S-18 (970b581, 338748f) were independently re-checked in SECURITY_REVIEW round 2; S-19 (a79dec8) in round 3 by code review plus QA live rate-limit rows (19/19).
 
 ## 2. Environment variable table (names only)
 
