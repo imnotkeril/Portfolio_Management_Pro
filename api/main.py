@@ -1345,10 +1345,23 @@ def risk_var_full(
 # simulations x horizon float matrix in memory.
 MAX_CONCURRENT_MONTE_CARLO = 2
 _MC_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_MONTE_CARLO)
+# One run per user at a time, so a single account cannot hold every slot.
+_MC_LOCK = threading.Lock()
+_MC_ACTIVE_USERS: set[str] = set()
 
 
-def _monte_carlo_slot():
+def _monte_carlo_slot(current_user: User = Depends(get_current_user)):
+    with _MC_LOCK:
+        if current_user.id in _MC_ACTIVE_USERS:
+            raise HTTPException(
+                status_code=429,
+                detail="You already have a simulation running.",
+                headers={"Retry-After": "5"},
+            )
+        _MC_ACTIVE_USERS.add(current_user.id)
     if not _MC_SLOTS.acquire(blocking=False):
+        with _MC_LOCK:
+            _MC_ACTIVE_USERS.discard(current_user.id)
         raise HTTPException(
             status_code=503,
             detail="Server is busy running simulations, retry shortly.",
@@ -1358,6 +1371,8 @@ def _monte_carlo_slot():
         yield
     finally:
         _MC_SLOTS.release()
+        with _MC_LOCK:
+            _MC_ACTIVE_USERS.discard(current_user.id)
 
 
 @app.post("/risk/monte-carlo", dependencies=[Depends(_monte_carlo_slot)])
