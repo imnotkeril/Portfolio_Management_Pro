@@ -240,3 +240,15 @@ Console/network during the authenticated flow: only `401 /api/auth/me` on the pu
 Live Stripe (real checkout, portal cancel, 3DS, refunds, Stripe CLI), real email, Vercel/HF Spaces/Supabase behaviour (signed client IP relies on the platform header: `x-vercel-forwarded-for` on Vercel, `CLIENT_IP_TRUSTED_HEADER` elsewhere), load/performance, analysis/optimization/forecast numbers in the browser, Lighthouse/axe, other browsers, devices, in-process limiter state is per worker. Frontend has no unit test suite (lint, types, build and the E2E above are the only gates).
 
 Read: E:/Main/Dev/coding-brain/process/qa.md, routers/projects/webapp/_family.md, routers/projects/webapp/saas.md (qa row), known-traps.md, modules/auth.md, modules/payments.md, modules/email.md, modules/legal-compliance.md, modules/analytics.md, modules/error-monitoring.md (qa inserts via step-brief output), docs/AUDIT_2026-10-24.md, docs/STATE.md, CLAUDE.md
+
+## Resolution (2026-11-02)
+
+Verified after the fixes: pytest in the API image **448 passed, 0 skipped**; `ruff check .`, `black --check`, `isort --check-only`, and `mypy core/ services/ api/ config/ models/ database/` (126 files, 0 errors) clean on the host; fresh `pip install -r requirements-dev.txt` in the API image resolves black 26.3.1 / isort 8.0.1 / mypy 1.20.2 / ruff 0.15.12 and passes the same checks (ruff there also flags the git-ignored local `fix_linting.py`, which is not in the repo); eslint 0 errors (18 warnings, unchanged); `tsc --noEmit` clean; `docker build -f frontend/Dockerfile` (runs `next build`) OK.
+
+| ID | Status | Commit | Evidence |
+|---|---|---|---|
+| F-1 | fixed | `00a3888` | `tests/integration/test_user_isolation.py::test_ledger_maintain_foreign_or_unknown_portfolio_is_404` (foreign and unknown id -> 404, own -> 200). `maintain_portfolio_ledger` now verifies access first and maps the error. |
+| F-2 | fixed | `e1af502` | The auto-filled price is rounded to cents (at least 0.01) in `transaction-form.tsx`, so `step=0.01` validation passes. tsc/eslint/build clean. No automated or browser re-test of the submit (no frontend test runner). |
+| F-3 | fixed, not verified | `d69385e` | Holdings table wrapped in `overflow-x-auto`. Not re-measured at 375 px in a browser; other elements may still overflow. |
+| F-7 | fixed | `5cb837e` | `requirements-dev.txt` pins black, isort, ruff, mypy and the two type stubs; `prophet.py` optional import carries `# type: ignore[assignment,misc]` (it is the usual optional-dependency pattern, not a real bug). The reported mypy error does not reproduce on the host (Prophet installed) and is gone in the clean image. |
+| S-23 | done | `e833e62` | `test_production_refuses_short_client_ip_signing_key`, `..._accepts_32_char_...`, `..._warns_loudly_when_..._unset`, `test_development_does_not_require_...`. Documented in README, `.env.example`, `docs/RELEASE.md`. |
