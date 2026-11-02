@@ -633,6 +633,11 @@ def maintain_portfolio_ledger(
     portfolio_id: str,
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
+    try:
+        _verify_portfolio_access(portfolio_id, current_user)
+    except Exception as exc:
+        _handle_error(exc)
+        raise
     maintain_error: str | None = None
     stats: dict[str, int | str] = {"splits": 0, "dividends": 0, "rebalance": 0}
     try:
