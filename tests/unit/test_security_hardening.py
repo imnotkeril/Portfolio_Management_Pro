@@ -216,3 +216,49 @@ def test_hsts_only_in_production_and_docs_hidden() -> None:
     dev = build("development")
     assert "strict-transport-security" not in dev.get("/ping").headers
     assert dev.get("/openapi.json").status_code == 200
+
+
+# --- S-23: CLIENT_IP_SIGNING_KEY production guard ---------------------------
+
+
+def test_production_refuses_short_client_ip_signing_key() -> None:
+    from config.settings import Settings
+
+    with pytest.raises(RuntimeError, match="CLIENT_IP_SIGNING_KEY"):
+        Settings(
+            environment="production",
+            jwt_secret="x" * 64,
+            client_ip_signing_key="k" * 31,
+        )
+
+
+def test_production_accepts_32_char_client_ip_signing_key() -> None:
+    from config.settings import Settings
+
+    s = Settings(
+        environment="production", jwt_secret="x" * 64, client_ip_signing_key="k" * 32
+    )
+    assert s.client_ip_signing_key == "k" * 32
+
+
+def test_production_warns_loudly_when_client_ip_signing_key_unset(caplog) -> None:
+    import logging
+
+    from config.settings import Settings
+
+    for unset in (None, "", "   "):
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            Settings(
+                environment="production",
+                jwt_secret="x" * 64,
+                client_ip_signing_key=unset,
+            )
+        assert any("CLIENT_IP_SIGNING_KEY" in r.message for r in caplog.records)
+        assert all(r.levelno >= logging.WARNING for r in caplog.records)
+
+
+def test_development_does_not_require_client_ip_signing_key() -> None:
+    from config.settings import Settings
+
+    Settings(environment="development", client_ip_signing_key="short")

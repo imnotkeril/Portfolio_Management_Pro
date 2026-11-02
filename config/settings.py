@@ -123,6 +123,8 @@ class Settings(BaseSettings):
 
     _MIN_JWT_SECRET_LENGTH = 32
 
+    _MIN_CLIENT_IP_KEY_LENGTH = 32
+
     def _enforce_production_secrets(self) -> None:
         """Refuse to boot in production with unsafe auth configuration.
 
@@ -147,6 +149,22 @@ class Settings(BaseSettings):
                 raise RuntimeError(
                     f"JWT_SECRET must be at least {self._MIN_JWT_SECRET_LENGTH} "
                     "characters in production."
+                )
+            key = (self.client_ip_signing_key or "").strip()
+            if key and len(key) < self._MIN_CLIENT_IP_KEY_LENGTH:
+                raise RuntimeError(
+                    f"CLIENT_IP_SIGNING_KEY must be at least "
+                    f"{self._MIN_CLIENT_IP_KEY_LENGTH} characters in production "
+                    "(a short HMAC key can be brute-forced)."
+                )
+            if not key:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "CLIENT_IP_SIGNING_KEY is not set in production: the API cannot "
+                    "tell visitors apart behind the BFF, so rate limits fall back to "
+                    "the proxy address (S-19). Set the same >= 32 char value on the "
+                    "API and the BFF."
                 )
         elif self.jwt_secret == self._DEFAULT_JWT_SECRET:
             import logging

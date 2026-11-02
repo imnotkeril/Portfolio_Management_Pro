@@ -59,7 +59,7 @@ Sources: `config/settings.py`, `os.getenv`/`os.environ` in code (`CORS_ORIGINS`,
 |---|---|---|---|---|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | build arg | the HF API URL (README: `https://imnotkeril-portfolio-management-pro-api.hf.space`; confirm) | Build-time and public: redeploy after changing. Never put a secret here. |
 | `API_INTERNAL_URL` | `http://localhost:8000` | `http://api:8000` | same HF URL | Server-side base URL the BFF proxy forwards to. |
-| `CLIENT_IP_SIGNING_KEY` | unset | unset | random >= 32 chars, same value as on HF | Server-side secret. Vercel is detected via `VERCEL` and reads `x-vercel-forwarded-for` (Vercel overwrites it; docs: vercel.com/docs/headers/request-headers). Without it the API rate-limits on the BFF address (S-19). |
+| `CLIENT_IP_SIGNING_KEY` | unset | unset | random >= 32 chars, same value as on HF | Server-side secret; on HF it must be >= 32 chars (the API refuses to boot in production otherwise; unset only logs a warning). Vercel is detected via `VERCEL` and reads `x-vercel-forwarded-for` (Vercel overwrites it; docs: vercel.com/docs/headers/request-headers). Without it the API rate-limits on the BFF address (S-19). |
 | `CLIENT_IP_TRUSTED_HEADER` | unset | unset | unset on Vercel | Only for non-Vercel hosts: a header the platform sets and clients cannot forge. |
 | `COOKIE_SECURE` | unset / `false` | `false` | `true` | Without it the JWT cookie can travel over HTTP (S-10). |
 | `NODE_ENV` | by Next | | `production` (Vercel sets it) | |
