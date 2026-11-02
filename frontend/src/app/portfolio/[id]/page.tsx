@@ -197,6 +197,7 @@ export default function PortfolioOverviewPage() {
         {overviewRows.length === 0 ? (
           <div className="alert alert-info">No holdings yet. Add a position or a BUY transaction.</div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
@@ -233,6 +234,7 @@ export default function PortfolioOverviewPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </section>
