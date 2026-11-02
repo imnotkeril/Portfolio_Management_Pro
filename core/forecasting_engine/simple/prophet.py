@@ -12,8 +12,8 @@ from pandas.tseries.holiday import USFederalHolidayCalendar
 
 try:
     from prophet import Prophet
-except ImportError:
-    Prophet = None
+except ImportError:  # optional dependency
+    Prophet = None  # type: ignore[assignment,misc]
 
 from core.exceptions import CalculationError
 from core.forecasting_engine.base import BaseForecaster, ForecastResult
