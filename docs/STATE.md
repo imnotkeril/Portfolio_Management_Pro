@@ -15,3 +15,4 @@
 - [x] security/S-01..S-04,S-08(S-05 in brief),R-06 fixes - P0=P1=0; 429 passed 1 skipped; commits 47cfaa9 78a64dd f4d2099 5f44431 a7bac81
 - [x] security/S-03 remainder + S-18 fixed - 436 passed; MC response bounded, login failures keyed by (email, IP)
 - [x] security/S-19 signed client IP + soft brake + one MC run per user - 443 passed; commits a79dec8 c20f4cb
+- [x] qa/<final> — pytest 443 passed/0 failed/0 skipped (core cov 78.35%); live Tier-A 108 checks (106 pass, F-1/F-5 open), rate 19/19, UI E2E 7 steps; verdict RED (F-1 ledger/maintain 500, F-2 price step bug, F-5 no account deletion); see docs/QA.md

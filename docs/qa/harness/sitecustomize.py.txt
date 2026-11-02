@@ -1,0 +1,10 @@
+# TEST-ONLY: route the stripe SDK to the in-network fake Stripe API (no real Stripe, no real keys).
+import os
+base = os.environ.get("FAKE_STRIPE_BASE")
+if base:
+    try:
+        import stripe
+        stripe.api_base = base
+        stripe.max_network_retries = 0
+    except Exception:
+        pass
