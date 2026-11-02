@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # nginx...). 0 = ignore X-Forwarded-For entirely and use the socket peer IP.
     # N > 0 = take the N-th entry from the right of X-Forwarded-For.
     trusted_proxy_count: int = 0
+    # Shared secret with the Next.js BFF. When set, the API accepts the client IP
+    # from X-Client-IP only with a valid HMAC signature (see api/rate_limit.py).
+    client_ip_signing_key: Optional[str] = None
+    client_ip_max_age_seconds: int = 60
 
     # Auth (Phase 2)
     jwt_secret: str = "change-me-in-production"

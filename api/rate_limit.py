@@ -17,6 +17,8 @@ Disabled via ``RATE_LIMIT_ENABLED=false`` (tests share one client IP).
 from __future__ import annotations
 
 import hashlib
+import hmac
+import time
 from collections.abc import Callable
 
 from fastapi import HTTPException, Request, status
@@ -30,8 +32,40 @@ _storage = MemoryStorage()
 _limiter = FixedWindowRateLimiter(_storage)
 
 
+def _signed_client_ip(request: Request) -> str | None:
+    """Client IP asserted by the BFF, only if its HMAC verifies.
+
+    The BFF sends ``X-Client-IP``, ``X-Client-IP-Timestamp`` and
+    ``X-Client-IP-Signature`` = hex HMAC-SHA256(key, "<ip>|<timestamp>").
+    Without a configured ``CLIENT_IP_SIGNING_KEY`` or with a bad / stale
+    signature the headers are ignored.
+    """
+    key = settings.client_ip_signing_key
+    if not key:
+        return None
+    ip = request.headers.get("x-client-ip", "").strip()
+    ts = request.headers.get("x-client-ip-timestamp", "").strip()
+    sig = request.headers.get("x-client-ip-signature", "").strip()
+    if not (ip and ts and sig) or len(ip) > 64:
+        return None
+    try:
+        age = abs(time.time() - int(ts))
+    except ValueError:
+        return None
+    if age > settings.client_ip_max_age_seconds:
+        return None
+    expected = hmac.new(key.encode(), f"{ip}|{ts}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, sig):
+        return None
+    return ip
+
+
 def _client_ip(request: Request) -> str:
-    """Client IP, trusting X-Forwarded-For only behind known proxies.
+    """Client IP: signed BFF header, else (opt-in) trusted XFF, else the peer.
+
+    Order: (1) a validly signed ``X-Client-IP``; (2) with
+    ``TRUSTED_PROXY_COUNT`` > 0, X-Forwarded-For (see below); (3) the socket
+    peer. ``X-Real-IP`` is never read.
 
     ``TRUSTED_PROXY_COUNT`` = number of reverse proxies we control in front of
     the API. Each appends the address it saw to X-Forwarded-For, so the real
@@ -39,6 +73,9 @@ def _client_ip(request: Request) -> str:
     attacker-controlled and ignored. With 0 (default) the header is ignored
     and the socket peer address is used.
     """
+    signed_ip = _signed_client_ip(request)
+    if signed_ip:
+        return signed_ip
     peer = request.client.host if request.client else "anonymous"
     hops = settings.trusted_proxy_count
     if hops <= 0:
@@ -102,8 +139,33 @@ def login_attempt_allowed(email: str, ip: str) -> bool:
 
 
 def record_login_failure(email: str, ip: str) -> None:
-    if settings.rate_limit_enabled:
-        _limiter.hit(_login_email_item, _email_key(email, ip))
+    """Count a failed login and slow the response as the account is hammered."""
+    if not settings.rate_limit_enabled:
+        return
+    _limiter.hit(_login_email_item, _email_key(email, ip))
+    key = _account_key(email)
+    _limiter.hit(_account_item, key)
+    _, remaining = _limiter.get_window_stats(_account_item, key)
+    failures = _account_item.amount - remaining
+    if failures > BRAKE_AFTER:
+        _sleep(min(BRAKE_MAX_SECONDS, (failures - BRAKE_AFTER) * BRAKE_STEP_SECONDS))
+
+
+# Soft brake: after BRAKE_AFTER failures for one email from ANY IP within the
+# window, each further failed attempt is delayed (never successful ones).
+_account_item = parse("1000 per 15 minute")
+BRAKE_AFTER = 5
+BRAKE_STEP_SECONDS = 0.2
+BRAKE_MAX_SECONDS = 2.0
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _account_key(email: str) -> str:
+    digest = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()
+    return f"login-account:{digest}"
 
 
 def clear_login_failures(email: str, ip: str) -> None:

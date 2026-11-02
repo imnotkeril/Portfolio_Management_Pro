@@ -243,7 +243,9 @@ Create `.env` in the project root (`cp .env.example .env`). Every variable is op
 | `DATABASE_URL` | `sqlite:///./data/wmc.db` | SQLAlchemy URL; Docker uses Postgres |
 | `DATABASE_ECHO` | `false` | Log SQL statements |
 | `RATE_LIMIT_ENABLED` | `true` | IP-based rate limits on auth and public endpoints |
-| `TRUSTED_PROXY_COUNT` | `0` | Trusted hops in front of the API; client IP = Nth entry from the right of `X-Forwarded-For` (0 = ignore it). BFF -> API directly: `1`; BFF -> HF Spaces proxy -> API: `2` |
+| `CLIENT_IP_SIGNING_KEY` | unset | Shared secret with the BFF; signed `X-Client-IP` is trusted only when the HMAC verifies |
+| `CLIENT_IP_MAX_AGE_SECONDS` | `60` | Max age of a signed client IP |
+| `TRUSTED_PROXY_COUNT` | `0` | Opt-in fallback: trusted hops in front of the API; client IP = Nth entry from the right of `X-Forwarded-For` (0 = ignore it). Must match the real proxy chain |
 | `CORS_ORIGINS` | empty | Extra allowed browser origins, comma-separated (read in `api/main.py`) |
 | `PRICE_CACHE_DIR` | `data/cache/prices` | Price cache directory |
 | `LOG_LEVEL` | `INFO` | Log level |
@@ -263,7 +265,7 @@ Create `.env` in the project root (`cp .env.example .env`). Every variable is op
 **Production checklist**
 
 - `ENVIRONMENT=production` and a strong `JWT_SECRET` (`python -c "import secrets; print(secrets.token_urlsafe(64))"`); the API refuses to boot with the default or a short (<32 chars) secret, or with `AUTH_DISABLED=true`. In production `/docs`, `/redoc` and `/openapi.json` are disabled and HSTS is sent.
-- `TRUSTED_PROXY_COUNT` = number of trusted hops in front of the API. The Next.js BFF sets `X-Forwarded-For` to the visitor IP (from `x-real-ip`, else the last `x-forwarded-for` entry) on login, register and proxied calls; each proxy after it appends one entry, so count the BFF plus every proxy between BFF and API (BFF straight to API: `1`; BFF via the HF Spaces proxy: `2`). `TRUSTED_PROXY_COUNT` must match the real proxy chain: too low keys everyone on a proxy address, too high lets direct API callers spoof their IP (S-19 is tracked separately). Login is limited per IP (20/min, one bucket shared by `/auth/login` and `/auth/login/json`) and per (email, client IP) pair (5 failed attempts per 15 minutes, email case-insensitive; a successful login resets it; failures from other IPs never block a correct password). Limiter state is in-process memory, so it is per worker.
+- Client IP for rate limits: the Next.js BFF reads the visitor IP only from a platform-set header (Vercel: `x-vercel-forwarded-for`, which Vercel overwrites so clients cannot forge it; other hosts: name one in `CLIENT_IP_TRUSTED_HEADER`) and sends it to the API as `X-Client-IP` with a timestamp and an HMAC-SHA256 signature made with `CLIENT_IP_SIGNING_KEY` (set the same value on the API and the BFF). The API uses it only if the signature verifies and is younger than `CLIENT_IP_MAX_AGE_SECONDS`; otherwise it uses `TRUSTED_PROXY_COUNT` (explicit opt-in, Nth entry from the right of `X-Forwarded-For`; `X-Real-IP` is never read) and finally the socket peer. Recommended: signing key set, `TRUSTED_PROXY_COUNT=0`. `TRUSTED_PROXY_COUNT` must match the real proxy chain: too high lets direct API callers spoof their IP. Login is limited per IP (20/min, one bucket for `/auth/login` and `/auth/login/json`) and per (email, client IP) pair (5 failures / 15 min; a success resets it). Beyond 5 failures for one email from any IPs in 15 minutes, failed attempts (never successful ones) are delayed up to 2 s. Limiter state is in-process memory, per worker.
 - Keep `AUTH_DISABLED=false` and `DEBUG=false`.
 - Frontend behind HTTPS: `COOKIE_SECURE=true`. Extra API origins: `CORS_ORIGINS`.
 - Billing: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_PRO`, `FRONTEND_URL`. The webhook endpoint is `https://<api-host>/stripe/webhook` (not reachable through the browser proxy).

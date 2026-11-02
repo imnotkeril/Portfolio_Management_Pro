@@ -59,13 +59,17 @@ Sources: `config/settings.py`, `os.getenv`/`os.environ` in code (`CORS_ORIGINS`,
 |---|---|---|---|---|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | build arg | the HF API URL (README: `https://imnotkeril-portfolio-management-pro-api.hf.space`; confirm) | Build-time and public: redeploy after changing. Never put a secret here. |
 | `API_INTERNAL_URL` | `http://localhost:8000` | `http://api:8000` | same HF URL | Server-side base URL the BFF proxy forwards to. |
+| `CLIENT_IP_SIGNING_KEY` | unset | unset | random >= 32 chars, same value as on HF | Server-side secret. Vercel is detected via `VERCEL` and reads `x-vercel-forwarded-for` (Vercel overwrites it; docs: vercel.com/docs/headers/request-headers). Without it the API rate-limits on the BFF address (S-19). |
+| `CLIENT_IP_TRUSTED_HEADER` | unset | unset | unset on Vercel | Only for non-Vercel hosts: a header the platform sets and clients cannot forge. |
 | `COOKIE_SECURE` | unset / `false` | `false` | `true` | Without it the JWT cookie can travel over HTTP (S-10). |
 | `NODE_ENV` | by Next | | `production` (Vercel sets it) | |
 | Sentry (module error-monitoring, if added) | | | `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Not wired in code today. |
 
 Never set on Vercel: any `STRIPE_*`, `JWT_SECRET`, `DATABASE_URL`. The BFF does not need them.
 
-### 2.3 TRUSTED_PROXY_COUNT meaning
+### 2.3 Client IP and TRUSTED_PROXY_COUNT
+
+Set `CLIENT_IP_SIGNING_KEY` to the same random value on Vercel and on HF (and optionally `CLIENT_IP_MAX_AGE_SECONDS`, default 60). The BFF signs the visitor IP; the API trusts `X-Client-IP` only with a valid signature and ignores `X-Forwarded-For` / `X-Real-IP` from clients, so with the key set keep `TRUSTED_PROXY_COUNT=0` on HF. The text below applies only if you rely on the unsigned fallback instead.
 
 The API takes the client IP as the Nth entry from the right of `X-Forwarded-For` (0 = ignore the header and use the socket peer). The Vercel BFF sets `X-Forwarded-For` to the visitor IP; each proxy after it appends one entry.
 - BFF -> API directly (compose, self-host): `1`.
