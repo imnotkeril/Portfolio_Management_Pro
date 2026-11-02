@@ -68,8 +68,11 @@ export function TransactionForm({
     try {
       const res = await fetchTickerPrice(txTicker, txDate);
       if (res.valid && res.price != null && res.price > 0) {
-        setTxPrice(res.price);
-        applyDefaultFees(txShares, res.price, txType);
+        // Round to cents: a raw float (279.8399963378906) fails the input's
+        // step=0.01 native validation and silently blocks the submit.
+        const rounded = Math.max(0.01, Math.round(res.price * 100) / 100);
+        setTxPrice(rounded);
+        applyDefaultFees(txShares, rounded, txType);
         const dateNote =
           res.price_date && res.requested_date && res.price_date !== res.requested_date
             ? ` (nearest to ${res.requested_date})`
