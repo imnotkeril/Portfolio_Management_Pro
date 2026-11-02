@@ -14,3 +14,4 @@
 - [x] docs/README - 24 commands verified, 1 failing (SQLite quick start: API does not boot), /llms.txt missing; details docs/DOCS_CHECK.md
 - [x] security/S-01..S-04,S-08(S-05 in brief),R-06 fixes - P0=P1=0; 429 passed 1 skipped; commits 47cfaa9 78a64dd f4d2099 5f44431 a7bac81
 - [x] security/S-03 remainder + S-18 fixed - 436 passed; MC response bounded, login failures keyed by (email, IP)
+- [x] security/S-19 signed client IP + soft brake + one MC run per user - 443 passed; commits a79dec8 c20f4cb

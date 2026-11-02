@@ -191,3 +191,13 @@ Verified in the API image: pytest 436 passed (includes tests another agent added
 - 2026-11-01 - **A global concurrency cap without per-user fairness becomes a DoS tool.** Make the cap per user, or add a per-user limit in front of it.
 
 Read (round 2): git show 970b581 338748f (diffs: api/main.py, services/risk_service.py, services/risk_ui_bundle.py, api/rate_limit.py, api/routers/auth.py).
+
+### Resolution, round 3 (re-verification: 1 P1, S-19)
+
+Verified in the API image: pytest **443 passed, 0 skipped**; ruff/black/isort/mypy (127 files) clean; eslint 0 errors (18 existing warnings); tsc clean; `next build` OK via `docker build -f frontend/Dockerfile`.
+
+| ID | Status | Commit | Tests / notes |
+|---|---|---|---|
+| S-19 (P1) | fixed | `a79dec8` | `tests/unit/test_client_ip_signing.py`: `test_valid_signature_is_honored_and_separates_users` (victim's correct password still 200), `test_wrong_signature_is_ignored`, `test_signature_with_other_key_or_stale_timestamp_is_ignored`, `test_no_key_configured_ignores_signed_headers`, `test_rotating_xff_does_not_bypass_lockout` (also the 20/min IP bucket). The BFF (`frontend/src/lib/client-ip.ts`) reads the visitor IP only from a platform header (`x-vercel-forwarded-for` on Vercel, which Vercel overwrites per its request-headers docs; `CLIENT_IP_TRUSTED_HEADER` elsewhere) and signs `ip\|timestamp` with `CLIENT_IP_SIGNING_KEY` (HMAC-SHA256, 60 s validity). The API uses `X-Client-IP` only if the signature verifies; `X-Real-IP` is never read; `X-Forwarded-For` only with an explicit `TRUSTED_PROXY_COUNT` > 0 (documented spoof caveat). Node and Python HMAC outputs were cross-checked for the same input. The BFF signing code has no automated test (no frontend test runner). Owner action: set the same `CLIENT_IP_SIGNING_KEY` on Vercel and HF (see `docs/RELEASE.md` 2.2/2.3). |
+| soft brake | added | `a79dec8` | `test_soft_brake_delays_failures_only`: after 5 failures per email from any IPs in 15 min, failed attempts sleep 0.2 s per extra failure up to 2 s; successful logins are never delayed or refused. |
+| S-21 cheap part | fixed | `c20f4cb` | `test_one_concurrent_monte_carlo_run_per_user` (second concurrent run by the same user gets 429; slot released afterwards). Per-process only. |
