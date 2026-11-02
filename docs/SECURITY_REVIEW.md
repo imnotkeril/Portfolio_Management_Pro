@@ -201,3 +201,51 @@ Verified in the API image: pytest **443 passed, 0 skipped**; ruff/black/isort/my
 | S-19 (P1) | fixed | `a79dec8` | `tests/unit/test_client_ip_signing.py`: `test_valid_signature_is_honored_and_separates_users` (victim's correct password still 200), `test_wrong_signature_is_ignored`, `test_signature_with_other_key_or_stale_timestamp_is_ignored`, `test_no_key_configured_ignores_signed_headers`, `test_rotating_xff_does_not_bypass_lockout` (also the 20/min IP bucket). The BFF (`frontend/src/lib/client-ip.ts`) reads the visitor IP only from a platform header (`x-vercel-forwarded-for` on Vercel, which Vercel overwrites per its request-headers docs; `CLIENT_IP_TRUSTED_HEADER` elsewhere) and signs `ip\|timestamp` with `CLIENT_IP_SIGNING_KEY` (HMAC-SHA256, 60 s validity). The API uses `X-Client-IP` only if the signature verifies; `X-Real-IP` is never read; `X-Forwarded-For` only with an explicit `TRUSTED_PROXY_COUNT` > 0 (documented spoof caveat). Node and Python HMAC outputs were cross-checked for the same input. The BFF signing code has no automated test (no frontend test runner). Owner action: set the same `CLIENT_IP_SIGNING_KEY` on Vercel and HF (see `docs/RELEASE.md` 2.2/2.3). |
 | soft brake | added | `a79dec8` | `test_soft_brake_delays_failures_only`: after 5 failures per email from any IPs in 15 min, failed attempts sleep 0.2 s per extra failure up to 2 s; successful logins are never delayed or refused. |
 | S-21 cheap part | fixed | `c20f4cb` | `test_one_concurrent_monte_carlo_run_per_user` (second concurrent run by the same user gets 429; slot released afterwards). Per-process only. |
+
+## Re-verification round 3 (2026-11-02, security-reviewer)
+
+**Scope:** `f10bc42` (fixes `a79dec8` signed client IP + soft brake, `c20f4cb` one Monte Carlo run per user).
+
+**Method, and its limit:** I started a fresh stack (`audit-pmp-sec4-{pg,api,web}`: API `TRUSTED_PROXY_COUNT=0`, the same random `CLIENT_IP_SIGNING_KEY` on API and BFF, BFF with `VERCEL=1`). Registration through the BFF's signed path worked (3x200). **The live header-rotation / lockout runs requested for this round were not executed.** Instead the conclusions below come from:
+- a line-by-line read of `api/rate_limit.py`, `frontend/src/lib/client-ip.ts`, the BFF routes, `api/main.py:1345-1376`, `config/settings.py` and `docs/RELEASE.md`;
+- the fix owner's targeted tests, run in a fresh image: `tests/unit/test_client_ip_signing.py`, `tests/unit/test_login_rate_limit.py`, `tests/integration/test_monte_carlo_limits.py` -> **20 passed**.
+
+The live S-19 reproduction from round 2 (40 wrong guesses, then 200) should be repeated against this code by QA before release. All `audit-pmp-sec4-*` containers, network and images were removed.
+
+**Result: P0 = 0, P1 = 0 by code review** (S-19 closed under the recommended configuration). Live confirmation is still pending. New P2s are in the config/docs layer, below.
+
+| ID | Status | Basis |
+|---|---|---|
+| S-19 (P1) | **fixed in code, recommended config only** | `_signed_client_ip` (`api/rate_limit.py`) accepts `X-Client-IP` only when all of these hold: a key is configured; ip, ts and signature are all present; ip is <= 64 chars; the timestamp is within `CLIENT_IP_MAX_AGE_SECONDS` (60); and `hmac.compare_digest(HMAC-SHA256(key, "ip\|ts"))` matches. Otherwise it is ignored. `X-Real-IP` is never read. With `TRUSTED_PROXY_COUNT=0` `X-Forwarded-For` is ignored, so a direct caller is keyed on the socket peer and cannot choose its key. The BFF builds upstream headers from scratch (client-sent `X-Client-IP*` are not passed through) and on Vercel reads only `x-vercel-forwarded-for`. Forged and stale signatures fall back to the peer address; covered by `test_client_ip_signing.py`. **Under `TRUSTED_PROXY_COUNT=2` on HF a direct caller can still spoof:** HF appends one entry, so the second from the right is client-supplied. That is the same mechanism proven live in round 2, unchanged code path. |
+| S-18 | still fixed | (email, IP) key is unchanged. The brake delays only failed attempts, so a correct password is never refused or slowed by other IPs' failures (code path: `record_login_failure` runs only on failure). |
+| S-21 (P2) | **partly fixed** | Per-user set + global 2-slot semaphore, released in `finally`; logic is correct. A second run by the same user gets 429. **Two accounts** (sign-ups are cheap) still hold both global slots and starve everyone (503). |
+
+### New findings (round 3)
+| ID | Sev | Where | Problem. Fix. |
+|---|---|---|---|
+| S-22 | P2 | `docs/RELEASE.md:43` (env table: production `TRUSTED_PROXY_COUNT` "see 2.3 (documented `2`)"), `docs/RELEASE.md:19` (D1 still lists S-19 as open with an "accept" option) | The release checklist contradicts section 2.3 and `.env.example` (both say keep 0 with the signing key). An owner following the table sets 2 and re-opens S-19 for direct callers. **Fix:** production value `0` in the table; close D1 or reword it to "set `CLIENT_IP_SIGNING_KEY` on both sides". |
+| S-23 | P2 | `config/settings.py:126+` (`_enforce_production_secrets`), `frontend/src/lib/client-ip.ts` `forwardedForHeaders` | A missing key is not caught. In production, neither side refuses to start without `CLIENT_IP_SIGNING_KEY`, and length is not checked (the docs say >= 32). If the key is unset or mismatched on either side, every BFF request is keyed on the Vercel egress address, so the original S-04 global login lockout returns silently. **Fix:** the API refuses to boot in production without a >= 32-char key (as for `JWT_SECRET`); the BFF logs an error at startup when `VERCEL`/production is set and the key is missing; add a health/diagnostic check that a signed request was accepted. |
+| S-24 | P2 | `api/rate_limit.py` `record_login_failure` -> `_sleep` (`time.sleep`, up to 2 s) | The soft brake sleeps inside a sync request, holding a threadpool worker (~40 shared by all sync routes). It does not limit throughput for a parallel attacker (each request sleeps on its own), but distributed failed logins against one email now each tie up a worker for up to 2 s. **Fix:** do not sleep server-side. Return 429 with `Retry-After` once the per-account brake threshold is exceeded for that (email, IP), or move login to an `async def` route and use `await asyncio.sleep`. |
+| S-25 | P3 | `frontend/src/lib/client-ip.ts` `trustedClientIp` (first entry of `CLIENT_IP_TRUSTED_HEADER`) | On non-Vercel hosts, if the owner names a list header such as `x-forwarded-for`, the first entry is client-controlled, so the BFF signs a spoofed IP. **Fix:** document "single-value header set by the platform only" and reject values containing commas. |
+| S-26 | P3 | `api/rate_limit.py` `_signed_client_ip` | The signature covers only `ip\|ts`, not method/path, so a captured header can be replayed for any route within 60 s. Exposure requires reading BFF -> API traffic (server-to-server over TLS), so the risk is low. **Fix (optional):** include method + path in the HMAC and reduce the window to 30 s. |
+
+### Final state after round 3
+- **P0 = 0, P1 = 0** (by code review plus 20 passing targeted tests; live re-run of the S-19/S-18 attacks still pending).
+- **Open P2:**
+  - S-05: enumeration.
+  - S-06: open redirect.
+  - S-07: `/validate-tickers` cost.
+  - S-09: no Origin check / login CSRF.
+  - S-10: cookie `Secure` is opt-in.
+  - S-11: checkout guard / idempotency / double subscription.
+  - S-21: global Monte Carlo slots can be held by 2 accounts.
+  - S-22: RELEASE.md says `TRUSTED_PROXY_COUNT=2`.
+  - S-23: a missing signing key fails open.
+  - S-24: brake blocks request threads.
+- **Open P3:** S-12, S-13, S-14, S-15, S-16, S-17, S-25, S-26.
+
+### Trap-worthy
+- 2026-11-02 - **A shared-secret feature must fail closed in production.** A signed client-IP header that is silently skipped when the key is missing restores the exact bug it fixed. Enforce the key at boot, like `JWT_SECRET`.
+- 2026-11-02 - **`time.sleep` as a login brake in a sync FastAPI route trades brute force for thread starvation.** Answer 429 with `Retry-After` instead.
+
+Read (round 3): git show a79dec8 c20f4cb, api/rate_limit.py, frontend/src/lib/client-ip.ts, api/main.py:1345-1376, config/settings.py (fields + guard), docs/RELEASE.md:15-22,40-72, README.md:246-268, .env.example:17-26.
