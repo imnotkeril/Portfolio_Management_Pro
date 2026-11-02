@@ -17,3 +17,4 @@
 - [x] security/S-19 signed client IP + soft brake + one MC run per user - 443 passed; commits a79dec8 c20f4cb
 - [x] qa/<final> — pytest 443 passed/0 failed/0 skipped (core cov 78.35%); live Tier-A 108 checks (106 pass, F-1/F-5 open), rate 19/19, UI E2E 7 steps; verdict RED (F-1 ledger/maintain 500, F-2 price step bug, F-5 no account deletion); see docs/QA.md
 - [x] qa/F-1,F-2,F-3,F-7,S-23 fixed - 448 passed, 0 skipped; commits 00a3888 e1af502 5cb837e e833e62 d69385e
+- [x] docs/README rewrite (2026-11-02) - 32 commands run, see docs/DOCS_CHECK.md; 5 screenshots in assets/screenshots (commit 96d9484); open: isort fails with an in-repo .venv (README documents --skip), SQLite does not boot, /llms.txt missing, production URLs unhealthy

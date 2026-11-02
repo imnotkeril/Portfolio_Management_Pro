@@ -1,3 +1,61 @@
+# README rewrite check — 2026-11-02 (branch chore/audit)
+
+Commands from the rewritten `README.md`, run on Windows 11 (Docker 29.x, Compose v5.1.1, Python 3.11.9, Node v24.14.1, npm 11.11.0). Compose runs used project `audit-pmp-readme` (and `audit-pmp-readme-b` for the postgres-only step) with containers `audit-pmp-readme-*`, a port override file in the scratchpad (random ports in 20000-39999) and an empty `--env-file`, so the repo `.env` was not read. Host commands ran in clean clones of `chore/audit` in the scratchpad (no repo `.env` copied). The clone used `.env.example` copied to `.env`, with only the Postgres port changed.
+
+Host port 5432 is held by another process on this machine (PID 6188, not touched), so `docker compose up -d postgres` cannot bind the documented port here. Its port was overridden for the run; the README keeps the documented port.
+
+| # | Command (as in README) | Result | Action |
+|---|---|---|---|
+| 1 | `docker compose up --build` (with overrides) | exit 0; postgres and api healthy, web up | none |
+| 2 | `docker compose config` | services api, postgres, web; ports as overridden | none |
+| 3 | `curl <api>/health` | 200 `{"status":"ok"}` | none |
+| 4 | `curl <web>/` | 200 | none |
+| 5 | `curl <web>/login` | 200 | none |
+| 6 | `curl <api>/openapi.json` (development) | 200; 52 operations on 46 paths | none |
+| 7 | `curl <api>/docs` and `/redoc` (development) | 200, 200 | none |
+| 8 | `curl <api>/llms.txt` | 404 (0 of 52 operations) | open (`rules/api.md`) |
+| 9 | `docker exec ... id -u` (api, web) | 1000, 1000 | none |
+| 10 | `python -m venv .venv` and activate | ok (README gives the PowerShell activate path too) | none |
+| 11 | `pip install -c requirements.lock.txt -r requirements.txt` | exit 0 (full set, incl. TensorFlow 2.21, Prophet 1.5, Playwright 1.64) | none |
+| 12 | `pip install -c requirements.lock.txt -r requirements-dev.txt` | exit 0 | added to README Testing |
+| 13 | `cp .env.example .env` | ok; Postgres port changed in the clone only | deviation (port busy) |
+| 14 | `docker compose up -d postgres` | ok only with the port override | none |
+| 15 | `alembic upgrade head` | exit 0; migrations 001 to 011 | none |
+| 16 | `uvicorn api.main:app --reload --host 127.0.0.1 --port 8000` | started; `/health` 200 | none |
+| 17 | SQLite: `DATABASE_URL=sqlite:///./data/...` then uvicorn | fails: `sqlite3.OperationalError: database is locked` from `ensure_free`, via `init_db` (api/main.py:419) | README keeps the "does not boot" note |
+| 18 | `cd frontend && npm install` | exit 0 | none |
+| 19 | `npm run dev` | ready; `/login` 200 on port 3000 | none (Next created `frontend/AGENTS.md` in the throwaway clone, not in repo) |
+| 20 | `pytest` | 448 passed, exit 0; `core/` coverage 78.45% (gate 70%) | README gives no count (it was 388) |
+| 21 | `pytest --cov=core --cov-config=.coveragerc --cov-report=html --cov-report=term-missing` | 448 passed, exit 0 | none |
+| 22 | `pytest tests/unit/ --no-cov` | 388 passed, exit 0 | none |
+| 23 | `pytest tests/integration/ --no-cov` | 57 passed, exit 0 | README has no count now |
+| 24 | `pytest tests/performance/ --no-cov` | 3 passed, exit 0 | none |
+| 25 | `ruff check .` | All checks passed | none |
+| 26 | `black --check .` | 180 files unchanged | none |
+| 27 | `isort --check-only .` | exit 1 with the venv inside the repo (isort scans `.venv`); exit 0 with `--skip .venv` | README documents `--skip .venv`; config fix open |
+| 28 | `mypy core/ services/ api/ config/ models/ database/` | no issues in 126 files | none |
+| 29 | `pre-commit install` | installed | none |
+| 30 | `npm run lint` | 0 errors, 18 warnings | none |
+| 31 | `npx tsc --noEmit` | exit 0 | none |
+| 32 | `npm run build` | exit 0 | none |
+
+Totals: 32 rows run. Literal failures: row 17 (SQLite, documented as not booting) and row 27 (isort with an in-repo venv, documented with `--skip .venv`). Row 14 needed the host port override.
+
+Screenshots: five PNGs (1440x900) from the Next.js app on a throwaway production-mode stack (`audit-pmp-shot-*`), with a demo user and a demo portfolio seeded through the API. Each is under 270 KB and visually not blank. The previous GitHub-hosted images showed the retired Streamlit UI and were replaced.
+
+Env names: README configuration tables compared with `.env.example` (38 names, including commented ones), `config/settings.py` (33 fields) and the frontend `process.env` names. No name is missing from the README. The extra tokens in the README (`CMD`, `HS256`, `INFO`) are a Dockerfile keyword and values. The 13 `[unused]` names have no reader outside `config/settings.py` and tests.
+
+Production URLs (read-only GET, 2026-11-02): web `https://portfolio-management-pro-taupe.vercel.app/login` 404; API `https://imnotkeril-portfolio-management-pro-api.hf.space/health` 503. The README does not present them as working.
+
+Not fixed (outside the doc paths or feature code):
+
+- `isort` scans an in-repo `.venv` (`[tool.isort]` has no skip for it).
+- `.dockerignore` does not exclude `.venv`; a venv in the project root would enter the compose build context (not tested).
+- `docker-compose.yml` sets `CACHE_DIR`, which nothing reads.
+- SQLite boot still fails; `/llms.txt` still missing.
+
+Cleanup: containers, networks, volumes and images `audit-pmp-shot-*` and `audit-pmp-readme*` removed; the dev servers started for rows 16 and 19 were stopped.
+
 # Docs check — 2026-10-25 (branch chore/audit)
 
 Every command documented in `README.md`, `USER_GUIDE.md`, `.env.example` and `docs/production/` was run on this machine (Windows 11, Docker 29.3.1, Compose v5.1.1, Python 3.11.9, Node v24.14.1, npm 11.11.0).
