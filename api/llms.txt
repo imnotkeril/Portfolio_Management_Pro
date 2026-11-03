@@ -276,7 +276,7 @@ Apply user-defined shocks to a portfolio. Auth: user.
 
 ### POST /risk/monte-carlo
 
-Monte Carlo simulation on a ticker list.. One concurrent run per user. Auth: user. Rate limit: 1 concurrent run per user.
+Monte Carlo simulation on a ticker list. Auth: user. Rate limit: 1 concurrent run per user.
 
 - body `RiskMonteCarloRequest` { portfolio_id: str, start_date: date, end_date: date, time_horizon: int, num_simulations: int, initial_value: float, model: str }
 

@@ -58,7 +58,7 @@ DESCRIPTIONS = {
     "POST /portfolios/{portfolio_id}/transactions": "Record a transaction in the portfolio ledger",
     "DELETE /portfolios/{portfolio_id}/transactions/{transaction_id}": "Delete a transaction of this portfolio",
     "POST /risk/custom-scenario": "Apply user-defined shocks to a portfolio",
-    "POST /risk/monte-carlo": "Monte Carlo simulation on a ticker list.. One concurrent run per user",
+    "POST /risk/monte-carlo": "Monte Carlo simulation on a ticker list",
     "POST /risk/monte-carlo/full": "Monte Carlo simulation for a saved portfolio",
     "POST /risk/scenario-chain": "Apply a chain of scenarios in sequence",
     "GET /risk/scenarios": "Catalog of built-in stress scenarios",
