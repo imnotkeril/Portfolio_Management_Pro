@@ -198,7 +198,7 @@ Copy `.env.example` to `.env` for local runs. Every variable is optional in deve
 | `DATABASE_URL` | `sqlite:///./data/wmc.db` | `config/settings.py`, `database/migrations/env.py` | SQLAlchemy URL. Use `postgresql+psycopg2://...`. SQLite does not boot (see above). |
 | `DATABASE_ECHO` | `false` | `config/settings.py` | Log SQL statements. |
 | `RATE_LIMIT_ENABLED` | `true` | `config/settings.py` | IP-based limits on auth and public endpoints. Tests turn it off. |
-| `CLIENT_IP_SIGNING_KEY` | unset | `config/settings.py` | Shared secret with the web app. A signed `X-Client-IP` is trusted only if the HMAC verifies. Production: if set, at least 32 characters; if unset, a warning is logged and limits fall back to the proxy address. Set the same value on the web app. |
+| `CLIENT_IP_SIGNING_KEY` | unset | `config/settings.py` | Shared secret with the web app. A signed `X-Client-IP` is trusted only if the HMAC verifies. Production: required, at least 32 characters (the API refuses to boot without it). Set the same value on the web app. |
 | `CLIENT_IP_MAX_AGE_SECONDS` | `60` | `config/settings.py` | Maximum age of a signed client IP. |
 | `TRUSTED_PROXY_COUNT` | `0` | `config/settings.py` | Fallback when no valid signed IP: take the Nth entry from the right of `X-Forwarded-For` (0 = ignore the header). Must match the real proxy chain. Keep `0` when the signing key is set. |
 | `CORS_ORIGINS` | empty | `api/main.py` (`os.getenv`) | Extra allowed browser origins, comma-separated. `FRONTEND_URL` and `http://localhost:3000` are always allowed. |
@@ -317,7 +317,7 @@ Production guards in `config/settings.py` (the API refuses to start if they fail
 
 - `AUTH_DISABLED=true` is refused.
 - The default `JWT_SECRET` and a secret shorter than 32 characters are refused.
-- A `CLIENT_IP_SIGNING_KEY` shorter than 32 characters is refused.
+- A missing or shorter than 32 characters `CLIENT_IP_SIGNING_KEY` is refused.
 
 Other protections, with tests in `tests/`:
 

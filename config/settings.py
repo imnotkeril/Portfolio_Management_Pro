@@ -158,13 +158,11 @@ class Settings(BaseSettings):
                     "(a short HMAC key can be brute-forced)."
                 )
             if not key:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    "CLIENT_IP_SIGNING_KEY is not set in production: the API cannot "
-                    "tell visitors apart behind the BFF, so rate limits fall back to "
-                    "the proxy address (S-19). Set the same >= 32 char value on the "
-                    "API and the BFF."
+                raise RuntimeError(
+                    "CLIENT_IP_SIGNING_KEY is required when ENVIRONMENT=production "
+                    f"(>= {self._MIN_CLIENT_IP_KEY_LENGTH} chars, same value on the "
+                    "API and the BFF). Without it every visitor behind the BFF "
+                    "shares one rate-limit bucket (S-19)."
                 )
         elif self.jwt_secret == self._DEFAULT_JWT_SECRET:
             import logging

@@ -15,7 +15,11 @@ def test_production_refuses_default_jwt_secret() -> None:
 def test_production_accepts_strong_jwt_secret() -> None:
     from config.settings import Settings
 
-    settings = Settings(environment="production", jwt_secret="x" * 64)
+    settings = Settings(
+        environment="production",
+        jwt_secret="x" * 64,
+        client_ip_signing_key="k" * 32,
+    )
     assert settings.environment == "production"
 
 
@@ -241,21 +245,16 @@ def test_production_accepts_32_char_client_ip_signing_key() -> None:
     assert s.client_ip_signing_key == "k" * 32
 
 
-def test_production_warns_loudly_when_client_ip_signing_key_unset(caplog) -> None:
-    import logging
-
+def test_production_refuses_unset_client_ip_signing_key() -> None:
     from config.settings import Settings
 
     for unset in (None, "", "   "):
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
+        with pytest.raises(RuntimeError, match="CLIENT_IP_SIGNING_KEY"):
             Settings(
                 environment="production",
                 jwt_secret="x" * 64,
                 client_ip_signing_key=unset,
             )
-        assert any("CLIENT_IP_SIGNING_KEY" in r.message for r in caplog.records)
-        assert all(r.levelno >= logging.WARNING for r in caplog.records)
 
 
 def test_development_does_not_require_client_ip_signing_key() -> None:
