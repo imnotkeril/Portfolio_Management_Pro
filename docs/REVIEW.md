@@ -3,7 +3,7 @@
 ## Summary
 | Reviewer | P0 | P1 | P2 | Notes |
 |---|---|---|---|---|
-| reviewer (correctness/quality, opus) | 0 | 0 open (1 fixed) | 6 open (1 fixed) | this file |
+| reviewer (correctness/quality, opus) | 0 | 0 open (1 fixed) | 5 open (2 fixed: R-06 `a7bac81`, R-03 via S-02 `47cfaa9`) | this file |
 | security-reviewer | - | - | - | separate agent (not merged here) |
 | design-reviewer | - | - | - | not run (per orchestrator: design covered by none) |
 
@@ -14,10 +14,10 @@ Scope: `git diff 345d95f..0574fe1` (15 commits, code only) plus targeted reads o
 |---|---|---|---|---|---|
 | R-01 | P1 | services/billing_service.py:166-180 (pre-existing) | Stripe event was marked processed in its own committed session (`subscription_repository.py:69`) BEFORE the handler ran; if the handler raised (DB error), the route returned 400, Stripe retried, and the retry got `already_processed` -> subscription state change (upgrade/downgrade) silently lost. Fix: on handler exception call new `SubscriptionRepository.unmark_event()` and re-raise. Tests: `test_webhook_handler_failure_unmarks_event_for_retry`, `test_unmark_event_allows_reprocessing`. | fixed | 43b0f04 |
 | R-02 | P2 | api/main.py:797-809 (pre-existing) | Legacy `DELETE /transactions/{id}` had no `_handle_error`: deleting another user's transaction raised `PortfolioNotFoundError` -> 500 (same class as audit B3; no data change, ownership was enforced). Fix: try/`_handle_error` -> 404. Test: `test_legacy_delete_foreign_transaction_is_404_and_keeps_row` (also proves the row survives = IDOR negative test). | fixed | 9b15498 |
-| R-03 | P2 | services/billing_service.py:202-224, 226-247 (pre-existing) | Out-of-order events: `invoice.paid` always sets plan=PRO/status=active from the local row, so a late `invoice.paid` after `customer.subscription.deleted` re-grants Pro; handlers never re-fetch the subscription from Stripe (router trap "never rely on event order, provider is source of truth"). Fix: in each handler `stripe.Subscription.retrieve(id)` and sync from that state. Needs Stripe test keys to verify -> logged, not fixed. | open | - |
+| R-03 | P2 | services/billing_service.py:202-224, 226-247 (pre-existing) | Out-of-order events: `invoice.paid` always sets plan=PRO/status=active from the local row, so a late `invoice.paid` after `customer.subscription.deleted` re-grants Pro; handlers never re-fetch the subscription from Stripe (router trap "never rely on event order, provider is source of truth"). Fix: in each handler `stripe.Subscription.retrieve(id)` and sync from that state. Needs Stripe test keys to verify -> logged, not fixed. | fixed | `47cfaa9` (S-02) |
 | R-04 | P2 | api/routers/billing.py:59-64 | `async def stripe_webhook` calls the fully synchronous `handle_webhook_event` (Stripe SDK + SQLAlchemy) on the event loop; blocks all requests while it runs. Fix: make the route `def` (threadpool) after reading the body, or `await run_in_threadpool(...)`. | open | - |
 | R-05 | P2 | core/data_manager/transaction_repository.py:49-160, 194-233 | Repository has no owner predicate (`find_by_portfolio`, `find_portfolio_id`, `delete`, `_update_transaction` filter by id only). Every API route was traced and all reach it only after `portfolio_service.get_portfolio(pid, current_user.id)` (see IDOR table), so not exploitable today; defence-in-depth gap for future callers (e.g. `analytics_service.py:142,350,408,794`). Fix: join PortfolioORM and filter `user_id`, or require a verified portfolio object. | open | - |
-| R-06 | P2 (fixed in a7bac81) | frontend/src/app/portfolio/[id]/page.tsx:37-73, layout.tsx:21-35 (commit df3e699) | eslint fix removed `setLoading(true)`/`setError(null)` (page) and the reset in layout: on client navigation /portfolio/A -> /portfolio/B the previous portfolio's overview/name stays visible until B loads, and a prior error stays shown until success. Fix: key the state by id (store `loadedId`, derive `loading = loadedId !== id`) as was done for `failedId`. | open | - |
+| R-06 | P2 | frontend/src/app/portfolio/[id]/page.tsx:37-73, layout.tsx:21-35 (commit df3e699) | eslint fix removed `setLoading(true)`/`setError(null)` (page) and the reset in layout: on client navigation /portfolio/A -> /portfolio/B the previous portfolio's overview/name stays visible until B loads, and a prior error stays shown until success. Fix: key the state by id (store `loadedId`, derive `loading = loadedId !== id`) as was done for `failedId`. | fixed | `a7bac81` |
 | R-07 | P2 | frontend/src/lib/buy-hold-holdings.ts:19-24 + page.tsx:112-115 (commit 1d4bd56) | When a quote fails AND `purchase_price` is null, `market_value` is null and the total falls back to `r.quantity` (shares counted as dollars) in `totalMarketValue`; when only the quote fails the price silently falls back to cost (0% return) under the "live market prices" caption. Fix: exclude null values from the total and mark fallback prices (e.g. "cost" badge). | open | - |
 
 No P0. Other areas checked with no finding: B1 guards (`config/settings.py:122-150`), B2 `_client_ip` N-th-from-right logic and short-header fallback (`api/rate_limit.py:32-51`), B3 404 (`api/main.py:735-747`), B4 middleware (raw ASGI, does not duplicate existing headers, applies to 404s), F3 proxy allowlist (`frontend/src/lib/proxy-path.ts`: first segment checked, every segment fully decoded, `..`/separators/control chars rejected, re-encoded; `auth`/`stripe` roots excluded; all frontend calls use `portfolios`/`transactions` roots), F5 cash row handled separately, Dockerfiles non-root.
@@ -26,7 +26,7 @@ Pointers for security-reviewer (not full findings here): public unauthenticated 
 
 ## Correctness and quality
 
-### ACs (docs/FINISH_PLAN.md) - 15/15 verified in code
+### ACs (docs/FINISH_PLAN.md) - 13/13 verified in code (the earlier "15" counted D1 and D2 as separate ACs)
 | AC | Code | Proof |
 |---|---|---|
 | B1 | config/settings.py:122-150 | tests/unit/test_security_hardening.py:7-79 (auth_disabled, default, short, 32-char, dev tolerant) |

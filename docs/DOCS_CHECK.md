@@ -172,6 +172,6 @@ Read: E:/Main/Dev/coding-brain/process/docs.md, E:/Main/Dev/coding-brain/knowled
 | Owner guide | `docs/OWNER_GUIDE.md` (plans/prices, refund, MRR, key rotation); linked from README |
 | Stripe CLI webhook forwarding | `docs/STRIPE_WEBHOOK_LOCAL.md`; linked from README. Commands in it were not executed (no Stripe CLI login, no test keys) |
 | Root CHANGELOG | `CHANGELOG.md` present (`34741ec`) |
-| New finding P-01 | USER_GUIDE.md lists Forecasting as Pro-only; `api/llms.txt` shows the forecasting endpoints need only a logged-in user. Owner decision: gate with `require_pro` or fix the guide |
+| Retracted P-01 | An earlier draft claimed forecasting is not Pro-gated. Wrong: all three forecasting routes use `require_pro` (`api/main.py:1557, 1580, 1605`) and USER_GUIDE is right |
 
 Read: E:/Main/Dev/coding-brain/process/docs.md, E:/Main/Dev/coding-brain/rules/api.md, E:/Main/Dev/coding-brain/known-traps.md, docs/AUDIT_DOCS.md, README.md, api/llms.txt, docs/OWNER_GUIDE.md

@@ -9,12 +9,8 @@ dashboards.
 
 | Plan | Limit | Defined in |
 |---|---|---|
-| Free | 1 portfolio; no optimization | `FREE_PORTFOLIO_LIMIT` in `services/billing/plans.py`; optimization gated by `require_pro` |
-| Pro | unlimited portfolios, optimization (USER_GUIDE also lists forecasting, see note) | active or trialing subscription whose `current_period_end` is in the future (+1 hour grace) |
-
-Note (open finding P-01): USER_GUIDE.md says Forecasting is Pro-only, but the forecasting
-endpoints only require a logged-in user (`api/llms.txt`: auth `user`), so a Free user can call
-them. Either gate them with `require_pro` or change the guide: your decision.
+| Free | 1 portfolio; no optimization or forecasting | `FREE_PORTFOLIO_LIMIT` in `services/billing/plans.py`; optimization and forecasting endpoints use `require_pro` |
+| Pro | unlimited portfolios, optimization and forecasting | active or trialing subscription whose `current_period_end` is in the future (+1 hour grace) |
 
 The price is not stored in the app. It is the recurring Price in Stripe that
 `STRIPE_PRICE_ID_PRO` points to (`price_...`, or a `prod_...` product, in which case the first

@@ -240,9 +240,9 @@ The live S-19 reproduction from round 2 (40 wrong guesses, then 200) should be r
   - S-11: checkout guard / idempotency / double subscription.
   - S-21: global Monte Carlo slots can be held by 2 accounts.
   - S-22: RELEASE.md said `TRUSTED_PROXY_COUNT=2` (fixed in e558398: production value is 0 with the signed client IP).
-  - S-23: a missing signing key fails open. Partly fixed in e833e62: a key shorter than 32 chars is refused in production; an unset key only logs a warning (still open as a P2 decision for the owner: set the key on both sides).
+  - S-23: a missing signing key fails open. Partly fixed in e833e62: a key shorter than 32 chars is refused in production; an unset key only logged a warning. Closed in `b5f1a3c` (2026-11-03): the API now refuses to boot in production without the key; the new test was not run yet (Docker unavailable).
   - S-24: brake blocks request threads.
-- **Open P3:** S-12, S-13, S-14, S-15, S-16, S-17, S-25, S-26.
+- **Open P3:** S-12, S-13, S-14, S-16, S-17, S-25, S-26.
 
 ### Trap-worthy
 - 2026-11-02 - **A shared-secret feature must fail closed in production.** A signed client-IP header that is silently skipped when the key is missing restores the exact bug it fixed. Enforce the key at boot, like `JWT_SECRET`.

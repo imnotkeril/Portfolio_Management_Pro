@@ -24,3 +24,14 @@
 - [x] final verify on 6bf0aeb: ruff/black/isort/mypy clean, eslint 0 err/18 warn, tsc clean, npm audit 0, docker builds ok, pytest 448 passed 0 skipped cov 78.35%
 ## Missing vs framework
 - /llms.txt for API; owner guide (plans/prices, refunds, MRR, key rotation); Stripe CLI webhook forwarding doc; design gate screenshots 375/768/1440; docs/checks/*.md artifacts; AC table; known-traps additions; account deletion endpoint (F-5); open P2: S-05,S-06,S-07,S-09,S-10,S-11,S-21,S-23(unset key),S-24; SQLite boot bug; F-3/F-2 unverified in browser
+
+## Finish phase 2 (2026-11-03)
+- [x] api/llms.txt generated from routes (52 ops), served at GET /llms.txt, test written (not run: Docker hung) - b5f1a3c e4833ca
+- [x] S-23 fail-closed: API refuses to boot in production without CLIENT_IP_SIGNING_KEY - b5f1a3c (test not run)
+- [x] docs/OWNER_GUIDE.md, docs/STRIPE_WEBHOOK_LOCAL.md, QA AC table, RELEASE sections 13-14 (scans: secrets-scan exit 3 = 68 benign ENV hits, license frontend 0, npm audit 0)
+- [x] known-traps.md: 12 traps appended (review + security)
+- [x] audit/review - FIX, 5 findings (5 valid) [shadow]
+- [x] audit/qa - FIX, 2 findings (2 valid) [shadow]
+- [x] audit/docs - FIX, 5 findings (4 valid, 1 waived) [shadow]
+- [x] audit/release-prep - OWNER, 5 findings (5 valid) [shadow]
+- [ ] BLOCKED on Docker Desktop (daemon hangs, restart denied by permission classifier): run pytest at HEAD, pip-audit, clean build, design gate screenshots 375/768/1440, F-2/F-3 browser checks

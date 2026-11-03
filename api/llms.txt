@@ -103,7 +103,7 @@ Liveness probe; returns {status: ok}. Auth: public.
 
 Run an optimization method and return weights, frontier and metrics for a saved portfolio. Auth: pro.
 
-- body `OptimizationFullRequest` { benchmark_for_charts: str | None, include_efficient_frontier: bool, frontier_n_points: int, include_sensitivity: bool, sensitivity_analysis_type: str, notebook_split: bool, notebook_train_fraction: float }
+- body `OptimizationFullRequest` { portfolio_id: str, method: str, start_date: date, end_date: date, constraints: dict[str, Any] | None, benchmark_ticker: str | None, method_params: dict[str, Any] | None, out_of_sample: bool, training_ratio: float, benchmark_for_charts: str | None, include_efficient_frontier: bool, frontier_n_points: int, include_sensitivity: bool, sensitivity_analysis_type: str, notebook_split: bool, notebook_train_fraction: float }
 
 ### POST /optimization/run
 
@@ -284,7 +284,7 @@ Monte Carlo simulation on a ticker list. Auth: user. Rate limit: 1 concurrent ru
 
 Monte Carlo simulation for a saved portfolio. Auth: user. Rate limit: 1 concurrent run per user.
 
-- body `RiskMonteCarloFullRequest` { include_sample_paths: bool }
+- body `RiskMonteCarloFullRequest` { portfolio_id: str, start_date: date, end_date: date, time_horizon: int, num_simulations: int, initial_value: float, model: str, include_sample_paths: bool }
 
 ### POST /risk/scenario-chain
 
@@ -319,7 +319,7 @@ Value at Risk and CVaR for a ticker list. Auth: user.
 
 Value at Risk and CVaR for a saved portfolio. Auth: user.
 
-- body `RiskVarFullRequest` { rolling_window: int }
+- body `RiskVarFullRequest` { portfolio_id: str, start_date: date, end_date: date, confidence_level: float, include_monte_carlo: bool, num_simulations: int, time_horizon: int, rolling_window: int }
 
 ### POST /stripe/webhook
 

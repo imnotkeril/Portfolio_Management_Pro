@@ -267,7 +267,8 @@ Verified after the fixes: pytest in the API image **448 passed, 0 skipped**; `ru
 | F2 eslint 0 errors, CI frontend job | `npx eslint` 0 errors / 18 warnings; `.github/workflows/ci.yml` | pass |
 | F3 proxy path allowlist | live traversal/encoded-path rows (this file); no unit test (frontend has no runner) | pass (live) |
 | F4 frontend image non-root | `docker build -f frontend/Dockerfile frontend`, `uid=1000(node)` | pass |
-| F5 holdings table fixes | tsc/eslint/build only; F-3 overflow not re-measured in a browser | **not verified in browser** |
+| F5 buy_hold overview shows $0 / no holdings | `frontend/src/lib/buy-hold-holdings.ts`, `portfolio/[id]/page.tsx`; tsc/eslint/build; `assets/screenshots/03-portfolio-overview.png` shows holdings. No automated test (no frontend runner) | pass by build + screenshot; no regression test |
+| F-3 (QA finding, narrow-screen overflow of the holdings table) | `d69385e` `overflow-x-auto`; not re-measured at 375 px | **not verified in browser** |
 | D1/D2 production docs and deploy checklist | `docs/RELEASE.md`, `docs/production/*` | pass |
 
 ## Verdict after the Resolution (restated)

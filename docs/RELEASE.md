@@ -5,7 +5,7 @@ Legend: `[x]` = verified locally in this step (evidence given); `[ ]` = owner or
 
 ## 0. Verdict
 
-Code side: ready for a release candidate. Blockers before switching to live money are in section 1; most are owner actions or decisions, not code defects.
+Code side: release candidate, but the QA verdict is still **RED** (docs/QA.md, "Verdict after the Resolution"): F-5 (no account-deletion endpoint, owner decision) and the F-2/F-3 fixes not yet checked in a browser. Blockers before switching to live money are in section 1; most are owner actions or decisions, not code defects.
 
 ## 1. Blockers and owner decisions
 
@@ -20,7 +20,7 @@ Code side: ready for a release candidate. Blockers before switching to live mone
 | D2 | The rate limiter is in-process memory (S-04 residual). The HF Space runs one uvicorn process (CMD has no `--workers`), so limits are correct only with exactly one process and one replica. Do not scale to several workers/replicas before moving the limiter to shared storage (Postgres/Redis). The Monte Carlo concurrency semaphore (2) is also per process. | decide / constraint |
 | D3 | Other open P2 in `docs/SECURITY_REVIEW.md`: S-05 user enumeration (register returns 409, login timing 0.18 s vs 0.006 s); S-06 open redirect after login (`from` param); S-07 `/validate-tickers` slow with bogus tickers (retries and sleeps; list capped at 100); S-09 no Origin check on BFF mutations (login CSRF, only `SameSite=Lax`); S-10 cookie `Secure` is opt-in (`COOKIE_SECURE=true` MUST be set on Vercel); S-11 no checkout guard or idempotency, and a double-subscription downgrade case (a double click can double-charge). P3: S-12..S-17 (S-17: `ENVIRONMENT` fails open, a typo such as `prod` means development behaviour; set exactly `production`). Owner decides what to fix before live billing; S-11 is the one to fix before charging real cards. | decide |
 | D4 | `docs/` is gitignored; this file and other docs are force-added. Decide whether to un-ignore. | decide |
-| D5 | README SQLite quick start does not boot (documented). `/llms.txt` is missing (rule `rules/api.md`; the API has 52 operations). Not release blockers. | note |
+| D5 | README SQLite quick start does not boot (documented). `/llms.txt` is served since `b5f1a3c` (52 operations; test not run yet). Not release blockers. | note |
 
 Test-suite state (final run on 6bf0aeb): 448 passed, 0 skipped, core coverage 78.35%. S-03 remainder and S-18 (970b581, 338748f) were independently re-checked in SECURITY_REVIEW round 2; S-19 (a79dec8) in round 3 by code review plus QA live rate-limit rows (19/19). After `6bf0aeb`, `b5f1a3c` (fail-closed S-23, `/llms.txt`) added tests that have not been run yet.
 
@@ -216,11 +216,11 @@ The register/login/portfolio steps are not scripted: the one register probe in t
 
 ## 11. Other owner items (module inserts)
 
-- [ ] Legal pages (privacy, terms, refund, company details) reviewed by a human; the processors list matches reality: Vercel, Hugging Face, Supabase, Stripe, Yahoo Finance data. Whether these pages exist in the app was not verified.
+- [ ] Legal pages (privacy, terms, refund, company details) reviewed by a human; the processors list matches reality: Vercel, Hugging Face, Supabase, Stripe, Yahoo Finance data. **Checked 2026-11-03: `frontend/src/app` has no privacy, terms or refund route, so there is nothing to link yet.** The owner must supply or approve the texts (an agent draft is not legal advice); a footer link task follows.
 - [ ] Email: the app sends no transactional email today; Stripe sends receipts. If email is added: SPF/DKIM/DMARC.
 - [ ] Analytics and Google OAuth: not present in the app; nothing to do.
 - [ ] Data protection: personal portfolio data lives in Supabase; account deletion with Stripe customer cleanup is not implemented. Decide before launch if EU or RU users are expected. For an RU audience the operator obligations (Roskomnadzor notification, data localization) are the owner's to check.
-- [ ] Version/CHANGELOG: there is no root `CHANGELOG.md`; the tag and release notes are produced in the `release` step after the owner's yes.
+- [ ] Version/CHANGELOG: root `CHANGELOG.md` exists (`34741ec`, "Unreleased" section; `frontend/package.json` is 0.1.0, no Python version is set); the tag and release notes are produced in the `release` step after the owner's yes.
 
 ## 12. Push/deploy sequence (prepared, NOT run)
 
@@ -248,7 +248,7 @@ Owner OK needed for the 68 history hits (all benign defaults, listed above). Do 
 3. Stripe live: продукт и Price, портал клиента, webhook на `https://<hf-api-host>/stripe/webhook` с четырьмя событиями (раздел 5), ключи только в секретах HF.
 4. Бэкапы Supabase и проверка восстановления (раздел 6); мониторинг и алерты на сбои webhook.
 5. Юридические страницы и налоги: проверка человеком.
-6. Решения: принять 68 безвредных совпадений secret-scan; нужен ли эндпоинт удаления аккаунта (F-5); гейтить ли Forecasting для Pro (P-01); трекать ли `docs/` в git.
+6. Решения: принять 68 безвредных совпадений secret-scan; нужен ли эндпоинт удаления аккаунта (F-5); трекать ли `docs/` в git.
 7. push в `main`, PR и деплой: только по явному «да» владельца.
 
 Read: E:/Main/Dev/coding-brain/process/release-prep.md, E:/Main/Dev/coding-brain/routers/projects/webapp/saas.md (release-prep row), E:/Main/Dev/coding-brain/known-traps.md, docs/AUDIT_DOCS.md, docs/OWNER_GUIDE.md

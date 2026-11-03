@@ -102,18 +102,23 @@ def _const(node: ast.AST | None) -> str | None:
 
 
 def _models() -> dict[str, list[str]]:
-    out: dict[str, list[str]] = {}
+    own: dict[str, list[str]] = {}
+    bases: dict[str, list[str]] = {}
     for f in MODEL_FILES + [ROOT / "api" / "routers" / "billing.py"]:
         for n in ast.parse(f.read_text(encoding="utf-8")).body:
             if isinstance(n, ast.ClassDef):
-                fields = [
+                own[n.name] = [
                     f"{s.target.id}: {ast.unparse(s.annotation)}"
                     for s in n.body
                     if isinstance(s, ast.AnnAssign) and isinstance(s.target, ast.Name)
                 ]
-                if fields:
-                    out[n.name] = fields
-    return out
+                bases[n.name] = [b.id for b in n.bases if isinstance(b, ast.Name)]
+
+    def fields(name: str) -> list[str]:
+        inherited = [x for b in bases.get(name, []) for x in fields(b)]
+        return inherited + own.get(name, [])
+
+    return {n: f for n in own if (f := fields(n))}
 
 
 def _auth(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
