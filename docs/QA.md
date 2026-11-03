@@ -251,4 +251,27 @@ Verified after the fixes: pytest in the API image **448 passed, 0 skipped**; `ru
 | F-2 | fixed | `e1af502` | The auto-filled price is rounded to cents (at least 0.01) in `transaction-form.tsx`, so `step=0.01` validation passes. tsc/eslint/build clean. No automated or browser re-test of the submit (no frontend test runner). |
 | F-3 | fixed, not verified | `d69385e` | Holdings table wrapped in `overflow-x-auto`. Not re-measured at 375 px in a browser; other elements may still overflow. |
 | F-7 | fixed | `5cb837e` | `requirements-dev.txt` pins black, isort, ruff, mypy and the two type stubs; `prophet.py` optional import carries `# type: ignore[assignment,misc]` (it is the usual optional-dependency pattern, not a real bug). The reported mypy error does not reproduce on the host (Prophet installed) and is gone in the clean image. |
-| S-23 | done | `e833e62` | `test_production_refuses_short_client_ip_signing_key`, `..._accepts_32_char_...`, `..._warns_loudly_when_..._unset`, `test_development_does_not_require_...`. Documented in README, `.env.example`, `docs/RELEASE.md`. |
+| S-23 | fixed (fail-closed) | `e833e62`, `b5f1a3c` | Short key refused (`test_production_refuses_short_client_ip_signing_key`, `..._accepts_32_char_...`); since `b5f1a3c` an unset key is refused too (`test_production_refuses_unset_client_ip_signing_key`). Dev does not require it (`test_development_does_not_require_...`). **The `b5f1a3c` tests were written on 2026-11-03 but not run: the Docker daemon was unavailable; rerun before release.** |
+
+## Acceptance criteria (docs/FINISH_PLAN.md; there is no SPEC.md)
+
+| AC | Verified by | Result |
+|---|---|---|
+| B1 prod guards (AUTH_DISABLED, JWT >= 32) | `tests/unit/test_security_hardening.py` (default, short, 32-char, dev tolerant); live: weak-secret container exits 1 (RELEASE.md section 3) | pass |
+| B2 rate-limit client IP (TRUSTED_PROXY_COUNT, signed IP) | `test_forwarded_ip_used_only_when_proxy_trusted`, `test_valid_signature_is_honored_and_separates_users`; live rows RL-1..19 (this file) | pass |
+| B3 transactions 404 for foreign/unknown portfolio | `tests/integration/test_user_isolation.py`; live A/B-user matrix (this file) | pass |
+| B4 docs hidden and security headers in production | `test_security_hardening.py` (headers, 404 on /docs); live `curl` rows (this file) | pass |
+| B5 pinned deps, non-root image | image built from `Dockerfile.api`, uid 1000 (QA setup table) | pass |
+| B6 coverage >= 78% on core/ | 448 passed, 0 skipped, core 78.35% (Resolution section) | pass |
+| F1 Next 16.4.3, `npm audit` 0 | `npm audit` clean, Docker `next build` 22/22 | pass |
+| F2 eslint 0 errors, CI frontend job | `npx eslint` 0 errors / 18 warnings; `.github/workflows/ci.yml` | pass |
+| F3 proxy path allowlist | live traversal/encoded-path rows (this file); no unit test (frontend has no runner) | pass (live) |
+| F4 frontend image non-root | `docker build -f frontend/Dockerfile frontend`, `uid=1000(node)` | pass |
+| F5 holdings table fixes | tsc/eslint/build only; F-3 overflow not re-measured in a browser | **not verified in browser** |
+| D1/D2 production docs and deploy checklist | `docs/RELEASE.md`, `docs/production/*` | pass |
+
+## Verdict after the Resolution (restated)
+
+**RED stands.** Open in tier A/B: F-5 (no account-deletion endpoint) and the unverified browser fixes F-2 and F-3. No P0/P1 open. Items that need the owner or a live stack: real Stripe checkout and portal E2E (no test keys), F-5 decision.
+
+Read: E:/Main/Dev/coding-brain/process/qa.md, docs/AUDIT_DOCS.md (exit checklists), docs/FINISH_PLAN.md, docs/REVIEW.md (AC table)

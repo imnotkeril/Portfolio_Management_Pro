@@ -22,7 +22,7 @@ Code side: ready for a release candidate. Blockers before switching to live mone
 | D4 | `docs/` is gitignored; this file and other docs are force-added. Decide whether to un-ignore. | decide |
 | D5 | README SQLite quick start does not boot (documented). `/llms.txt` is missing (rule `rules/api.md`; the API has 52 operations). Not release blockers. | note |
 
-Test-suite state (final run on 6bf0aeb): 448 passed, 0 skipped, core coverage 78.35%. S-03 remainder and S-18 (970b581, 338748f) were independently re-checked in SECURITY_REVIEW round 2; S-19 (a79dec8) in round 3 by code review plus QA live rate-limit rows (19/19).
+Test-suite state (final run on 6bf0aeb): 448 passed, 0 skipped, core coverage 78.35%. S-03 remainder and S-18 (970b581, 338748f) were independently re-checked in SECURITY_REVIEW round 2; S-19 (a79dec8) in round 3 by code review plus QA live rate-limit rows (19/19). After `6bf0aeb`, `b5f1a3c` (fail-closed S-23, `/llms.txt`) added tests that have not been run yet.
 
 ## 2. Environment variable table (names only)
 
@@ -225,3 +225,30 @@ The register/login/portfolio steps are not scripted: the one register probe in t
 ## 12. Push/deploy sequence (prepared, NOT run)
 
 Each needs the owner's explicit yes: push `chore/audit`; open a PR to `main`; CI green; merge; Vercel deploys from `main`; HF Space repo updated from `main` (remote and method chosen by the owner); smoke test (section 9) in test mode; then switch Stripe to live (sections 5 and 10). Rollback per section 8.
+
+## 13. Scans and clean build (2026-11-03)
+
+Commands run from the repo root; exit codes are real.
+
+| Command | Exit | Result |
+|---|---|---|
+| `node scripts/secrets-scan.mjs --project . --history` | 3 | 68 hits, all `ENV-*` type: values of `APP_NAME`, `LOG_FILE`, `PRICE_CACHE_DIR`, `DATABASE_URL` from the local `.env` that also appear in tracked files as defaults (`config/settings.py`, README, docs) and the local compose DB URL in `.env.example`. No key-pattern hit (no `sk_`, `whsec_`, JWT, AWS or GitHub token). Without `--history` also exit 3 |
+| `node scripts/license-check.mjs --project frontend` | 0 | prod 60 packages, 59 ok, 1 review: `@img/sharp-win32-x64@0.35.5` (Apache-2.0 AND LGPL-3.0-or-later; optional native binary for Windows dev, not in the Linux image), 0 block |
+| `node scripts/license-check.mjs --project .` | 2 | no root `package.json`; the Python dependencies are not covered by this script |
+| `npm audit --omit=dev` (frontend) | 0 | found 0 vulnerabilities |
+
+Not run in this session (the Docker daemon would not start): `pip-audit`, clean-clone Docker build and pytest. Last recorded results: 448 passed, 0 skipped, core cov 78.35%, API and web images build (docs/QA.md Resolution, 2026-11-02).
+
+Owner OK needed for the 68 history hits (all benign defaults, listed above). Do not add `.secrets-allow` without that OK.
+
+## 14. Owner-only actions (Russian summary)
+
+1. Подтвердить, что в HF Space заданы `JWT_SECRET` (>= 32), `ENVIRONMENT=production`, `AUTH_DISABLED=false` и `CLIENT_IP_SIGNING_KEY` (>= 32, то же значение на Vercel). Без последнего API теперь не стартует.
+2. Проверить, что боевые URL живы (Vercel `/login`, HF `/health`); раньше были 404 и 503.
+3. Stripe live: продукт и Price, портал клиента, webhook на `https://<hf-api-host>/stripe/webhook` с четырьмя событиями (раздел 5), ключи только в секретах HF.
+4. Бэкапы Supabase и проверка восстановления (раздел 6); мониторинг и алерты на сбои webhook.
+5. Юридические страницы и налоги: проверка человеком.
+6. Решения: принять 68 безвредных совпадений secret-scan; нужен ли эндпоинт удаления аккаунта (F-5); гейтить ли Forecasting для Pro (P-01); трекать ли `docs/` в git.
+7. push в `main`, PR и деплой: только по явному «да» владельца.
+
+Read: E:/Main/Dev/coding-brain/process/release-prep.md, E:/Main/Dev/coding-brain/routers/projects/webapp/saas.md (release-prep row), E:/Main/Dev/coding-brain/known-traps.md, docs/AUDIT_DOCS.md, docs/OWNER_GUIDE.md

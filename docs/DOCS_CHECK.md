@@ -160,3 +160,18 @@ Facts checked and correct: the compose port mappings and health checks, the thre
 - **Pushing, PRs and deploys**: none done.
 
 Read: E:/Main/Dev/coding-brain/process/docs.md, E:/Main/Dev/coding-brain/knowledge/guides/engineering/29-documentation.md (first 120 lines), E:/Main/Dev/coding-brain/templates/CHANGELOG.md, E:/Main/Dev/coding-brain/routers/projects/webapp/_family.md (grep of sections Shared process notes, Shared checks, Traps), E:/Main/Dev/coding-brain/routers/projects/webapp/saas.md (grep of docs row, Done when, Traps)
+
+## Run 2026-11-03 (follow-up to docs/AUDIT_DOCS.md)
+
+| Check | Result |
+|---|---|
+| `python scripts/gen_llms_txt.py` | wrote `api/llms.txt` (52 operations) |
+| `python scripts/gen_llms_txt.py --check` | exit 0 (file current with the route declarations) |
+| `/llms.txt` count vs routes | 52 documented = 52 operations declared (AST). The live comparison against `app.openapi()` is `tests/unit/test_llms_txt.py`, **written but not run: the Docker daemon was unavailable in this session** (host Python cannot import FastAPI: `FieldInfo has no attribute in_`) |
+| README env names vs `.env.example` (scripted regex over the Configuration section) | README names missing from `.env.example`: `VERCEL` only (set by the platform, not by the owner). `CLIENT_IP_TRUSTED_HEADER` is now in both (`c686cc4`) |
+| Owner guide | `docs/OWNER_GUIDE.md` (plans/prices, refund, MRR, key rotation); linked from README |
+| Stripe CLI webhook forwarding | `docs/STRIPE_WEBHOOK_LOCAL.md`; linked from README. Commands in it were not executed (no Stripe CLI login, no test keys) |
+| Root CHANGELOG | `CHANGELOG.md` present (`34741ec`) |
+| New finding P-01 | USER_GUIDE.md lists Forecasting as Pro-only; `api/llms.txt` shows the forecasting endpoints need only a logged-in user. Owner decision: gate with `require_pro` or fix the guide |
+
+Read: E:/Main/Dev/coding-brain/process/docs.md, E:/Main/Dev/coding-brain/rules/api.md, E:/Main/Dev/coding-brain/known-traps.md, docs/AUDIT_DOCS.md, README.md, api/llms.txt, docs/OWNER_GUIDE.md
