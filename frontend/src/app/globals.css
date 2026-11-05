@@ -351,7 +351,8 @@ select.input { cursor: pointer; appearance: auto; }
   box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.15s;
+  visibility: hidden;
+  transition: opacity 0.15s, visibility 0.15s;
 }
 .tooltip-bubble::after {
   content: "";
@@ -362,8 +363,10 @@ select.input { cursor: pointer; appearance: auto; }
   border: 5px solid transparent;
   border-top-color: #1e2130;
 }
-.tooltip-wrap:hover .tooltip-bubble {
+.tooltip-wrap:hover .tooltip-bubble,
+.tooltip-wrap:focus-within .tooltip-bubble {
   opacity: 1;
+  visibility: visible;
 }
 
 /* --- Checkbox styled --- */

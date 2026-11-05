@@ -536,7 +536,7 @@ export default function PortfoliosPage() {
             <h2 className="text-xl font-semibold text-white">
               Your Portfolios
             </h2>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 className="btn btn-primary"
                 onClick={() => router.push("/create")}
