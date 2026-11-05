@@ -258,3 +258,4 @@ Read: E:/Main/Dev/coding-brain/process/release-prep.md, E:/Main/Dev/coding-brain
 
 - pytest 451 passed / 0 skipped; lint and mypy clean (see QA.md "Re-run 2026-11-05").
 - `pip-audit`: pyasn1 CVEs fixed by the 0.6.5 pin; ecdsa and python-jose advisories waived (no fix version, not reachable: explicit algorithms, symmetric secret).
+- Clean clone of `chore/audit` at `f613e63` (no `.env`): `docker build --no-cache -f Dockerfile.api` ok; `docker build --no-cache -f frontend/Dockerfile frontend` (runs `next build`) ok.
