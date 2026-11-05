@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { AUTH_COOKIE } from "@/lib/auth-cookie";
 
-const PUBLIC_PAGES = new Set(["/", "/login", "/register"]);
+const PUBLIC_PAGES = new Set([
+  "/",
+  "/login",
+  "/register",
+  "/privacy",
+  "/terms",
+  "/refund",
+]);
 
 const PROTECTED_PREFIXES = [
   "/dashboard",

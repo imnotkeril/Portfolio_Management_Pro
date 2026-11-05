@@ -154,11 +154,11 @@ export function TransactionForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="label">
+          <label htmlFor="components-transaction-form-f1" className="label">
             Date
             <Tip text="Used to load historical close for BUY/SELL" />
           </label>
-          <input
+          <input id="components-transaction-form-f1"
             className="input"
             type="date"
             value={txDate}
@@ -167,8 +167,8 @@ export function TransactionForm({
           />
         </div>
         <div>
-          <label className="label">Type</label>
-          <select
+          <label htmlFor="components-transaction-form-f2" className="label">Type</label>
+          <select id="components-transaction-form-f2"
             className="input"
             value={txType}
             onChange={(e) => {
@@ -184,11 +184,11 @@ export function TransactionForm({
         </div>
         {isCashFlow ? (
           <div className="md:col-span-1">
-            <label className="label">
+            <label htmlFor="components-transaction-form-f3" className="label">
               Cash amount (USD)
               <Tip text="Deposit or withdraw cash in dollars" />
             </label>
-            <input
+            <input id="components-transaction-form-f3"
               className="input"
               type="number"
               min={0}
@@ -200,8 +200,8 @@ export function TransactionForm({
         ) : (
           <>
             <div>
-              <label className="label">Ticker</label>
-              <input
+              <label htmlFor="components-transaction-form-f4" className="label">Ticker</label>
+              <input id="components-transaction-form-f4"
                 className="input"
                 placeholder="AAPL"
                 value={txTicker}
@@ -209,8 +209,8 @@ export function TransactionForm({
               />
             </div>
             <div>
-              <label className="label">Shares (whole)</label>
-              <input
+              <label htmlFor="components-transaction-form-f5" className="label">Shares (whole)</label>
+              <input id="components-transaction-form-f5"
                 className="input"
                 type="number"
                 min={1}
@@ -222,13 +222,13 @@ export function TransactionForm({
               />
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="components-transaction-form-f6" className="label">
                 Price per share
                 {priceLoading ? (
                   <span className="text-white/40 text-xs ml-2">Loading…</span>
                 ) : null}
               </label>
-              <input
+              <input id="components-transaction-form-f6"
                 className="input"
                 type="number"
                 min={0}
@@ -244,11 +244,11 @@ export function TransactionForm({
               ) : null}
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="components-transaction-form-f7" className="label">
                 Fees (IB estimate)
                 <Tip text="$0.005/share, min $1, max 1% — editable" />
               </label>
-              <input
+              <input id="components-transaction-form-f7"
                 className="input"
                 type="number"
                 min={0}
@@ -265,8 +265,8 @@ export function TransactionForm({
       </div>
 
       <div>
-        <label className="label">Notes (optional)</label>
-        <input
+        <label htmlFor="components-transaction-form-f8" className="label">Notes (optional)</label>
+        <input id="components-transaction-form-f8"
           className="input"
           placeholder="Optional notes..."
           value={txNotes}

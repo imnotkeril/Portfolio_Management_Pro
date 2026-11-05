@@ -419,3 +419,22 @@ input[type="range"] {
   background: rgb(191 159 251 / 12%);
   color: var(--accent);
 }
+
+/* --- Touch targets on small screens (WCAG 2.5.8) --- */
+@media (max-width: 767px) {
+  .btn,
+  .input,
+  .checkbox-label,
+  .data-table button,
+  .data-table a {
+    min-height: 44px;
+  }
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+  }
+  .data-table button,
+  .data-table a {
+    min-width: 44px;
+  }
+}

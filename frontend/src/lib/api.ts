@@ -90,4 +90,11 @@ export const authApi = {
     }),
   logout: () =>
     fetch("/api/auth/logout", { method: "POST", credentials: "include" }),
+  deleteAccount: (password: string) =>
+    fetch("/api/auth/me", {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    }),
 };

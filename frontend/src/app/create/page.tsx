@@ -832,11 +832,11 @@ export default function CreatePortfolioPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="label">
+              <label htmlFor="app-create-page-f1" className="label">
                 Portfolio Name *
                 <Tip text="Enter a unique name for your portfolio. Must be unique — cannot match existing portfolio names." />
               </label>
-              <input
+              <input id="app-create-page-f1"
                 className="input"
                 placeholder="e.g., Tech Growth Portfolio"
                 value={name}
@@ -844,11 +844,11 @@ export default function CreatePortfolioPage() {
               />
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="app-create-page-f2" className="label">
                 Base Currency
                 <Tip text="The currency for your portfolio. All values and calculations will be in this currency." />
               </label>
-              <select
+              <select id="app-create-page-f2"
                 className="input"
                 value={baseCurrency}
                 onChange={(e) => setBaseCurrency(e.target.value)}
@@ -861,11 +861,11 @@ export default function CreatePortfolioPage() {
               </select>
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="app-create-page-f3" className="label">
                 Description
                 <Tip text="Optional notes about your investment strategy. Helps you remember the purpose of this portfolio." />
               </label>
-              <textarea
+              <textarea id="app-create-page-f3"
                 className="input"
                 placeholder="Optional description of your investment strategy"
                 value={description}
@@ -874,11 +874,11 @@ export default function CreatePortfolioPage() {
               />
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="app-create-page-f4" className="label">
                 Initial Investment ($)
                 <Tip text="Starting capital amount. Used to calculate number of shares for each position. Minimum: $1.00." />
               </label>
-              <input
+              <input id="app-create-page-f4"
                 className="input"
                 type="number"
                 min={1}
@@ -1145,8 +1145,8 @@ export default function CreatePortfolioPage() {
               </div>
 
               <div>
-                <label className="label">Portfolio Assets:</label>
-                <textarea
+                <label htmlFor="app-create-page-f5" className="label">Portfolio Assets:</label>
+                <textarea id="app-create-page-f5"
                   className="input"
                   rows={5}
                   value={textInput}
@@ -1380,11 +1380,11 @@ export default function CreatePortfolioPage() {
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="label">
+                    <label htmlFor="app-create-page-f6" className="label">
                       Ticker *
                       <Tip text="Stock symbol, e.g. AAPL for Apple, MSFT for Microsoft. Use standard ticker symbols." />
                     </label>
-                    <input
+                    <input id="app-create-page-f6"
                       className="input"
                       placeholder="e.g., AAPL"
                       value={manualTicker}
@@ -1395,11 +1395,11 @@ export default function CreatePortfolioPage() {
                     />
                   </div>
                   <div>
-                    <label className="label">
+                    <label htmlFor="app-create-page-f7" className="label">
                       Weight (%)
                       <Tip text="Percentage allocation (will be normalized to sum to 100%). E.g., 30 for 30% of portfolio." />
                     </label>
-                    <input
+                    <input id="app-create-page-f7"
                       className="input"
                       type="number"
                       min={0.1}
@@ -1573,11 +1573,11 @@ export default function CreatePortfolioPage() {
               </Expander>
 
               <div>
-                <label className="label">
+                <label htmlFor="app-create-page-f8" className="label">
                   Choose a template:
                   <Tip text="Select a base strategy to start with. All templates can be customized after selection." />
                 </label>
-                <select
+                <select id="app-create-page-f8"
                   className="input"
                   value={selectedTemplate}
                   onChange={(e) => {
@@ -1630,8 +1630,8 @@ export default function CreatePortfolioPage() {
 
                   {customizeTemplate && (
                     <div>
-                      <label className="label">Modify the template:</label>
-                      <textarea
+                      <label htmlFor="app-create-page-f9" className="label">Modify the template:</label>
+                      <textarea id="app-create-page-f9"
                         className="input"
                         rows={3}
                         value={customTemplateText}
@@ -1780,11 +1780,11 @@ export default function CreatePortfolioPage() {
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
               <div>
-                <label className="label">
+                <label htmlFor="app-create-page-f10" className="label">
                   Planned Cash Allocation: {cashAllocation}%
                   <Tip text="Percentage to intentionally keep in cash. Useful for maintaining liquidity or waiting for better entry points." />
                 </label>
-                <input
+                <input id="app-create-page-f10"
                   type="range"
                   min={0}
                   max={50}
@@ -1870,11 +1870,11 @@ export default function CreatePortfolioPage() {
             {portfolioMode === "transactions" && (
               <div className="mt-3 space-y-3">
                 <div>
-                  <label className="label">
+                  <label htmlFor="app-create-page-f11" className="label">
                     Portfolio inception date
                     <Tip text="Initial BUY/DEPOSIT transactions use this date." />
                   </label>
-                  <input
+                  <input id="app-create-page-f11"
                     type="date"
                     className="input"
                     value={inceptionDate}
@@ -1913,8 +1913,8 @@ export default function CreatePortfolioPage() {
             <p className="text-sm text-white/50 mb-3">
               Periodically return holdings to the target weights defined above.
             </p>
-            <label className="label">Rebalance frequency</label>
-            <select
+            <label htmlFor="app-create-page-f12" className="label">Rebalance frequency</label>
+            <select id="app-create-page-f12"
               className="input max-w-md"
               value={rebalanceInterval}
               onChange={(e) => setRebalanceInterval(e.target.value)}

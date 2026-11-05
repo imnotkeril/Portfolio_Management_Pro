@@ -805,7 +805,7 @@ function OptiNotebookPageContent() {
                 <span>Use asset-level cap policy (ticker-specific maximum weights)</span>
               </label>
               <div className="space-y-2 sm:col-span-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-white/80">
+                <label htmlFor="app-opti-page-f1" className="flex cursor-pointer items-center gap-2 text-sm text-white/80">
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-white/20 accent-[#bf9ffb]"
@@ -814,7 +814,7 @@ function OptiNotebookPageContent() {
                   />
                   Minimum expected return (annualized), %
                 </label>
-                <input
+                <input id="app-opti-page-f1"
                   className="input max-w-[12rem]"
                   type="number"
                   step={0.1}
@@ -825,7 +825,7 @@ function OptiNotebookPageContent() {
               </div>
               {methodSupportsDiversificationLambda(method) ? (
                 <div className="space-y-2 sm:col-span-2">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-white/80">
+                  <label htmlFor="app-opti-page-f2" className="flex cursor-pointer items-center gap-2 text-sm text-white/80">
                     <input
                       type="checkbox"
                       className="h-4 w-4 rounded border-white/20 accent-[#bf9ffb]"
@@ -834,7 +834,7 @@ function OptiNotebookPageContent() {
                     />
                     Diversification penalty (lambda)
                   </label>
-                  <input
+                  <input id="app-opti-page-f2"
                     className="input max-w-[10rem]"
                     type="number"
                     min={0}
@@ -1116,7 +1116,7 @@ function OptiNotebookPageContent() {
                     }
                   />
                   <span className="text-xs text-white/70">
-                    target_return_as_floor (for target-return min-vol and frontier sweeps)
+                    Treat the target return as a minimum (for target-return min-vol and frontier sweeps)
                   </span>
                 </label>
               ) : null}

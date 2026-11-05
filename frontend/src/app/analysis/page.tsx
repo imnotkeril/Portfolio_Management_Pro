@@ -723,13 +723,13 @@ function AnalysisPageContent() {
       <div className="panel p-6 space-y-4">
         <h2 className="text-lg font-semibold text-white">Analysis Parameters <Tip text="Configure the analysis period, portfolio, and comparison benchmark" /></h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><label className="label">Start Date <Tip text={ledgerFirstTx ? `From first transaction (${ledgerFirstTx})` : "Beginning of the analysis period"} /></label><input className="input" type="date" min={ledgerFirstTx ?? undefined} max={endDate} value={startDate} onChange={(e) => setStartDate(clampStartDate(e.target.value, ledgerFirstTx ?? undefined))} /></div>
-          <div><label className="label">End Date <Tip text="End of the analysis period" /></label><input className="input" type="date" min={startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
+          <div><label htmlFor="app-analysis-page-f1" className="label">Start Date <Tip text={ledgerFirstTx ? `From first transaction (${ledgerFirstTx})` : "Beginning of the analysis period"} /></label><input id="app-analysis-page-f1" className="input" type="date" min={ledgerFirstTx ?? undefined} max={endDate} value={startDate} onChange={(e) => setStartDate(clampStartDate(e.target.value, ledgerFirstTx ?? undefined))} /></div>
+          <div><label htmlFor="app-analysis-page-f2" className="label">End Date <Tip text="End of the analysis period" /></label><input id="app-analysis-page-f2" className="input" type="date" min={startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="label">Portfolio <Tip text="Select a portfolio to analyze" /></label>
-            <select className="input" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+            <label htmlFor="app-analysis-page-f3" className="label">Portfolio <Tip text="Select a portfolio to analyze" /></label>
+            <select id="app-analysis-page-f3" className="input" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
               {portfolios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
@@ -746,7 +746,7 @@ function AnalysisPageContent() {
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <div><label className="label">Risk-Free Rate (%) <Tip text="Annual risk-free rate used for Sharpe, Sortino, and other risk-adjusted metrics. Default: US T-bill rate." /></label><input className="input" type="number" min={0} max={15} step={0.01} value={riskFreeRate} onChange={(e) => setRiskFreeRate(Number(e.target.value))} /></div>
+          <div><label htmlFor="app-analysis-page-f4" className="label">Risk-Free Rate (%) <Tip text="Annual risk-free rate used for Sharpe, Sortino, and other risk-adjusted metrics. Default: US T-bill rate." /></label><input id="app-analysis-page-f4" className="input" type="number" min={0} max={15} step={0.01} value={riskFreeRate} onChange={(e) => setRiskFreeRate(Number(e.target.value))} /></div>
           <button className="btn btn-primary h-[46px]" onClick={calculate} disabled={loading || !selectedId}>{loading ? "Calculating..." : "Calculate Metrics"}</button>
           <button className="btn btn-secondary h-[46px]" disabled>Update Prices <Tip text="Price update functionality coming soon" /></button>
         </div>
@@ -2458,8 +2458,8 @@ function AnalysisPageContent() {
                 <div className="panel p-5">
                   <h3 className="text-lg font-semibold text-white mb-3">Detailed Asset Analysis</h3>
                   <div className="mb-3">
-                    <label className="text-sm text-white/50 block mb-1">Select asset for detailed analysis</label>
-                    <select className="bg-[var(--card)] border border-white/10 rounded px-3 py-2 text-white w-full md:w-64" value={curAsset} onChange={(e) => setSelectedAsset(e.target.value)}>
+                    <label htmlFor="app-analysis-page-f5" className="text-sm text-white/50 block mb-1">Select asset for detailed analysis</label>
+                    <select id="app-analysis-page-f5" className="bg-[var(--card)] border border-white/10 rounded px-3 py-2 text-white w-full md:w-64" value={curAsset} onChange={(e) => setSelectedAsset(e.target.value)}>
                       {tickers.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
@@ -2576,7 +2576,7 @@ function AnalysisPageContent() {
             <Expander title="About Reports">
               <div className="space-y-2 text-sm text-white/60">
                 <p><strong className="text-white/80">JSON Export</strong> — Downloads the complete analytics response including all metrics, time series data, and raw calculations.</p>
-                <p><strong className="text-white/80">PDF Reports</strong> — PDF generation with full-page screenshots is available in the Streamlit version. A dedicated report generation feature for the Next.js version is planned.</p>
+                <p><strong className="text-white/80">PDF Reports</strong> — PDF export is not available yet. Use the JSON export above.</p>
               </div>
             </Expander>
           </div>
