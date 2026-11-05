@@ -35,3 +35,4 @@
 - [x] audit/docs - FIX, 5 findings (4 valid, 1 waived) [shadow]
 - [x] audit/release-prep - OWNER, 5 findings (5 valid) [shadow]
 - [ ] BLOCKED on Docker Desktop (daemon hangs, restart denied by permission classifier): run pytest at HEAD, pip-audit, clean build, design gate screenshots 375/768/1440, F-2/F-3 browser checks
+- [x] 2026-11-05 Docker back: pytest 451 passed in API image; fixed 1 test for fail-closed S-23; pyasn1 -> 0.6.5; pip-audit left ecdsa/python-jose waived

@@ -91,7 +91,7 @@ ppft==1.7.8
 prophet==1.5.0
 protobuf==7.36.2
 psycopg2-binary==2.9.13
-pyasn1==0.6.4
+pyasn1==0.6.5
 pycparser==3.12
 pydantic-settings==2.16.1
 pydantic==2.14.1

@@ -72,7 +72,11 @@ def test_production_refuses_short_jwt_secret() -> None:
 def test_production_accepts_32_char_secret() -> None:
     from config.settings import Settings
 
-    assert Settings(environment="Production", jwt_secret="x" * 32).jwt_secret
+    assert Settings(
+        environment="Production",
+        jwt_secret="x" * 32,
+        client_ip_signing_key="k" * 32,
+    ).jwt_secret
 
 
 def test_development_allows_auth_disabled_and_short_secret() -> None:

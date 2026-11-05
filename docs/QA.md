@@ -251,7 +251,7 @@ Verified after the fixes: pytest in the API image **448 passed, 0 skipped**; `ru
 | F-2 | fixed | `e1af502` | The auto-filled price is rounded to cents (at least 0.01) in `transaction-form.tsx`, so `step=0.01` validation passes. tsc/eslint/build clean. No automated or browser re-test of the submit (no frontend test runner). |
 | F-3 | fixed, not verified | `d69385e` | Holdings table wrapped in `overflow-x-auto`. Not re-measured at 375 px in a browser; other elements may still overflow. |
 | F-7 | fixed | `5cb837e` | `requirements-dev.txt` pins black, isort, ruff, mypy and the two type stubs; `prophet.py` optional import carries `# type: ignore[assignment,misc]` (it is the usual optional-dependency pattern, not a real bug). The reported mypy error does not reproduce on the host (Prophet installed) and is gone in the clean image. |
-| S-23 | fixed (fail-closed) | `e833e62`, `b5f1a3c` | Short key refused (`test_production_refuses_short_client_ip_signing_key`, `..._accepts_32_char_...`); since `b5f1a3c` an unset key is refused too (`test_production_refuses_unset_client_ip_signing_key`). Dev does not require it (`test_development_does_not_require_...`). **The `b5f1a3c` tests were written on 2026-11-03 but not run: the Docker daemon was unavailable; rerun before release.** |
+| S-23 | fixed (fail-closed) | `e833e62`, `b5f1a3c` | Short key refused (`test_production_refuses_short_client_ip_signing_key`, `..._accepts_32_char_...`); since `b5f1a3c` an unset key is refused too (`test_production_refuses_unset_client_ip_signing_key`). Dev does not require it (`test_development_does_not_require_...`). Run on 2026-11-05 in the API image: pass. One older test (`test_production_accepts_32_char_secret`) built production Settings without the key and was fixed to pass one. |
 
 ## Acceptance criteria (docs/FINISH_PLAN.md; there is no SPEC.md)
 
@@ -276,3 +276,13 @@ Verified after the fixes: pytest in the API image **448 passed, 0 skipped**; `ru
 **RED stands.** Open in tier A/B: F-5 (no account-deletion endpoint) and the unverified browser fixes F-2 and F-3. No P0/P1 open. Items that need the owner or a live stack: real Stripe checkout and portal E2E (no test keys), F-5 decision.
 
 Read: E:/Main/Dev/coding-brain/process/qa.md, docs/AUDIT_DOCS.md (exit checklists), docs/FINISH_PLAN.md, docs/REVIEW.md (AC table)
+
+
+## Re-run 2026-11-05 (Docker back)
+
+| Check | Result |
+|---|---|
+| pytest in throwaway container (image rebuilt from `Dockerfile.api`, `git archive HEAD` copy, dev deps under `requirements.lock.txt`) | **451 passed, 0 failed, 0 skipped**, core coverage 78.35% (gate 70%). First run: 1 failed (`test_production_accepts_32_char_secret`, no signing key under fail-closed S-23); test fixed, rerun green. Includes `test_llms_txt.py` (3) and `test_production_refuses_unset_client_ip_signing_key`. |
+| `ruff check`, `black --check`, `isort --check-only`, `mypy` (126 files) | clean |
+| `scripts/gen_llms_txt.py --check` | ok |
+| `pip-audit -r requirements.lock.txt` | before: 7 vulns in 3 packages. `pyasn1` 0.6.4 -> **0.6.5** (4 CVEs, fixed in `requirements.lock.txt`), pytest rerun green. Left: `ecdsa` 0.19.2 PYSEC-2026-1325 (Minerva timing on P-256 signing; no fix version; transitive of python-jose, the app never signs with ECDSA) and `python-jose` 3.5.0 PYSEC-2026-4298 (forged HS256 with a public key as secret; not exploitable here: `jwt.decode` passes an explicit `algorithms=[settings.jwt_algorithm]`, the secret is the symmetric `JWT_SECRET`). Both are waived with reason; owner may prefer migrating to PyJWT later. |

@@ -252,3 +252,9 @@ Owner OK needed for the 68 history hits (all benign defaults, listed above). Do 
 7. push в `main`, PR и деплой: только по явному «да» владельца.
 
 Read: E:/Main/Dev/coding-brain/process/release-prep.md, E:/Main/Dev/coding-brain/routers/projects/webapp/saas.md (release-prep row), E:/Main/Dev/coding-brain/known-traps.md, docs/AUDIT_DOCS.md, docs/OWNER_GUIDE.md
+
+
+## 15. Re-run 2026-11-05
+
+- pytest 451 passed / 0 skipped; lint and mypy clean (see QA.md "Re-run 2026-11-05").
+- `pip-audit`: pyasn1 CVEs fixed by the 0.6.5 pin; ecdsa and python-jose advisories waived (no fix version, not reachable: explicit algorithms, symmetric secret).
