@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WMC Portfolio Terminal",
+  title: "WILD MARKET Portfolio Terminal",
   description: "Portfolio Management, Analytics, Risk and Forecasting",
 };
 

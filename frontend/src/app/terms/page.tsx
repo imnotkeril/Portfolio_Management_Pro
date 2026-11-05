@@ -9,7 +9,7 @@ export default function TermsPage() {
     <LegalPage title="Terms of Service" updated="2026-11-05">
       <LegalSection title="The service">
         <p>
-          WMC Portfolio Terminal, operated by [operator name], provides tools
+          WILD MARKET Portfolio Terminal, operated by [operator name], provides tools
           to track portfolios and to analyse, optimise, stress-test and
           forecast them. By creating an account you accept these terms.
         </p>

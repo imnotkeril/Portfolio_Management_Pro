@@ -9,7 +9,7 @@ export default function PrivacyPage() {
     <LegalPage title="Privacy Policy" updated="2026-11-05">
       <LegalSection title="Who we are">
         <p>
-          WMC Portfolio Terminal is operated by [operator name and postal
+          WILD MARKET Portfolio Terminal is operated by [operator name and postal
           address]. Contact for privacy requests: [contact email].
         </p>
       </LegalSection>
