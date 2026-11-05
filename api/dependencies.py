@@ -2,7 +2,7 @@
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from jwt import PyJWTError
 
 from config.settings import settings
 from core.auth.tokens import decode_access_token
@@ -36,7 +36,7 @@ async def get_current_user(
     token = credentials.credentials
     try:
         payload = decode_access_token(token)
-    except JWTError as exc:
+    except PyJWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

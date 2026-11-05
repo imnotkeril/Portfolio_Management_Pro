@@ -333,7 +333,7 @@ Other protections, with tests in `tests/`:
 - **SQLite does not boot** (see [SQLite](#sqlite)).
 - **Rate limiter and login throttle are per process, in memory.** Run one API process and one replica. Several workers or replicas multiply the limits.
 - **Logout does not revoke tokens.** JWTs are stateless and last 24 hours by default. After logout, a copy of the token still works until it expires.
-- **No account deletion endpoint.** Portfolios and transactions can be deleted; the user account cannot.
+- **Account deletion is permanent.** `DELETE /auth/me` (password required) removes the user, portfolios, transactions and subscription row, and cancels the Stripe subscription first. Stripe keeps its own invoice records.
 - **Billing runs in Stripe test mode** until the live Stripe setup in [OWNER_GUIDE.md](OWNER_GUIDE.md) is done.
 
 ## Documentation

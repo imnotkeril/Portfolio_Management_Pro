@@ -8,7 +8,7 @@ from typing import Any
 
 from config.settings import settings
 from core.data_manager.subscription_repository import SubscriptionRepository
-from core.exceptions import BillingNotConfiguredError
+from core.exceptions import BillingError, BillingNotConfiguredError
 from models.subscription import Subscription
 from models.user import User
 from services.billing.plans import (
@@ -141,6 +141,25 @@ class BillingService:
         except Exception as exc:
             logger.warning("Stripe sync failed for %s: %s", user.id, exc)
         return sub
+
+    def cancel_subscription_for_deletion(self, user_id: str) -> None:
+        """Cancel the user's Stripe subscription immediately before account deletion.
+
+        No-op when the user never had one. A subscription Stripe no longer knows
+        counts as cancelled. Any other failure raises ``BillingError`` so the
+        account is not deleted while billing could still run.
+        """
+        sub = self._repo.find_by_user_id(user_id)
+        if sub is None or not sub.stripe_subscription_id:
+            return
+        try:
+            stripe = _stripe_client()
+            stripe.Subscription.cancel(sub.stripe_subscription_id)
+        except Exception as exc:
+            if getattr(exc, "code", None) == "resource_missing":
+                return
+            logger.warning("Stripe cancel failed for %s: %s", user_id, exc)
+            raise BillingError("Could not cancel the subscription") from exc
 
     def get_status(self, user: User) -> dict[str, Any]:
         sub = self.sync_from_stripe(user)

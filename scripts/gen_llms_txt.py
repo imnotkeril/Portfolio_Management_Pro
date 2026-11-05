@@ -24,6 +24,7 @@ OUT = ROOT / "api" / "llms.txt"
 LIMIT_NAMES = {"LOGIN_IP_LIMIT": "20/minute"}
 
 DESCRIPTIONS = {
+    "DELETE /auth/me": "Permanently delete the account with its portfolios and subscription; the Stripe subscription is cancelled first (502 and nothing deleted if that fails). Body: current password; 403 if wrong. Returns 204",
     "POST /analytics/calculate": "Portfolio performance and risk metrics for a date range, optionally against a benchmark or comparison",
     "POST /billing/checkout": "Create a Stripe Checkout session for the Pro plan; returns {url}. 503 if billing is not configured",
     "POST /billing/portal": "Create a Stripe customer-portal session; returns {url}. 503 if billing is not configured",

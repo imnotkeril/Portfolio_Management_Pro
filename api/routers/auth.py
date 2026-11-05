@@ -14,14 +14,24 @@ from api.rate_limit import (
     rate_limit,
     record_login_failure,
 )
-from api.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserOut
+from api.schemas.auth import (
+    DeleteAccountRequest,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserOut,
+)
+from core.auth.constants import SYSTEM_USER_ID
 from core.auth.password import verify_password
 from core.auth.tokens import create_access_token
 from core.data_manager.user_repository import UserRepository
+from core.exceptions import BillingError
 from models.user import User
+from services.billing_service import BillingService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _user_repository = UserRepository()
+_billing = BillingService()
 
 
 @router.post(
@@ -72,6 +82,40 @@ def login_json(payload: LoginRequest, request: Request) -> TokenResponse:
 def me(current_user: User = Depends(get_current_user)) -> User:
     """Return the authenticated user profile."""
     return current_user
+
+
+@router.delete(
+    "/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(rate_limit("5/minute"))],
+)
+def delete_account(
+    payload: DeleteAccountRequest,
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Permanently delete the account, its portfolios and its subscription.
+
+    Requires the account password. The Stripe subscription is cancelled first;
+    if that fails the account is kept so billing never outlives the account.
+    """
+    if current_user.id == SYSTEM_USER_ID:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The system account cannot be deleted",
+        )
+    if not verify_password(payload.password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Incorrect password",
+        )
+    try:
+        _billing.cancel_subscription_for_deletion(current_user.id)
+    except BillingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not cancel the subscription; the account was not deleted",
+        ) from exc
+    _user_repository.delete(current_user.id)
 
 
 def _authenticate(email: str, password: str, ip: str) -> TokenResponse:

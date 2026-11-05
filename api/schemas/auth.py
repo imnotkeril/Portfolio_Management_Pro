@@ -19,6 +19,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class DeleteAccountRequest(BaseModel):
+    """Password confirmation required to delete the account."""
+
+    password: str = Field(..., min_length=1, max_length=128)
+
+
 class TokenResponse(BaseModel):
     """JWT access token response."""
 

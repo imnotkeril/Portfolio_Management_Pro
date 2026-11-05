@@ -45,6 +45,12 @@ Login with JSON body (convenient for frontend). Auth: public. Rate limit: 20/min
 
 - body `LoginRequest` { email: EmailStr, password: str }
 
+### DELETE /auth/me
+
+Permanently delete the account with its portfolios and subscription; the Stripe subscription is cancelled first (502 and nothing deleted if that fails). Body: current password; 403 if wrong. Returns 204. Auth: user. Rate limit: 5/minute.
+
+- body `DeleteAccountRequest` { password: str }
+
 ### GET /auth/me
 
 Return the authenticated user profile. Auth: user.
