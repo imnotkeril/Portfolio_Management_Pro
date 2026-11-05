@@ -612,6 +612,7 @@ export default function PortfoliosPage() {
                   {searchQuery && ` matching "${searchQuery}"`}
                 </div>
 
+                <div className="hidden md:block overflow-x-auto">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -669,6 +670,7 @@ export default function PortfoliosPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               {/* Individual portfolio cards for mobile */}

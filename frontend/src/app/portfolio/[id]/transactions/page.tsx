@@ -99,6 +99,7 @@ export default function PortfolioTransactionsPage() {
       </div>
 
       {transactions.length > 0 ? (
+        <div className="overflow-x-auto">
         <table className="data-table">
           <thead>
             <tr>
@@ -139,6 +140,7 @@ export default function PortfolioTransactionsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       ) : (
         !loading && (
           <div className="alert alert-info">No transactions yet.</div>

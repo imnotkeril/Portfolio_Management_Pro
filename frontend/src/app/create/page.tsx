@@ -977,7 +977,16 @@ export default function CreatePortfolioPage() {
               <div
                 key={value}
                 className={`radio-option ${method === value ? "active" : ""}`}
+                role="radio"
+                aria-checked={method === value}
+                tabIndex={0}
                 onClick={() => setMethod(value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setMethod(value);
+                  }
+                }}
               >
                 <div className="radio-dot">
                   <div className="radio-dot-inner" />
@@ -1806,7 +1815,16 @@ export default function CreatePortfolioPage() {
             <div className="radio-group">
               <div
                 className={`radio-option ${portfolioMode === "buy_hold" ? "active" : ""}`}
+                role="radio"
+                aria-checked={portfolioMode === "buy_hold"}
+                tabIndex={0}
                 onClick={() => setPortfolioMode("buy_hold")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setPortfolioMode("buy_hold");
+                  }
+                }}
               >
                 <div className="radio-dot">
                   <div className="radio-dot-inner" />
@@ -1823,7 +1841,16 @@ export default function CreatePortfolioPage() {
               </div>
               <div
                 className={`radio-option ${portfolioMode === "transactions" ? "active" : ""}`}
+                role="radio"
+                aria-checked={portfolioMode === "transactions"}
+                tabIndex={0}
                 onClick={() => setPortfolioMode("transactions")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setPortfolioMode("transactions");
+                  }
+                }}
               >
                 <div className="radio-dot">
                   <div className="radio-dot-inner" />

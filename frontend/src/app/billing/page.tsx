@@ -139,8 +139,7 @@ function BillingContent() {
 
         {!status?.stripe_configured ? (
           <p className="text-sm text-amber-400/90">
-            Stripe is not configured on the server. Set STRIPE_SECRET_KEY and
-            STRIPE_PRICE_ID_PRO to enable checkout.
+            Billing is not set up yet. Upgrades are unavailable for now; the rest of the app works as usual.
           </p>
         ) : null}
 
@@ -174,10 +173,7 @@ function BillingContent() {
         ) : null}
       </div>
 
-      <p className="text-xs text-white/40">
-        Signed in as {user?.email}. Test locally with{" "}
-        <code className="text-white/60">stripe listen --forward-to localhost:8000/stripe/webhook</code>
-      </p>
+      <p className="text-xs text-white/40">Signed in as {user?.email}.</p>
     </div>
   );
 }
