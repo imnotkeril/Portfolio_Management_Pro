@@ -89,7 +89,7 @@ HEADER = """# WMC Portfolio API
 - Interactive OpenAPI docs are disabled when `ENVIRONMENT=production`; this file is the
   reference there.
 - Plans and prices live in `services/billing/plans.py`; the owner guide is
-  `docs/OWNER_GUIDE.md`.
+  `OWNER_GUIDE.md`.
 
 ## Endpoints
 """

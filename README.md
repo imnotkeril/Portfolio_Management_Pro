@@ -264,7 +264,6 @@ npx tsc --noEmit
 npm run build
 ```
 
-Results of the last full run are in `docs/DOCS_CHECK.md`.
 
 ## Project structure
 
@@ -302,14 +301,14 @@ Portfolio_Management_Pro/
 
 ## Deployment
 
-The production setup, as designed in `docs/RELEASE.md`:
+The production setup:
 
 - **Web:** Vercel, project root `frontend/`. Set the web variables above, with `COOKIE_SECURE=true` and `CLIENT_IP_SIGNING_KEY` equal to the API's.
 - **API:** Hugging Face Spaces with the Docker SDK, using the root `Dockerfile` (port 7860). Runs `alembic upgrade head` on every boot, then Uvicorn with one process. Set `ENVIRONMENT=production`, a strong `JWT_SECRET`, `AUTH_DISABLED=false`, and the Stripe secrets as Space secrets. Keep one replica (see below).
 - **Database:** Supabase Postgres. Use the direct or session connection string with `sslmode=require` in `DATABASE_URL`. Take a dump before deploys that include migrations.
 - **Stripe:** the webhook endpoint is the API host (`https://<api-host>/stripe/webhook`), not the web host. It sends `checkout.session.completed`, `invoice.paid`, `customer.subscription.updated` and `customer.subscription.deleted`.
 
-Deployment status, open owner decisions and the full checklist are in [`docs/RELEASE.md`](docs/RELEASE.md). At the last check (2026-11-02) the Vercel root returned 404 and the Hugging Face `/health` returned 503, so the production URLs are not confirmed healthy.
+Release steps and owner actions are in [OWNER_GUIDE.md](OWNER_GUIDE.md). Verify a deployment with `GET /health` on the API, `/login` on the web app and `GET /llms.txt` on the API.
 
 ## Security
 
@@ -328,7 +327,6 @@ Other protections, with tests in `tests/`:
 - Security headers on every API response (`nosniff`, `X-Frame-Options: DENY`, referrer policy); HSTS in production. The web app sends `nosniff`, `X-Frame-Options`, referrer and permissions policies. The web app does not set a Content-Security-Policy.
 - The BFF proxy forwards only allowlisted paths and never forwards client-sent `Authorization` headers.
 - The session cookie is `HttpOnly` and `SameSite=Lax`. Add `COOKIE_SECURE=true` behind HTTPS.
-- `docs/SECURITY_REVIEW.md` lists findings and their status.
 
 ## Known limitations
 
@@ -336,18 +334,13 @@ Other protections, with tests in `tests/`:
 - **Rate limiter and login throttle are per process, in memory.** Run one API process and one replica. Several workers or replicas multiply the limits.
 - **Logout does not revoke tokens.** JWTs are stateless and last 24 hours by default. After logout, a copy of the token still works until it expires.
 - **No account deletion endpoint.** Portfolios and transactions can be deleted; the user account cannot.
-- **Billing runs in Stripe test mode** until the live setup in `docs/RELEASE.md` is done.
-- Open security items (user enumeration on register, open redirect in the login `from` parameter, missing Origin checks on the BFF) are listed in `docs/SECURITY_REVIEW.md` and `docs/RELEASE.md`.
+- **Billing runs in Stripe test mode** until the live Stripe setup in [OWNER_GUIDE.md](OWNER_GUIDE.md) is done.
 
 ## Documentation
 
 - [USER_GUIDE.md](USER_GUIDE.md): task-oriented guide for the web app.
-- [docs/OWNER_GUIDE.md](docs/OWNER_GUIDE.md): plans and prices, refunds, revenue, key rotation.
-- [docs/STRIPE_WEBHOOK_LOCAL.md](docs/STRIPE_WEBHOOK_LOCAL.md): Stripe CLI webhook forwarding for local development.
-- [docs/RELEASE.md](docs/RELEASE.md): release checklist, environment table per host, Stripe and database steps.
-- [docs/QA.md](docs/QA.md): QA run against a throwaway production-like stack.
-- [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md): security findings and status.
-- [docs/DOCS_CHECK.md](docs/DOCS_CHECK.md): commands in these docs, run and their results.
+- [OWNER_GUIDE.md](OWNER_GUIDE.md): plans and prices, refunds, revenue, key rotation.
+- [STRIPE_WEBHOOK_LOCAL.md](STRIPE_WEBHOOK_LOCAL.md): Stripe CLI webhook forwarding for local development.
 - [frontend/README.md](frontend/README.md): Next.js specifics.
 
 ## Contributing

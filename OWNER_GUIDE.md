@@ -1,7 +1,7 @@
 # Owner guide - Portfolio Management Pro
 
 For the person who runs the product, not the developer. Everything here is checked against
-`services/billing_service.py`, `services/billing/plans.py` and `docs/RELEASE.md`. Live Stripe
+`services/billing_service.py` and `services/billing/plans.py`. Live Stripe
 keys are never given to the agent; every step below is yours to do in the Stripe or hosting
 dashboards.
 
@@ -69,7 +69,6 @@ Endpoint: `https://<hf-api-host>/stripe/webhook` (the API host, not the Vercel U
 error tracking yet (RELEASE.md B4). A failed delivery is retried by Stripe; the app un-marks
 the event on a handler error so the retry is processed.
 
-## 7. Decisions still open for you
+## 7. Before going live
 
-See the list in `docs/RELEASE.md` section 1 and `docs/HANDOFF.md`: Stripe live setup, prod
-URLs health, account deletion endpoint (F-5), tracking of `docs/` in git.
+Stripe live keys and webhook endpoint (section 1), a legal review of the privacy, terms and refund pages, and the same `CLIENT_IP_SIGNING_KEY` on the API and the web host.
