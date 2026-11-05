@@ -20,9 +20,9 @@ Code side: release candidate, but the QA verdict is still **RED** (docs/QA.md, "
 | D2 | The rate limiter is in-process memory (S-04 residual). The HF Space runs one uvicorn process (CMD has no `--workers`), so limits are correct only with exactly one process and one replica. Do not scale to several workers/replicas before moving the limiter to shared storage (Postgres/Redis). The Monte Carlo concurrency semaphore (2) is also per process. | decide / constraint |
 | D3 | Other open P2 in `docs/SECURITY_REVIEW.md`: S-05 user enumeration (register returns 409, login timing 0.18 s vs 0.006 s); S-06 open redirect after login (`from` param); S-07 `/validate-tickers` slow with bogus tickers (retries and sleeps; list capped at 100); S-09 no Origin check on BFF mutations (login CSRF, only `SameSite=Lax`); S-10 cookie `Secure` is opt-in (`COOKIE_SECURE=true` MUST be set on Vercel); S-11 no checkout guard or idempotency, and a double-subscription downgrade case (a double click can double-charge). P3: S-12..S-17 (S-17: `ENVIRONMENT` fails open, a typo such as `prod` means development behaviour; set exactly `production`). Owner decides what to fix before live billing; S-11 is the one to fix before charging real cards. | decide |
 | D4 | `docs/` is gitignored; this file and other docs are force-added. Decide whether to un-ignore. | decide |
-| D5 | README SQLite quick start does not boot (documented). `/llms.txt` is served since `b5f1a3c` (52 operations; test not run yet). Not release blockers. | note |
+| D5 | README SQLite quick start does not boot (documented). `/llms.txt` is served since `b5f1a3c` (52 operations; `test_llms_txt.py` passes, 2026-11-05). Not release blockers. | note |
 
-Test-suite state (final run on 6bf0aeb): 448 passed, 0 skipped, core coverage 78.35%. S-03 remainder and S-18 (970b581, 338748f) were independently re-checked in SECURITY_REVIEW round 2; S-19 (a79dec8) in round 3 by code review plus QA live rate-limit rows (19/19). After `6bf0aeb`, `b5f1a3c` (fail-closed S-23, `/llms.txt`) added tests that have not been run yet.
+Test-suite state (final run on 6bf0aeb): 448 passed, 0 skipped, core coverage 78.35%. S-03 remainder and S-18 (970b581, 338748f) were independently re-checked in SECURITY_REVIEW round 2; S-19 (a79dec8) in round 3 by code review plus QA live rate-limit rows (19/19). After `6bf0aeb`, `b5f1a3c` (fail-closed S-23, `/llms.txt`) added tests; the full suite was rerun on 2026-11-05: 451 passed, 0 skipped (section 15).
 
 ## 2. Environment variable table (names only)
 
@@ -99,7 +99,7 @@ Image: root `Dockerfile` (the HF image), built as `audit-pmp-rel-hf:test` (build
 - [ ] Not verified: register/login against this container (one probe returned 422 for my payload and was not retried); Stripe flows (no keys); Supabase connectivity; HF proxy behaviour; Vercel build.
 - Cleanup: containers, network and image `audit-pmp-rel-*` removed; `docker ps -a --filter name=audit-pmp-rel` is empty.
 
-Not run in this step (required by `process/release-prep.md`, still `[ ]`): `node scripts/secrets-scan.mjs --project . --history`, `pip-audit`, `npm audit --omit=dev`, license check, Lighthouse, clean-clone full build. Last recorded earlier: npm audit 0 vulns, ruff/black/isort/mypy clean, eslint 0 errors, tsc and `next build` OK (docs/STATE.md).
+Status as of the first pass (superseded by sections 13 and 15; only Lighthouse remains not run): `node scripts/secrets-scan.mjs --project . --history`, `pip-audit`, `npm audit --omit=dev`, license check, Lighthouse, clean-clone full build. Last recorded earlier: npm audit 0 vulns, ruff/black/isort/mypy clean, eslint 0 errors, tsc and `next build` OK (docs/STATE.md).
 
 ## 4. HF Spaces and Vercel setup (owner)
 
@@ -237,7 +237,7 @@ Commands run from the repo root; exit codes are real.
 | `node scripts/license-check.mjs --project .` | 2 | no root `package.json`; the Python dependencies are not covered by this script |
 | `npm audit --omit=dev` (frontend) | 0 | found 0 vulnerabilities |
 
-Not run in this session (the Docker daemon would not start): `pip-audit`, clean-clone Docker build and pytest. Last recorded results: 448 passed, 0 skipped, core cov 78.35%, API and web images build (docs/QA.md Resolution, 2026-11-02).
+Superseded by section 15 (Docker was back on 2026-11-05: pytest, pip-audit and clean-clone builds were run). Last recorded results: 448 passed, 0 skipped, core cov 78.35%, API and web images build (docs/QA.md Resolution, 2026-11-02).
 
 Owner OK needed for the 68 history hits (all benign defaults, listed above). Do not add `.secrets-allow` without that OK.
 
@@ -259,3 +259,6 @@ Read: E:/Main/Dev/coding-brain/process/release-prep.md, E:/Main/Dev/coding-brain
 - pytest 451 passed / 0 skipped; lint and mypy clean (see QA.md "Re-run 2026-11-05").
 - `pip-audit`: pyasn1 CVEs fixed by the 0.6.5 pin; ecdsa and python-jose advisories waived (no fix version, not reachable: explicit algorithms, symmetric secret).
 - Clean clone of `chore/audit` at `f613e63` (no `.env`): `docker build --no-cache -f Dockerfile.api` ok; `docker build --no-cache -f frontend/Dockerfile frontend` (runs `next build`) ok.
+- Frontend after the design-gate fixes (`81bd623`, `5bc664a`): `tsc --noEmit` clean, `eslint` 0 errors (18 warnings, unchanged), `docker build -f frontend/Dockerfile` (`next build`) ok.
+- Lighthouse: **not run**. The tool needs `npx` to download a package and the permission system denied it; no waiver from the owner. Owner to run it or waive it.
+- Open for the owner (additions to section 14): (a) accept the waived `ecdsa` PYSEC-2026-1325 and `python-jose` PYSEC-2026-4298 advisories (no fix version; not reachable here, see QA.md) or migrate JWT to PyJWT; (b) the 68 secrets-scan history hits (ENV-* defaults) from section 13.
