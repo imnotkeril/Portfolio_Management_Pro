@@ -36,3 +36,5 @@
 - [x] audit/release-prep - OWNER, 5 findings (5 valid) [shadow]
 - [ ] BLOCKED on Docker Desktop (daemon hangs, restart denied by permission classifier): run pytest at HEAD, pip-audit, clean build, design gate screenshots 375/768/1440, F-2/F-3 browser checks
 - [x] 2026-11-05 Docker back: pytest 451 passed in API image; fixed 1 test for fail-closed S-23; pyasn1 -> 0.6.5; pip-audit left ecdsa/python-jose waived
+- [x] 2026-11-05 design gate: 4 rounds, verdict OK (D-01/02/03/07/08 fixed in 81bd623, 5bc664a, 609b91d); F-2 and F-3 browser-verified; QA RED stands on F-5 only
+- [x] 2026-11-05 audit/qa re-check: OWNER (A-03 F-5, A-04 resolved); audit/release-prep re-check: OWNER (Lighthouse not run, legal pages, advisories waiver, 68 scan hits)

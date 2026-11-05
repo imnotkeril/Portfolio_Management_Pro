@@ -1,0 +1,1534 @@
+{
+ "home@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Home\" 64x38",
+   "A \"Sign in\" 70x38",
+   "A \"Register\" 79x38"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Market Dashboard"
+  ],
+  "url": "http://127.0.0.1:33499/",
+  "console": [
+   "HTTP 401 http://127.0.0.1:33499/api/auth/me",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ "home@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Home\" 64x38",
+   "A \"Sign in\" 70x38",
+   "A \"Register\" 79x38"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Market Dashboard"
+  ],
+  "url": "http://127.0.0.1:33499/",
+  "console": [
+   "HTTP 401 http://127.0.0.1:33499/api/auth/me",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ "home@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Home\" 64x38",
+   "A \"Sign in\" 70x38",
+   "A \"Register\" 79x38"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Market Dashboard"
+  ],
+  "url": "http://127.0.0.1:33499/",
+  "console": [
+   "HTTP 401 http://127.0.0.1:33499/api/auth/me",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "contrast": []
+ },
+ "login@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Home\" 64x38",
+   "A \"Sign in\" 70x38",
+   "A \"Register\" 79x38",
+   "BUTTON \"Sign in\" 261x43",
+   "A \"Register\" 53x18"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Sign in"
+  ],
+  "url": "http://127.0.0.1:33499/login",
+  "console": [
+   "HTTP 401 http://127.0.0.1:33499/api/auth/me",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ "login@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Home\" 64x38",
+   "A \"Sign in\" 70x38",
+   "A \"Register\" 79x38",
+   "BUTTON \"Sign in\" 382x43",
+   "A \"Register\" 53x18"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Sign in"
+  ],
+  "url": "http://127.0.0.1:33499/login",
+  "console": [
+   "HTTP 401 http://127.0.0.1:33499/api/auth/me",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ "login@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Home\" 64x38",
+   "A \"Sign in\" 70x38",
+   "A \"Register\" 79x38",
+   "BUTTON \"Sign in\" 382x43",
+   "A \"Register\" 53x18"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Sign in"
+  ],
+  "url": "http://127.0.0.1:33499/login",
+  "console": [
+   "HTTP 401 http://127.0.0.1:33499/api/auth/me",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "contrast": []
+ },
+ "register@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Home\" 64x38",
+   "A \"Sign in\" 70x38",
+   "A \"Register\" 79x38",
+   "BUTTON \"Register\" 261x43",
+   "A \"Sign in\" 44x18"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Create account"
+  ],
+  "url": "http://127.0.0.1:33499/register",
+  "console": [
+   "HTTP 401 http://127.0.0.1:33499/api/auth/me",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ "register@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Home\" 64x38",
+   "A \"Sign in\" 70x38",
+   "A \"Register\" 79x38",
+   "BUTTON \"Register\" 382x43",
+   "A \"Sign in\" 44x18"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Create account"
+  ],
+  "url": "http://127.0.0.1:33499/register",
+  "console": [
+   "HTTP 401 http://127.0.0.1:33499/api/auth/me",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+ },
+ "register@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Home\" 64x38",
+   "A \"Sign in\" 70x38",
+   "A \"Register\" 79x38",
+   "BUTTON \"Register\" 382x43",
+   "A \"Sign in\" 44x18"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Create account"
+  ],
+  "url": "http://127.0.0.1:33499/register",
+  "console": [
+   "HTTP 401 http://127.0.0.1:33499/api/auth/me",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "contrast": []
+ },
+ "dashboard@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"Portfolio List\" 81x18",
+   "BUTTON \"+ New portfolio\" 142x43",
+   "BUTTON \"Refresh\" 93x43",
+   "A \"Design Audit Portfolio\" 189x23",
+   "A \"Open\" 72x38",
+   "A \"Transactions\" 114x38",
+   "A \"Analyze\" 86x38",
+   "BUTTON \"Delete\" 79x38"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Dashboard"
+  ],
+  "url": "http://127.0.0.1:33499/dashboard",
+  "console": []
+ },
+ "dashboard@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"Portfolio List\" 81x18",
+   "BUTTON \"+ New portfolio\" 142x43",
+   "BUTTON \"Refresh\" 93x43",
+   "A \"Design Audit Portfolio\" 189x23",
+   "A \"Open\" 72x38",
+   "A \"Transactions\" 114x38",
+   "A \"Analyze\" 86x38",
+   "BUTTON \"Delete\" 79x38"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Dashboard"
+  ],
+  "url": "http://127.0.0.1:33499/dashboard",
+  "console": []
+ },
+ "dashboard@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"Portfolio List\" 81x18",
+   "BUTTON \"+ New portfolio\" 142x43",
+   "BUTTON \"Refresh\" 93x43",
+   "A \"Design Audit Portfolio\" 189x23",
+   "A \"Open\" 72x38",
+   "A \"Transactions\" 114x38",
+   "A \"Analyze\" 86x38",
+   "BUTTON \"Delete\" 79x38"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Dashboard"
+  ],
+  "url": "http://127.0.0.1:33499/dashboard",
+  "console": [],
+  "contrast": []
+ },
+ "create@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"Cancel\" 88x43",
+   "BUTTON \"Next Step →\" 125x43"
+  ],
+  "unl": [
+   "INPUT[text] ph=e.g., Tech Growth Po",
+   "SELECT[select-one] ph=",
+   "TEXTAREA[textarea] ph=Optional description",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Create New Portfolio"
+  ],
+  "url": "http://127.0.0.1:33499/create",
+  "console": []
+ },
+ "create@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"Cancel\" 88x43",
+   "BUTTON \"Next Step →\" 125x43"
+  ],
+  "unl": [
+   "INPUT[text] ph=e.g., Tech Growth Po",
+   "SELECT[select-one] ph=",
+   "TEXTAREA[textarea] ph=Optional description",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Create New Portfolio"
+  ],
+  "url": "http://127.0.0.1:33499/create",
+  "console": []
+ },
+ "create@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"Cancel\" 88x43",
+   "BUTTON \"Next Step →\" 125x43"
+  ],
+  "unl": [
+   "INPUT[text] ph=e.g., Tech Growth Po",
+   "SELECT[select-one] ph=",
+   "TEXTAREA[textarea] ph=Optional description",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Create New Portfolio"
+  ],
+  "url": "http://127.0.0.1:33499/create",
+  "console": [],
+  "contrast": [
+   {
+    "color": "rgba(255, 255, 255, 0.4)",
+    "ratio": 3.77,
+    "size": 10,
+    "n": 4,
+    "sample": "?"
+   },
+   {
+    "color": "rgb(17, 17, 17)",
+    "ratio": 2.27,
+    "size": 14,
+    "n": 1,
+    "sample": "Next Step →"
+   }
+  ]
+ },
+ "portfolios@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"+ Create New\" 130x43",
+   "BUTTON \"Refresh\" 93x43",
+   "BUTTON \"Export All ?\" 128x43",
+   "BUTTON \"View\" 92x38",
+   "BUTTON \"Edit\" 92x38",
+   "BUTTON \"Delete\" 92x38"
+  ],
+  "unl": [
+   "INPUT[text] ph=Search by name or de",
+   "SELECT[select-one] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Portfolio Management"
+  ],
+  "url": "http://127.0.0.1:33499/portfolios",
+  "console": []
+ },
+ "portfolios@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"+ Create New\" 130x43",
+   "BUTTON \"Refresh\" 93x43",
+   "BUTTON \"Export All ?\" 128x43",
+   "BUTTON \"View\" 53x30",
+   "BUTTON \"Edit\" 48x30",
+   "BUTTON \"Analyze\" 70x30",
+   "BUTTON \"Delete\" 63x30"
+  ],
+  "unl": [
+   "INPUT[text] ph=Search by name or de",
+   "SELECT[select-one] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Portfolio Management"
+  ],
+  "url": "http://127.0.0.1:33499/portfolios",
+  "console": []
+ },
+ "portfolios@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"+ Create New\" 130x43",
+   "BUTTON \"Refresh\" 93x43",
+   "BUTTON \"Export All ?\" 128x43",
+   "BUTTON \"View\" 53x30",
+   "BUTTON \"Edit\" 48x30",
+   "BUTTON \"Analyze\" 70x30",
+   "BUTTON \"Delete\" 63x30"
+  ],
+  "unl": [
+   "INPUT[text] ph=Search by name or de",
+   "SELECT[select-one] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Portfolio Management"
+  ],
+  "url": "http://127.0.0.1:33499/portfolios",
+  "console": [],
+  "contrast": [
+   {
+    "color": "rgba(255, 255, 255, 0.6)",
+    "ratio": 2.07,
+    "size": 14,
+    "n": 1,
+    "sample": "Export All"
+   },
+   {
+    "color": "rgba(255, 255, 255, 0.4)",
+    "ratio": 1.66,
+    "size": 10,
+    "n": 1,
+    "sample": "?"
+   },
+   {
+    "color": "rgba(255, 255, 255, 0.4)",
+    "ratio": 3.71,
+    "size": 10,
+    "n": 1,
+    "sample": "?"
+   }
+  ]
+ },
+ "analysis@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"None\" 56x30",
+   "BUTTON \"Index ETF\" 81x30",
+   "BUTTON \"Portfolio\" 74x30"
+  ],
+  "unl": [
+   "INPUT[date] ph=",
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Portfolio Analysis"
+  ],
+  "url": "http://127.0.0.1:33499/analysis",
+  "console": []
+ },
+ "analysis@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"None\" 56x30",
+   "BUTTON \"Index ETF\" 81x30",
+   "BUTTON \"Portfolio\" 74x30"
+  ],
+  "unl": [
+   "INPUT[date] ph=",
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Portfolio Analysis"
+  ],
+  "url": "http://127.0.0.1:33499/analysis",
+  "console": []
+ },
+ "analysis@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"None\" 56x30",
+   "BUTTON \"Index ETF\" 81x30",
+   "BUTTON \"Portfolio\" 74x30"
+  ],
+  "unl": [
+   "INPUT[date] ph=",
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Portfolio Analysis"
+  ],
+  "url": "http://127.0.0.1:33499/analysis",
+  "console": [],
+  "contrast": [
+   {
+    "color": "rgba(255, 255, 255, 0.4)",
+    "ratio": 3.77,
+    "size": 10,
+    "n": 6,
+    "sample": "?"
+   },
+   {
+    "color": "rgb(231, 231, 239)",
+    "ratio": 3.31,
+    "size": 14,
+    "n": 1,
+    "sample": "Update Prices"
+   },
+   {
+    "color": "rgba(255, 255, 255, 0.4)",
+    "ratio": 1.67,
+    "size": 10,
+    "n": 1,
+    "sample": "?"
+   }
+  ]
+ },
+ "optimization@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "INPUT[checkbox] 16x16",
+   "INPUT[range] 243x8",
+   "INPUT[checkbox] 16x16",
+   "INPUT[range] 243x8",
+   "INPUT[checkbox] 16x16",
+   "INPUT[range] 243x8",
+   "INPUT[checkbox] 13x16",
+   "INPUT[checkbox] 14x16",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 13x16",
+   "BUTTON \"Reset To Method Default\" 157x26",
+   "INPUT[checkbox] 13x13",
+   "BUTTON \"Run Optimization\" 155x43"
+  ],
+  "unl": [
+   "INPUT[range] ph=",
+   "INPUT[range] ph=",
+   "INPUT[range] ph=",
+   "INPUT[number] ph=",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Portfolio Optimization"
+  ],
+  "url": "http://127.0.0.1:33499/optimization",
+  "console": []
+ },
+ "optimization@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "INPUT[checkbox] 16x16",
+   "INPUT[range] 310x8",
+   "INPUT[checkbox] 16x16",
+   "INPUT[range] 310x8",
+   "INPUT[checkbox] 16x16",
+   "INPUT[range] 310x8",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 16x16",
+   "BUTTON \"Reset To Method Default\" 157x26",
+   "INPUT[checkbox] 13x13",
+   "BUTTON \"Run Optimization\" 155x43"
+  ],
+  "unl": [
+   "INPUT[range] ph=",
+   "INPUT[range] ph=",
+   "INPUT[range] ph=",
+   "INPUT[number] ph=",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Portfolio Optimization"
+  ],
+  "url": "http://127.0.0.1:33499/optimization",
+  "console": []
+ },
+ "optimization@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "INPUT[checkbox] 16x16",
+   "INPUT[range] 526x8",
+   "INPUT[checkbox] 16x16",
+   "INPUT[range] 526x8",
+   "INPUT[checkbox] 16x16",
+   "INPUT[range] 526x8",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 16x16",
+   "INPUT[checkbox] 16x16",
+   "BUTTON \"Reset To Method Default\" 157x26",
+   "INPUT[checkbox] 13x13",
+   "BUTTON \"Run Optimization\" 155x43"
+  ],
+  "unl": [
+   "INPUT[range] ph=",
+   "INPUT[range] ph=",
+   "INPUT[range] ph=",
+   "INPUT[number] ph=",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Portfolio Optimization"
+  ],
+  "url": "http://127.0.0.1:33499/optimization",
+  "console": [],
+  "contrast": []
+ },
+ "risk@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"VaR Analysis\" 116x38",
+   "BUTTON \"Monte Carlo\" 112x38",
+   "BUTTON \"Historical Scenarios\" 161x38",
+   "BUTTON \"Custom Scenario\" 144x38",
+   "BUTTON \"Scenario Chain\" 131x38",
+   "INPUT[range] 277x16",
+   "BUTTON \"Calculate VaR\" 134x43"
+  ],
+  "unl": [
+   "INPUT[date] ph=",
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "INPUT[range] ph=",
+   "INPUT[number] ph=",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Risk Analysis"
+  ],
+  "url": "http://127.0.0.1:33499/risk",
+  "console": []
+ },
+ "risk@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"VaR Analysis\" 116x38",
+   "BUTTON \"Monte Carlo\" 112x38",
+   "BUTTON \"Historical Scenarios\" 161x38",
+   "BUTTON \"Custom Scenario\" 144x38",
+   "BUTTON \"Scenario Chain\" 131x38",
+   "INPUT[range] 327x16",
+   "BUTTON \"Calculate VaR\" 134x43"
+  ],
+  "unl": [
+   "INPUT[date] ph=",
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "INPUT[range] ph=",
+   "INPUT[number] ph=",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Risk Analysis"
+  ],
+  "url": "http://127.0.0.1:33499/risk",
+  "console": []
+ },
+ "risk@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"VaR Analysis\" 116x38",
+   "BUTTON \"Monte Carlo\" 112x38",
+   "BUTTON \"Historical Scenarios\" 161x38",
+   "BUTTON \"Custom Scenario\" 144x38",
+   "BUTTON \"Scenario Chain\" 131x38",
+   "INPUT[range] 543x16",
+   "BUTTON \"Calculate VaR\" 134x43"
+  ],
+  "unl": [
+   "INPUT[date] ph=",
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "INPUT[range] ph=",
+   "INPUT[number] ph=",
+   "INPUT[number] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Risk Analysis"
+  ],
+  "url": "http://127.0.0.1:33499/risk",
+  "console": [],
+  "contrast": []
+ },
+ "forecasting@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"Single Asset\" 114x38",
+   "BUTTON \"Portfolio\" 88x38",
+   "INPUT[checkbox] 13x13",
+   "BUTTON \"Classical\" 84x34",
+   "BUTTON \"Machine Learning\" 140x34",
+   "BUTTON \"Deep Learning\" 119x34",
+   "BUTTON \"Simple\" 70x34",
+   "INPUT[checkbox] 13x13",
+   "INPUT[checkbox] 13x13",
+   "INPUT[checkbox] 13x13",
+   "INPUT[checkbox] 13x13",
+   "BUTTON \"Run forecasts\" 277x43"
+  ],
+  "unl": [
+   "INPUT[text] ph=",
+   "INPUT[date] ph=",
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "SELECT[select-one] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Price & Returns Forecasting"
+  ],
+  "url": "http://127.0.0.1:33499/forecasting",
+  "console": []
+ },
+ "forecasting@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"Single Asset\" 114x38",
+   "BUTTON \"Portfolio\" 88x38",
+   "INPUT[checkbox] 13x13",
+   "BUTTON \"Classical\" 84x34",
+   "BUTTON \"Machine Learning\" 140x34",
+   "BUTTON \"Deep Learning\" 119x34",
+   "BUTTON \"Simple\" 70x34",
+   "INPUT[checkbox] 13x13",
+   "INPUT[checkbox] 13x13",
+   "INPUT[checkbox] 13x13",
+   "INPUT[checkbox] 13x13",
+   "BUTTON \"Run forecasts\" 133x43"
+  ],
+  "unl": [
+   "INPUT[text] ph=",
+   "INPUT[date] ph=",
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "SELECT[select-one] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Price & Returns Forecasting"
+  ],
+  "url": "http://127.0.0.1:33499/forecasting",
+  "console": []
+ },
+ "forecasting@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "BUTTON \"Single Asset\" 114x38",
+   "BUTTON \"Portfolio\" 88x38",
+   "INPUT[checkbox] 13x13",
+   "BUTTON \"Classical\" 84x34",
+   "BUTTON \"Machine Learning\" 140x34",
+   "BUTTON \"Deep Learning\" 119x34",
+   "BUTTON \"Simple\" 70x34",
+   "INPUT[checkbox] 13x13",
+   "INPUT[checkbox] 13x13",
+   "INPUT[checkbox] 13x13",
+   "INPUT[checkbox] 13x13",
+   "BUTTON \"Run forecasts\" 133x43"
+  ],
+  "unl": [
+   "INPUT[text] ph=",
+   "INPUT[date] ph=",
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "SELECT[select-one] ph="
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Price & Returns Forecasting"
+  ],
+  "url": "http://127.0.0.1:33499/forecasting",
+  "console": [],
+  "contrast": []
+ },
+ "billing@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Billing"
+  ],
+  "url": "http://127.0.0.1:33499/billing",
+  "console": []
+ },
+ "billing@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Billing"
+  ],
+  "url": "http://127.0.0.1:33499/billing",
+  "console": []
+ },
+ "billing@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Billing"
+  ],
+  "url": "http://127.0.0.1:33499/billing",
+  "console": [],
+  "contrast": []
+ },
+ "settings@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"Billing & plan\" 127x43",
+   "BUTTON \"Sign out\" 97x43"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Settings"
+  ],
+  "url": "http://127.0.0.1:33499/settings",
+  "console": []
+ },
+ "settings@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"Billing & plan\" 127x43",
+   "BUTTON \"Sign out\" 97x43"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Settings"
+  ],
+  "url": "http://127.0.0.1:33499/settings",
+  "console": []
+ },
+ "settings@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"Billing & plan\" 127x43",
+   "BUTTON \"Sign out\" 97x43"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Settings"
+  ],
+  "url": "http://127.0.0.1:33499/settings",
+  "console": [],
+  "contrast": []
+ },
+ "portfolio-overview@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"← Dashboard\" 75x16",
+   "A \"Overview\" 88x35",
+   "A \"Transactions\" 109x35",
+   "A \"Analysis\" 82x35",
+   "A \"Risk\" 58x35",
+   "A \"Optimization\" 109x35",
+   "A \"Forecasting\" 103x35"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Design Audit Portfolio"
+  ],
+  "url": "http://127.0.0.1:33499/portfolio/7fcf5c18-6e36-45eb-af6b-31c599e6823e",
+  "console": []
+ },
+ "portfolio-overview@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"← Dashboard\" 75x16",
+   "A \"Overview\" 88x35",
+   "A \"Transactions\" 109x35",
+   "A \"Analysis\" 82x35",
+   "A \"Risk\" 58x35",
+   "A \"Optimization\" 109x35",
+   "A \"Forecasting\" 103x35"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Design Audit Portfolio"
+  ],
+  "url": "http://127.0.0.1:33499/portfolio/7fcf5c18-6e36-45eb-af6b-31c599e6823e",
+  "console": []
+ },
+ "portfolio-overview@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"← Dashboard\" 75x16",
+   "A \"Overview\" 88x35",
+   "A \"Transactions\" 109x35",
+   "A \"Analysis\" 82x35",
+   "A \"Risk\" 58x35",
+   "A \"Optimization\" 109x35",
+   "A \"Forecasting\" 103x35"
+  ],
+  "unl": [],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Design Audit Portfolio"
+  ],
+  "url": "http://127.0.0.1:33499/portfolio/7fcf5c18-6e36-45eb-af6b-31c599e6823e",
+  "console": [],
+  "contrast": []
+ },
+ "portfolio-transactions@375": {
+  "cw": 375,
+  "sw": 375,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"← Dashboard\" 75x16",
+   "A \"Overview\" 88x35",
+   "A \"Transactions\" 109x35",
+   "A \"Analysis\" 82x35",
+   "A \"Risk\" 58x35",
+   "A \"Optimization\" 109x35",
+   "A \"Forecasting\" 103x35",
+   "BUTTON \"Add Transaction\" 148x43",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26"
+  ],
+  "unl": [
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "INPUT[text] ph=AAPL",
+   "INPUT[number] ph=",
+   "INPUT[number] ph=",
+   "INPUT[number] ph=",
+   "INPUT[text] ph=Optional notes..."
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Design Audit Portfolio"
+  ],
+  "url": "http://127.0.0.1:33499/portfolio/7fcf5c18-6e36-45eb-af6b-31c599e6823e/transactions",
+  "console": []
+ },
+ "portfolio-transactions@768": {
+  "cw": 768,
+  "sw": 768,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"← Dashboard\" 75x16",
+   "A \"Overview\" 88x35",
+   "A \"Transactions\" 109x35",
+   "A \"Analysis\" 82x35",
+   "A \"Risk\" 58x35",
+   "A \"Optimization\" 109x35",
+   "A \"Forecasting\" 103x35",
+   "BUTTON \"Add Transaction\" 148x43",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26"
+  ],
+  "unl": [
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "INPUT[text] ph=AAPL",
+   "INPUT[number] ph=",
+   "INPUT[number] ph=",
+   "INPUT[number] ph=",
+   "INPUT[text] ph=Optional notes..."
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Design Audit Portfolio"
+  ],
+  "url": "http://127.0.0.1:33499/portfolio/7fcf5c18-6e36-45eb-af6b-31c599e6823e/transactions",
+  "console": []
+ },
+ "portfolio-transactions@1440": {
+  "cw": 1440,
+  "sw": 1440,
+  "overflow": false,
+  "over": [],
+  "small": [
+   "A \"WILD MARKET\" 179x28",
+   "A \"Dashboard\" 96x38",
+   "A \"Portfolio List\" 107x38",
+   "A \"Create\" 69x38",
+   "A \"Analysis\" 79x38",
+   "A \"Optimization\" 107x38",
+   "A \"Risk\" 54x38",
+   "A \"Forecasting\" 101x38",
+   "A \"Billing\" 66x38",
+   "A \"Settings\" 79x38",
+   "BUTTON \"Sign out\" 79x38",
+   "A \"← Dashboard\" 75x16",
+   "A \"Overview\" 88x35",
+   "A \"Transactions\" 109x35",
+   "A \"Analysis\" 82x35",
+   "A \"Risk\" 58x35",
+   "A \"Optimization\" 109x35",
+   "A \"Forecasting\" 103x35",
+   "BUTTON \"Add Transaction\" 148x43",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26",
+   "BUTTON \"Delete\" 55x26"
+  ],
+  "unl": [
+   "INPUT[date] ph=",
+   "SELECT[select-one] ph=",
+   "INPUT[text] ph=AAPL",
+   "INPUT[number] ph=",
+   "INPUT[number] ph=",
+   "INPUT[number] ph=",
+   "INPUT[text] ph=Optional notes..."
+  ],
+  "divclick": 0,
+  "imgs_no_alt": 0,
+  "h1": [
+   "Design Audit Portfolio"
+  ],
+  "url": "http://127.0.0.1:33499/portfolio/7fcf5c18-6e36-45eb-af6b-31c599e6823e/transactions",
+  "console": [],
+  "contrast": [
+   {
+    "color": "rgba(255, 255, 255, 0.4)",
+    "ratio": 3.77,
+    "size": 10,
+    "n": 2,
+    "sample": "?"
+   },
+   {
+    "color": "rgb(17, 17, 17)",
+    "ratio": 2.27,
+    "size": 14,
+    "n": 1,
+    "sample": "Add Transaction"
+   }
+  ]
+ }
+}

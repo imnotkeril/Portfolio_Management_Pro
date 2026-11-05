@@ -262,3 +262,4 @@ Read: E:/Main/Dev/coding-brain/process/release-prep.md, E:/Main/Dev/coding-brain
 - Frontend after the design-gate fixes (`81bd623`, `5bc664a`): `tsc --noEmit` clean, `eslint` 0 errors (18 warnings, unchanged), `docker build -f frontend/Dockerfile` (`next build`) ok.
 - Lighthouse: **not run**. The tool needs `npx` to download a package and the permission system denied it; no waiver from the owner. Owner to run it or waive it.
 - Open for the owner (additions to section 14): (a) accept the waived `ecdsa` PYSEC-2026-1325 and `python-jose` PYSEC-2026-4298 advisories (no fix version; not reachable here, see QA.md) or migrate JWT to PyJWT; (b) the 68 secrets-scan history hits (ENV-* defaults) from section 13.
+- Clean-clone of `chore/audit` at `609b91d`: both images build with `--no-cache` (supersedes the `f613e63` line above). Design gate OK after 4 rounds (docs/review/design.md); `tsc` clean, `eslint` 0 errors.

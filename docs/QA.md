@@ -60,8 +60,8 @@ The only test change I made: `tests/integration/test_request_size_limits.py` (co
 | # | Sev | Area | Status | Detail / repro |
 |---|---|---|---|---|
 | F-1 | P2 | authz (tier A) | **OPEN** | `POST /portfolios/{id}/ledger/maintain` with another user's (or unknown) portfolio id returns **500** `Internal Server Error` instead of 404 (every other 21 portfolio endpoints return 404). No data leaks and nothing changes (verified: A's portfolio, positions and transactions identical afterwards), but it is an unhandled exception on an authorization path. Repro: user B calls it with A's id (`IDOR-1`). Fix: `_verify_portfolio_access` / map `PortfolioNotFoundError` before the unguarded `get_portfolio` in `maintain_portfolio_ledger` (api/main.py). Regression test belongs in `tests/integration/test_user_isolation.py` (expect 404); not added because it would turn the suite red before the fix. |
-| F-2 | P2 | frontend (critical flow) | **OPEN** | Transactions page, BUY/SELL: the auto-filled historical price is a raw float (`279.8399963378906`) while the input has `step=0.01`, so the browser's native validation fails (`checkValidity() == false`, message "nearest valid values 279.83 and 279.84") and **the Add Transaction click silently does nothing** (0 requests, table unchanged). Typing the price by hand works. Fix: round the loaded price to 2 decimals or use `step="any"` in `frontend/src/components/transaction-form.tsx`. Evidence: `BUGCHECK` lines in the E2E log. |
-| F-3 | P3 | frontend | OPEN | Portfolio overview has horizontal overflow at 375 px (`scrollWidth > clientWidth`); 768 and 1440 are fine. |
+| F-2 | P2 | frontend (critical flow) | fixed, browser-verified 2026-11-05 | Transactions page, BUY/SELL: the auto-filled historical price is a raw float (`279.8399963378906`) while the input has `step=0.01`, so the browser's native validation fails (`checkValidity() == false`, message "nearest valid values 279.83 and 279.84") and **the Add Transaction click silently does nothing** (0 requests, table unchanged). Typing the price by hand works. Fix: round the loaded price to 2 decimals or use `step="any"` in `frontend/src/components/transaction-form.tsx`. Evidence: `BUGCHECK` lines in the E2E log. |
+| F-3 | P3 | frontend | fixed, browser-verified 2026-11-05 | Portfolio overview has horizontal overflow at 375 px (`scrollWidth > clientWidth`); 768 and 1440 are fine. |
 | F-4 | P3 | frontend | OPEN | After sign-out the already-mounted pages keep prefetching protected links; `/login?from=...&_rsc=...` returns 404 and Chrome logs console errors. Harmless (login page itself works, protected pages redirect to `/login?from=`), noise only. |
 | F-5 | gap | compliance | OPEN (owner decision) | No account-deletion endpoint (openapi has 52 operations, no `DELETE /auth/*`/users). Portfolio and transaction deletion work and cascade (DEL-1..5). The legal-compliance qa insert (delete-request path end to end) cannot be executed. |
 | F-6 | accepted | session | documented | JWT is stateless (24 h): after BFF logout the cookie is cleared in the browser but a copy of the old token still works (`GET /api/proxy/portfolios` with the old cookie -> 200). The auth-module "old cookie rejected after logout" check fails by design; mitigations are short TTL or a denylist. Not a regression. |
@@ -273,7 +273,7 @@ Verified after the fixes: pytest in the API image **448 passed, 0 skipped**; `ru
 
 ## Verdict after the Resolution (restated)
 
-**RED stands.** Open in tier A/B: F-5 (no account-deletion endpoint) and the unverified browser fixes F-2 and F-3. No P0/P1 open. Items that need the owner or a live stack: real Stripe checkout and portal E2E (no test keys), F-5 decision.
+**RED stands, now on F-5 alone** (no account-deletion endpoint; owner decision). F-2 and F-3 were verified in the browser on 2026-11-05 (see "Browser verification" below). No P0/P1 open. Items that need the owner or a live stack: real Stripe checkout and portal E2E (no test keys), F-5 decision.
 
 Read: E:/Main/Dev/coding-brain/process/qa.md, docs/AUDIT_DOCS.md (exit checklists), docs/FINISH_PLAN.md, docs/REVIEW.md (AC table)
 
@@ -286,3 +286,17 @@ Read: E:/Main/Dev/coding-brain/process/qa.md, docs/AUDIT_DOCS.md (exit checklist
 | `ruff check`, `black --check`, `isort --check-only`, `mypy` (126 files) | clean |
 | `scripts/gen_llms_txt.py --check` | ok |
 | `pip-audit -r requirements.lock.txt` | before: 7 vulns in 3 packages. `pyasn1` 0.6.4 -> **0.6.5** (4 CVEs, fixed in `requirements.lock.txt`), pytest rerun green. Left: `ecdsa` 0.19.2 PYSEC-2026-1325 (Minerva timing on P-256 signing; no fix version; transitive of python-jose, the app never signs with ECDSA) and `python-jose` 3.5.0 PYSEC-2026-4298 (forged HS256 with a public key as secret; not exploitable here: `jwt.decode` passes an explicit `algorithms=[settings.jwt_algorithm]`, the secret is the symmetric `JWT_SECRET`). Both are waived with reason; owner may prefer migrating to PyJWT later. |
+
+## Browser verification 2026-11-05 (production web image, installed Chrome via Python Playwright; Playwright MCP was not available)
+
+Stack: throwaway `audit-pmp-qa-*` containers (postgres, API in production mode with the signing key, web image rebuilt per fix); test account local only. Fakestripe did not start (harness has no `__main__`), so no Stripe flows were exercised here.
+
+| Check | Result |
+|---|---|
+| F-2: BUY GOOGL x3 without typing a price | price auto-filled 168.24, `checkValidity()` true, `POST .../transactions` 200, table 3 -> 4 rows. Screenshots `docs/design/flow/f2-*`. **pass** |
+| F-3: portfolio overview at 375 | `scrollWidth` 375 == `clientWidth`; table scrolls in its own box. **pass** |
+| Overflow sweep, 14 pages x 375/768/1440 (design gate round 4, commit `609b91d`) | all 42 combinations pass `scrollWidth == clientWidth` |
+| Console errors | 0 on signed-in pages; 2 per anonymous load (401 `/api/auth/me`, design finding D-12, P3) |
+
+Design gate (`docs/review/design.md`, 4 rounds): verdict OK, P0 0, P1 0; fixed D-01 (transactions table overflow), D-02 (portfolios list), D-03 (create wizard keyboard), D-07 (hidden tooltips widen pages), D-08 (operator text on billing page). Open: P2 D-04 (mobile nav 5 rows), D-05 (touch targets < 44 px), D-06 (labels not linked to inputs); P3 x10.
+Frontend after the fixes: `tsc --noEmit` clean, `eslint` 0 errors (18 warnings), clean-clone `docker build` of both images at `609b91d` ok.

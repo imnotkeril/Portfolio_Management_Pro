@@ -41,3 +41,55 @@ Upstream QA verdict is RED (F-5 account deletion is an owner decision) while REL
 | A-05 | valid | orchestrator | fixed: llms.txt noted as served |
 
 Read: E:/Main/Dev/coding-brain/rules/audit.md, E:/Main/Dev/coding-brain/process/release-prep.md, E:/Main/Dev/coding-brain/routers/projects/webapp/saas.md, docs/RELEASE.md, docs/QA.md, docs/REVIEW.md, CHANGELOG.md, frontend/package.json, pyproject.toml, api/main.py (grep), frontend/src/app (listing)
+
+## Re-check 2026-11-05
+mode: shadow
+author-model: sonnet · auditor-model: opus
+
+### Verdict
+OWNER
+The owner OK for the 68 secrets-scan history hits and the F-5 decision are still open, and QA is RED. The clean build predates 81bd623, Lighthouse has not been run or waived, and several lines in sections 1, 3 and 13 contradict section 15.
+
+### Status of earlier findings
+| id | status | evidence |
+|---|---|---|
+| A-01 | resolved | docs/RELEASE.md:8 "the QA verdict is still **RED**" |
+| A-02 | partly resolved | pytest, pip-audit and clean-clone builds are now recorded (docs/RELEASE.md:259-261), but the clean build is at f613e63, before the frontend commit 81bd623 (see A-06) |
+| A-03 | resolved as text; item open (owner) | docs/RELEASE.md:219 "has no privacy, terms or refund route, so there is nothing to link yet" |
+| A-04 | resolved | docs/RELEASE.md:223 "root `CHANGELOG.md` exists"; CHANGELOG.md has an Unreleased section |
+| A-05 | resolved | docs/RELEASE.md:23 "`/llms.txt` is served since `b5f1a3c`" (its 'test not run yet' is now stale, see A-08) |
+
+### Checklist
+| # | Item | Result | Evidence |
+|---|---|---|---|
+| 1 | All checklist items ticked or explicitly waived by the user in chat | FAIL | docs/RELEASE.md:102 "Lighthouse, clean-clone full build"; Lighthouse has no run and no user waiver (see A-07). Owner-only items (sections 4-7, 9) are legitimately open. |
+| 2 | secrets-scan --history exit 0 and license-check exit 0, or each hit documented with the user's OK | FAIL (owner) | docs/RELEASE.md:242 "Owner OK needed for the 68 history hits"; no owner OK in docs/STATE.md |
+| 3 | Final clean-install production build + tests green, pasted | FAIL | docs/RELEASE.md:261 (clean clone at f613e63); HEAD is 81bd623 with frontend changes after it (see A-06) |
+| 4 | git status clean; .env* untracked; CHANGELOG and version consistent | PASS | auditor run: git status --short empty, git ls-files shows only .env.example; docs/RELEASE.md:223 |
+| 5 | Owner-only list in Russian | PASS | docs/RELEASE.md:244 "## 14. Owner-only actions (Russian summary)" |
+| 6 | Audit done: checks file, Dispositions, STATE audit/release-prep | PASS | Disposition rows A-01..A-05 above; docs/STATE.md:36 "audit/release-prep - OWNER, 5 findings (5 valid) [shadow]" |
+
+### Findings
+- A-06 | P1 | source: checklist:3 | at: docs/RELEASE.md:261 | quote: "Clean clone of `chore/audit` at `f613e63` (no `.env`)" | scenario: commit 81bd623 (2026-11-05 14:02, after f613e63 at 13:47) changed four frontend pages incl. +27 lines in create/page.tsx; the release candidate at HEAD has no clean-install build, so a build break would first appear on Vercel | fix: repeat the clean-clone frontend/Dockerfile build (and tsc) at HEAD and record the commit
+- A-07 | P1 | source: checklist:1 | at: docs/RELEASE.md:102 | quote: "Lighthouse, clean-clone full build" | scenario: process release-prep step 6 requires Lighthouse scores on the production build; none are recorded and no user waiver is cited, so the perf/a11y item is neither ticked nor waived and the checklist cannot close | fix: run Lighthouse on the production web image and paste the scores, or cite the owner's waiver
+- A-08 | P2 | source: step:release-prep | at: docs/RELEASE.md:25 | quote: "added tests that have not been run yet" | scenario: section 1 (also line 23 and line 240 'Not run in this session') contradicts section 15 (451 passed, pip-audit run); the owner reading the blockers first sees an unrun suite | fix: update lines 23, 25, 102 and 240 to point to section 15
+- A-09 | P2 | source: step:release-prep | at: docs/RELEASE.md:260 | quote: "ecdsa and python-jose advisories waived (no fix version, not reachable: explicit algorithms, symmetric secret)" | scenario: process release-prep step 2 requires the user's OK to document an audit hit as a false positive; this waiver is the agent's and section 14 item 6 does not ask the owner about it, so the owner never decides on shipping two known advisories | fix: add the two advisories to the owner decisions in section 14
+
+### Notes (non-blocking)
+- N-06 | opinion | at: docs/RELEASE.md:3 | The header date 2026-11-01 is older than sections 13 and 15; a 'last updated' line would help.
+- N-07 | opinion | riskiest assumption: HF Spaces runs exactly one uvicorn process with the same CLIENT_IP_SIGNING_KEY as Vercel (D1/D2); still not observed live (repeat of N-04).
+
+### Disposition (re-check)
+| id | verdict | by | note |
+|---|---|---|---|
+| A-01 | valid (resolved) | orchestrator | historical, fixed in 18713cd/ccd19d8 |
+| A-02 | valid (resolved) | orchestrator | clean-clone rebuilt at HEAD `609b91d`, both images ok (RELEASE.md section 15) |
+| A-03 | valid (open, owner) | orchestrator | legal pages need owner texts |
+| A-04 | valid (resolved) | orchestrator | historical |
+| A-05 | valid (resolved) | orchestrator | historical |
+| A-06 | valid (resolved) | orchestrator | same as A-02 |
+| A-07 | valid (open, owner) | orchestrator | Lighthouse not run: `npx` download denied by the permission system; owner runs it or waives it |
+| A-08 | valid (resolved) | orchestrator | stale lines rewritten in c9c39c9 |
+| A-09 | valid (open, owner) | orchestrator | ecdsa / python-jose advisories listed as owner items in RELEASE.md section 15 |
+
+Read (re-check): E:/Main/Dev/coding-brain/rules/audit.md, E:/Main/Dev/coding-brain/process/release-prep.md, docs/RELEASE.md, docs/QA.md, docs/checks/release-prep.md, docs/STATE.md, CHANGELOG.md (head), core/auth/tokens.py, requirements.lock.txt (grep), git status / git ls-files / git log / git show --stat f613e63 332fa3d 81bd623
