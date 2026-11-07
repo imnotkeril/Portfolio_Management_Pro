@@ -21,6 +21,7 @@ from services.ib_commission import estimate_ib_commission
 from services.ledger_portfolio_series import (
     LedgerPortfolioSeriesBuilder,
     first_transaction_date,
+    time_weighted_nav,
 )
 from services.performance_attribution import PerformanceAttributionService
 from services.portfolio_service import PortfolioService
@@ -161,6 +162,7 @@ class AnalyticsService:
                     self._fetch_portfolio_prices,
                 )
             )
+            portfolio_values = time_weighted_nav(portfolio_values, portfolio_returns)
             analysis_meta["effective_start_date"] = effective_start.isoformat()
             positions = portfolio.get_all_positions()
             logger.info(

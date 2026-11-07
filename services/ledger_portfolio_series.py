@@ -34,6 +34,44 @@ def first_transaction_date(transactions: list[Transaction]) -> date | None:
     return min(tx.transaction_date for tx in transactions)
 
 
+def external_flows_by_day(
+    transactions: list[Transaction], index: pd.Index
+) -> pd.Series:
+    """Net DEPOSIT minus WITHDRAWAL per trading day of ``index``.
+
+    A flow dated on a non-trading day lands on the next trading day, matching the
+    replay in ``build_values``. Flows before the first day are already in the
+    opening value; flows after the last day are ignored.
+    """
+    days = pd.DatetimeIndex(pd.to_datetime(index)).normalize()
+    flows = pd.Series(0.0, index=index)
+    for tx in transactions:
+        if tx.transaction_type == "DEPOSIT":
+            amount = tx.amount
+        elif tx.transaction_type == "WITHDRAWAL":
+            amount = -tx.amount
+        else:
+            continue
+        pos = int(days.searchsorted(pd.Timestamp(tx.transaction_date)))
+        if pos == 0 or pos >= len(days):
+            continue
+        flows.iloc[pos] += amount
+    return flows
+
+
+def time_weighted_nav(values: pd.Series, returns: pd.Series) -> pd.Series:
+    """Value path that follows ``returns``, starting at the first market value.
+
+    Market value includes deposits and withdrawals, so total return, CAGR and
+    period returns taken from it would count a deposit as profit. This series
+    compounds the flow-adjusted returns instead.
+    """
+    if values.empty or returns.empty:
+        return values
+    nav = float(values.iloc[0]) * (1.0 + returns).cumprod()
+    return pd.concat([values.iloc[:1], nav])
+
+
 class LedgerPortfolioSeriesBuilder:
     """Replay transactions on each business day and mark-to-market holdings + cash."""
 
@@ -122,7 +160,12 @@ class LedgerPortfolioSeriesBuilder:
         if len(values) < 2:
             return pd.Series(dtype=float), values, effective_start
 
-        returns = values.pct_change().dropna()
+        flows = external_flows_by_day(transactions, values.index)
+        # Time-weighted daily return: deposits and withdrawals are not performance.
+        # A flow is treated as arriving at the start of the day it lands on.
+        base = values.shift(1) + flows
+        returns = (values / base - 1.0).iloc[1:]
+        returns = returns[base.iloc[1:] > 0].dropna()
         returns.index = pd.to_datetime(returns.index)
         try:
             returns.index = returns.index.tz_localize(None)
