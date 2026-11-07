@@ -1,19 +1,37 @@
 """Authentication routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import IntegrityError
 
 from api.dependencies import get_current_user
-from api.rate_limit import rate_limit
-from api.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserOut
+from api.rate_limit import (
+    LOGIN_IP_LIMIT,
+    LOGIN_IP_SCOPE,
+    clear_login_failures,
+    client_ip,
+    login_attempt_allowed,
+    rate_limit,
+    record_login_failure,
+)
+from api.schemas.auth import (
+    DeleteAccountRequest,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserOut,
+)
+from core.auth.constants import SYSTEM_USER_ID
 from core.auth.password import verify_password
 from core.auth.tokens import create_access_token
 from core.data_manager.user_repository import UserRepository
+from core.exceptions import BillingError
 from models.user import User
+from services.billing_service import BillingService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _user_repository = UserRepository()
+_billing = BillingService()
 
 
 @router.post(
@@ -41,21 +59,23 @@ def register(payload: RegisterRequest) -> User:
 @router.post(
     "/login",
     response_model=TokenResponse,
-    dependencies=[Depends(rate_limit("20/minute"))],
+    dependencies=[Depends(rate_limit(LOGIN_IP_LIMIT, scope=LOGIN_IP_SCOPE))],
 )
-def login_form(form: OAuth2PasswordRequestForm = Depends()) -> TokenResponse:
+def login_form(
+    request: Request, form: OAuth2PasswordRequestForm = Depends()
+) -> TokenResponse:
     """Login with OAuth2 password form (username field = email)."""
-    return _authenticate(form.username, form.password)
+    return _authenticate(form.username, form.password, client_ip(request))
 
 
 @router.post(
     "/login/json",
     response_model=TokenResponse,
-    dependencies=[Depends(rate_limit("20/minute"))],
+    dependencies=[Depends(rate_limit(LOGIN_IP_LIMIT, scope=LOGIN_IP_SCOPE))],
 )
-def login_json(payload: LoginRequest) -> TokenResponse:
+def login_json(payload: LoginRequest, request: Request) -> TokenResponse:
     """Login with JSON body (convenient for frontend)."""
-    return _authenticate(payload.email, payload.password)
+    return _authenticate(payload.email, payload.password, client_ip(request))
 
 
 @router.get("/me", response_model=UserOut)
@@ -64,9 +84,49 @@ def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
-def _authenticate(email: str, password: str) -> TokenResponse:
+@router.delete(
+    "/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(rate_limit("5/minute"))],
+)
+def delete_account(
+    payload: DeleteAccountRequest,
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Permanently delete the account, its portfolios and its subscription.
+
+    Requires the account password. The Stripe subscription is cancelled first;
+    if that fails the account is kept so billing never outlives the account.
+    """
+    if current_user.id == SYSTEM_USER_ID:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The system account cannot be deleted",
+        )
+    if not verify_password(payload.password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Incorrect password",
+        )
+    try:
+        _billing.cancel_subscription_for_deletion(current_user.id)
+    except BillingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not cancel the subscription; the account was not deleted",
+        ) from exc
+    _user_repository.delete(current_user.id)
+
+
+def _authenticate(email: str, password: str, ip: str) -> TokenResponse:
+    if not login_attempt_allowed(email, ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed attempts, try again later.",
+        )
     user = _user_repository.find_by_email(email)
     if user is None or not verify_password(password, user.password_hash):
+        record_login_failure(email, ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -77,5 +137,6 @@ def _authenticate(email: str, password: str) -> TokenResponse:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user",
         )
+    clear_login_failures(email, ip)
     token = create_access_token(subject=user.id)
     return TokenResponse(access_token=token)

@@ -169,6 +169,7 @@ export default function PortfoliosPage() {
   const [previewingStrategy, setPreviewingStrategy] = useState(false);
 
   /* --- load portfolios --- */
+  /** Manual refresh (button / back to list). */
   const loadPortfolios = useCallback(async () => {
     setLoading(true);
     try {
@@ -181,9 +182,24 @@ export default function PortfoliosPage() {
     }
   }, []);
 
+  /** Initial load (state starts with loading=true). */
   useEffect(() => {
-    loadPortfolios();
-  }, [loadPortfolios]);
+    let cancelled = false;
+    api
+      .get<Portfolio[]>("/portfolios")
+      .then((list) => {
+        if (!cancelled) setPortfolios(list);
+      })
+      .catch((err) => {
+        if (!cancelled) setMessage({ type: "error", text: String(err) });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /* --- derived --- */
   const selected = portfolios.find((p) => p.id === selectedId) ?? null;
@@ -452,6 +468,7 @@ export default function PortfoliosPage() {
   useEffect(() => {
     if (!selectedId) return;
     if (tab === "overview" || tab === "positions") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- refetch on tab/selection change; setState happens after the awaited requests
       void reloadSelectedPortfolio();
     }
   }, [selectedId, tab, reloadSelectedPortfolio]);
@@ -519,7 +536,7 @@ export default function PortfoliosPage() {
             <h2 className="text-xl font-semibold text-white">
               Your Portfolios
             </h2>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 className="btn btn-primary"
                 onClick={() => router.push("/create")}
@@ -561,11 +578,11 @@ export default function PortfoliosPage() {
               <Expander title="Search & Filter">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="label">
+                    <label htmlFor="app-portfolios-page-f1" className="label">
                       Search portfolios
                       <Tip text="Search by portfolio name or description" />
                     </label>
-                    <input
+                    <input id="app-portfolios-page-f1"
                       className="input"
                       placeholder="Search by name or description..."
                       value={searchQuery}
@@ -573,8 +590,8 @@ export default function PortfoliosPage() {
                     />
                   </div>
                   <div>
-                    <label className="label">Sort by</label>
-                    <select
+                    <label htmlFor="app-portfolios-page-f2" className="label">Sort by</label>
+                    <select id="app-portfolios-page-f2"
                       className="input"
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as SortKey)}
@@ -595,6 +612,7 @@ export default function PortfoliosPage() {
                   {searchQuery && ` matching "${searchQuery}"`}
                 </div>
 
+                <div className="hidden md:block overflow-x-auto">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -652,6 +670,7 @@ export default function PortfoliosPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               {/* Individual portfolio cards for mobile */}
@@ -1071,19 +1090,19 @@ export default function PortfoliosPage() {
           <div className="panel p-6 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="label">
+                <label htmlFor="app-portfolios-page-f3" className="label">
                   Name
                   <Tip text="Change the portfolio name. Must be unique." />
                 </label>
-                <input
+                <input id="app-portfolios-page-f3"
                   className="input"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                 />
               </div>
               <div>
-                <label className="label">Currency</label>
-                <select
+                <label htmlFor="app-portfolios-page-f4" className="label">Currency</label>
+                <select id="app-portfolios-page-f4"
                   className="input"
                   value={editCurrency}
                   onChange={(e) => setEditCurrency(e.target.value)}
@@ -1096,11 +1115,11 @@ export default function PortfoliosPage() {
                 </select>
               </div>
               <div>
-                <label className="label">
+                <label htmlFor="app-portfolios-page-f5" className="label">
                   Description
                   <Tip text="Optional notes about investment strategy" />
                 </label>
-                <textarea
+                <textarea id="app-portfolios-page-f5"
                   className="input"
                   rows={3}
                   value={editDescription}
@@ -1108,11 +1127,11 @@ export default function PortfoliosPage() {
                 />
               </div>
               <div>
-                <label className="label">
+                <label htmlFor="app-portfolios-page-f6" className="label">
                   Starting Capital
                   <Tip text="The initial investment amount for this portfolio" />
                 </label>
-                <input
+                <input id="app-portfolios-page-f6"
                   className="input"
                   type="number"
                   min={1}
@@ -1209,11 +1228,11 @@ export default function PortfoliosPage() {
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="label">
+                    <label htmlFor="app-portfolios-page-f7" className="label">
                       Ticker
                       <Tip text="Stock symbol, e.g. AAPL" />
                     </label>
-                    <input
+                    <input id="app-portfolios-page-f7"
                       className="input"
                       placeholder="AAPL"
                       value={addTicker}
@@ -1221,11 +1240,11 @@ export default function PortfoliosPage() {
                     />
                   </div>
                   <div>
-                    <label className="label">
+                    <label htmlFor="app-portfolios-page-f8" className="label">
                       Shares
                       <Tip text="Number of shares to add. Can be fractional." />
                     </label>
-                    <input
+                    <input id="app-portfolios-page-f8"
                       className="input"
                       type="number"
                       min={0}
@@ -1235,11 +1254,11 @@ export default function PortfoliosPage() {
                     />
                   </div>
                   <div>
-                    <label className="label">
+                    <label htmlFor="app-portfolios-page-f9" className="label">
                       Weight Target (%)
                       <Tip text="Target percentage allocation. Leave 0 for auto." />
                     </label>
-                    <input
+                    <input id="app-portfolios-page-f9"
                       className="input"
                       type="number"
                       min={0}

@@ -86,7 +86,7 @@ function ForecastingPageContent() {
   const [resultsTab, setResultsTab] = useState<"comparison" | "individual" | "quality" | "detailed">(
     "comparison",
   );
-  const [individualMethod, setIndividualMethod] = useState<string>("");
+  const [individualPick, setIndividualPick] = useState<string>("");
 
   useEffect(() => {
     const idFromUrl = searchParams.get("id");
@@ -157,13 +157,10 @@ function ForecastingPageContent() {
     [forecasts],
   );
 
-  useEffect(() => {
-    if (individualMethod && !successfulKeys.includes(individualMethod)) {
-      setIndividualMethod(successfulKeys[0] ?? "");
-    } else if (!individualMethod && successfulKeys.length) {
-      setIndividualMethod(successfulKeys[0]);
-    }
-  }, [successfulKeys, individualMethod]);
+  // Selected method falls back to the first successful forecast when the pick is missing/stale.
+  const individualMethod = successfulKeys.includes(individualPick)
+    ? individualPick
+    : (successfulKeys[0] ?? "");
 
   async function runBatch() {
     if (!methodsToRun.length) {
@@ -283,8 +280,8 @@ function ForecastingPageContent() {
       <header>
         <h1 className="text-3xl font-semibold text-white">Price &amp; Returns Forecasting</h1>
         <p className="mt-2 text-white/60">
-          Multi-method forecasts with out-of-sample validation — aligned with the Streamlit forecasting
-          page (classical, ML, deep learning, Prophet, ensemble).
+          Multi-method forecasts with out-of-sample validation: classical, ML, deep learning,
+          Prophet and ensemble.
         </p>
       </header>
 
@@ -312,13 +309,13 @@ function ForecastingPageContent() {
         </div>
         {forecastType === "Single Asset" ? (
           <div>
-            <label className="text-xs text-white/50">Ticker</label>
-            <input className="input mt-1" value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase())} />
+            <label htmlFor="app-forecasting-page-f1" className="text-xs text-white/50">Ticker</label>
+            <input id="app-forecasting-page-f1" className="input mt-1" value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase())} />
           </div>
         ) : (
           <div>
-            <label className="text-xs text-white/50">Portfolio</label>
-            <select className="input mt-1" value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)}>
+            <label htmlFor="app-forecasting-page-f2" className="text-xs text-white/50">Portfolio</label>
+            <select id="app-forecasting-page-f2" className="input mt-1" value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)}>
               {portfolios.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -333,8 +330,8 @@ function ForecastingPageContent() {
         <h2 className="text-lg text-white">Forecasting parameters</h2>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="text-xs text-white/50">Analysis / validation start</label>
-            <input
+            <label htmlFor="app-forecasting-page-f3" className="text-xs text-white/50">Analysis / validation start</label>
+            <input id="app-forecasting-page-f3"
               type="date"
               className="input mt-1"
               value={startDate}
@@ -348,8 +345,8 @@ function ForecastingPageContent() {
             />
           </div>
           <div>
-            <label className="text-xs text-white/50">Analysis / validation end</label>
-            <input
+            <label htmlFor="app-forecasting-page-f4" className="text-xs text-white/50">Analysis / validation end</label>
+            <input id="app-forecasting-page-f4"
               type="date"
               className="input mt-1"
               value={endDate}
@@ -369,8 +366,8 @@ function ForecastingPageContent() {
           {outOfSample ? (
             <>
               <div>
-                <label className="text-xs text-white/50">Training window (share of validation span)</label>
-                <select
+                <label htmlFor="app-forecasting-page-f5" className="text-xs text-white/50">Training window (share of validation span)</label>
+                <select id="app-forecasting-page-f5"
                   className="input mt-1"
                   value={trainingWindowLabel}
                   onChange={(e) => setTrainingWindowLabel(e.target.value)}
@@ -436,7 +433,7 @@ function ForecastingPageContent() {
 
         {methodTab === "dl" ? (
           <p className="text-sm text-amber-200/90">
-            Deep learning models need more data and CPU/GPU time — same as Streamlit warning.
+            Deep learning models need more data and CPU/GPU time — expect longer runs.
           </p>
         ) : null}
 
@@ -590,11 +587,11 @@ function ForecastingPageContent() {
           {resultsTab === "individual" && individualFc?.success ? (
             <div className="space-y-6">
               <div>
-                <label className="text-xs text-white/50">Method</label>
-                <select
+                <label htmlFor="app-forecasting-page-f6" className="text-xs text-white/50">Method</label>
+                <select id="app-forecasting-page-f6"
                   className="input mt-1"
                   value={individualMethod}
-                  onChange={(e) => setIndividualMethod(e.target.value)}
+                  onChange={(e) => setIndividualPick(e.target.value)}
                 >
                   {successfulKeys.map((k) => (
                     <option key={k} value={k}>
@@ -673,11 +670,11 @@ function ForecastingPageContent() {
           {resultsTab === "detailed" && successfulKeys.length ? (
             <div className="space-y-6">
               <div>
-                <label className="text-xs text-white/50">Method</label>
-                <select
+                <label htmlFor="app-forecasting-page-f7" className="text-xs text-white/50">Method</label>
+                <select id="app-forecasting-page-f7"
                   className="input mt-1"
                   value={individualMethod}
-                  onChange={(e) => setIndividualMethod(e.target.value)}
+                  onChange={(e) => setIndividualPick(e.target.value)}
                 >
                   {successfulKeys.map((k) => (
                     <option key={k} value={k}>

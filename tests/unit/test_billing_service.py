@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from core.data_manager.subscription_repository import SubscriptionRepository
 from services.billing_service import BillingService
 
@@ -23,3 +25,23 @@ def test_webhook_skips_duplicate_event_id() -> None:
             result = svc.handle_webhook_event(b"{}", "sig")
     assert result["status"] == "already_processed"
     repo.mark_event_processed.assert_called_once()
+
+
+def test_webhook_handler_failure_unmarks_event_for_retry() -> None:
+    repo = MagicMock(spec=SubscriptionRepository)
+    repo.mark_event_processed.return_value = True
+    repo.find_by_stripe_customer_id.side_effect = RuntimeError("db down")
+    svc = BillingService(repository=repo)
+
+    with patch("services.billing_service.settings") as mock_settings:
+        mock_settings.stripe_webhook_configured = True
+        mock_settings.stripe_webhook_secret = "whsec_test"
+        with patch("services.billing_service._stripe_client") as mock_stripe:
+            mock_stripe.return_value.Webhook.construct_event.return_value = MagicMock(
+                id="evt_fail",
+                type="customer.subscription.deleted",
+                data=MagicMock(object={"customer": "cus_1"}),
+            )
+            with pytest.raises(RuntimeError):
+                svc.handle_webhook_event(b"{}", "sig")
+    repo.unmark_event.assert_called_once_with("evt_fail")

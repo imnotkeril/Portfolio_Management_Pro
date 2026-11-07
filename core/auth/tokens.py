@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from jose import jwt
+import jwt
 
 from config.settings import settings
 
@@ -24,7 +24,7 @@ def create_access_token(subject: str, expires_delta: timedelta | None = None) ->
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
-    """Decode and validate a JWT; raises ``JWTError`` on failure."""
+    """Decode and validate a JWT; raises ``jwt.PyJWTError`` on failure."""
     return jwt.decode(
         token,
         settings.jwt_secret,

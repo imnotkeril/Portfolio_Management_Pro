@@ -1,0 +1,353 @@
+# WMC Portfolio API
+
+> REST API (FastAPI) behind the Next.js BFF. Portfolio ledger, analytics, optimization,
+> risk, forecasting and Stripe billing. JSON in, JSON out. Generated from the route
+> declarations by `scripts/gen_llms_txt.py`; `tests/unit/test_llms_txt.py` fails if it
+> drifts from the live routes.
+
+## Conventions
+
+- Auth: `Authorization: Bearer <JWT>` from `POST /auth/login`. Auth column: `public`
+  (no token), `user` (valid token), `pro` (valid token and an active Pro subscription).
+- Every portfolio route is scoped to the token's user; a foreign or unknown
+  `portfolio_id` returns 404, never 403.
+- Errors: `{"detail": "<message>"}` with 400/401/402/403/404/409/422/429/502/503.
+  429 carries `Retry-After`. 422 is request validation.
+- Rate limits are per client IP (some per user); the limit shown is the route-level one.
+- Interactive OpenAPI docs are disabled when `ENVIRONMENT=production`; this file is the
+  reference there.
+- Plans and prices live in `services/billing/plans.py`; the owner guide is
+  `OWNER_GUIDE.md`.
+
+## Endpoints
+
+### POST /analytics/assets
+
+Compute per-asset data: correlations, metrics, returns, impact analysis. Auth: user.
+
+- body `AssetsAnalyticsRequest` { portfolio_id: str, start_date: date, end_date: date, benchmark_ticker: str | None }
+
+### POST /analytics/calculate
+
+Portfolio performance and risk metrics for a date range, optionally against a benchmark or comparison. Auth: user.
+
+- body `AnalyticsRequest` { portfolio_id: str, start_date: date, end_date: date, benchmark_ticker: str | None, comparison_type: str | None, comparison_value: str | None }
+
+### POST /auth/login
+
+Login with OAuth2 password form (username field = email). Auth: public. Rate limit: 20/minute.
+
+- body form-urlencoded `username` (email), `password`
+
+### POST /auth/login/json
+
+Login with JSON body (convenient for frontend). Auth: public. Rate limit: 20/minute.
+
+- body `LoginRequest` { email: EmailStr, password: str }
+
+### DELETE /auth/me
+
+Permanently delete the account with its portfolios and subscription; the Stripe subscription is cancelled first (502 and nothing deleted if that fails). Body: current password; 403 if wrong. Returns 204. Auth: user. Rate limit: 5/minute.
+
+- body `DeleteAccountRequest` { password: str }
+
+### GET /auth/me
+
+Return the authenticated user profile. Auth: user.
+
+
+### POST /auth/register
+
+Register a new user account. Auth: public. Rate limit: 10/minute.
+
+- body `RegisterRequest` { email: EmailStr, password: str }
+
+### POST /billing/checkout
+
+Create a Stripe Checkout session for the Pro plan; returns {url}. 503 if billing is not configured. Auth: user.
+
+
+### POST /billing/portal
+
+Create a Stripe customer-portal session; returns {url}. 503 if billing is not configured. Auth: user.
+
+
+### GET /billing/status
+
+Current user's plan, subscription status and period end. Auth: user.
+
+
+### GET /dashboard/indices
+
+Market index quotes for the dashboard strip. Auth: public.
+
+
+### POST /forecasting/asset
+
+Forecast one asset's price path. Auth: pro.
+
+- body `ForecastAssetRequest` { ticker: str, start_date: date, end_date: date, horizon: int, method: str, method_params: dict[str, Any] | None, out_of_sample: bool, training_ratio: float }
+
+### POST /forecasting/batch
+
+Forecast several assets in one call. Auth: pro.
+
+- body `ForecastBatchRequest` { scope: str, ticker: str | None, portfolio_id: str | None, start_date: date, end_date: date, horizon: int, methods: list[str], method_params: dict[str, dict[str, Any]], out_of_sample: bool, training_ratio: float, create_ensemble: bool }
+
+### POST /forecasting/portfolio
+
+Forecast a whole portfolio's value. Auth: pro.
+
+- body `ForecastPortfolioRequest` { portfolio_id: str, start_date: date, end_date: date, horizon: int, method: str, method_params: dict[str, Any] | None, out_of_sample: bool, training_ratio: float }
+
+### GET /health
+
+Liveness probe; returns {status: ok}. Auth: public.
+
+
+### POST /optimization/full
+
+Run an optimization method and return weights, frontier and metrics for a saved portfolio. Auth: pro.
+
+- body `OptimizationFullRequest` { portfolio_id: str, method: str, start_date: date, end_date: date, constraints: dict[str, Any] | None, benchmark_ticker: str | None, method_params: dict[str, Any] | None, out_of_sample: bool, training_ratio: float, benchmark_for_charts: str | None, include_efficient_frontier: bool, frontier_n_points: int, include_sensitivity: bool, sensitivity_analysis_type: str, notebook_split: bool, notebook_train_fraction: float }
+
+### POST /optimization/run
+
+Run one optimization method on a list of tickers. Auth: pro.
+
+- body `OptimizationRequest` { portfolio_id: str, method: str, start_date: date, end_date: date, constraints: dict[str, Any] | None, benchmark_ticker: str | None, method_params: dict[str, Any] | None, out_of_sample: bool, training_ratio: float }
+
+### GET /portfolios
+
+List the user's portfolios. Auth: user.
+
+
+### POST /portfolios
+
+Create a portfolio. Auth: user.
+
+- body `CreatePortfolioRequest` (JSON body)
+
+### DELETE /portfolios/{portfolio_id}
+
+Delete a portfolio and its ledger. Auth: user.
+
+- path `portfolio_id`: str
+
+### GET /portfolios/{portfolio_id}
+
+Get one portfolio. Auth: user.
+
+- path `portfolio_id`: str
+
+### PATCH /portfolios/{portfolio_id}
+
+Update portfolio fields. Auth: user.
+
+- path `portfolio_id`: str
+- body `UpdatePortfolioRequest` (JSON body)
+
+### GET /portfolios/{portfolio_id}/dividends
+
+List dividends received by the portfolio. Auth: user.
+
+- path `portfolio_id`: str
+- body `date | None` (JSON body)
+- body `date | None` (JSON body)
+
+### POST /portfolios/{portfolio_id}/dividends/sync
+
+Fetch and record missing dividends from the market data provider. Auth: user.
+
+- path `portfolio_id`: str
+- body `DividendSyncRequest` { tickers: TickerList, start_date: date, end_date: date, reinvest: bool }
+
+### GET /portfolios/{portfolio_id}/holdings
+
+Current holdings with quantities and values. Auth: user.
+
+- path `portfolio_id`: str
+
+### POST /portfolios/{portfolio_id}/ledger/maintain
+
+Sync splits, dividends and scheduled rebalances; partial failures are reported in maintain_error. Auth: user.
+
+- path `portfolio_id`: str
+
+### GET /portfolios/{portfolio_id}/optimization-snapshot
+
+Current holdings with live prices (Streamlit expander). Auth: user.
+
+- path `portfolio_id`: str
+
+### GET /portfolios/{portfolio_id}/pnl
+
+Realized and unrealized profit and loss. Auth: user.
+
+- path `portfolio_id`: str
+
+### POST /portfolios/{portfolio_id}/positions
+
+Add a position to the portfolio. Auth: user.
+
+- path `portfolio_id`: str
+- body `AddPositionRequest` (JSON body)
+
+### DELETE /portfolios/{portfolio_id}/positions/{ticker}
+
+Remove a position. Auth: user.
+
+- path `portfolio_id`: str
+- path `ticker`: str
+
+### PATCH /portfolios/{portfolio_id}/positions/{ticker}
+
+Update a position. Auth: user.
+
+- path `portfolio_id`: str
+- path `ticker`: str
+- body `UpdatePositionRequest` (JSON body)
+
+### POST /portfolios/{portfolio_id}/rebalance/execute
+
+Apply a rebalance and record its transactions. Auth: user.
+
+- path `portfolio_id`: str
+- body `RebalanceRequest` { as_of_date: date | None, run_scheduled: bool, through_date: date | None }
+
+### POST /portfolios/{portfolio_id}/rebalance/preview
+
+Show the trades a rebalance would make without saving. Auth: user.
+
+- path `portfolio_id`: str
+- body `RebalanceRequest` { as_of_date: date | None, run_scheduled: bool, through_date: date | None }
+
+### POST /portfolios/{portfolio_id}/splits/sync
+
+Fetch and apply missing stock splits. Auth: user.
+
+- path `portfolio_id`: str
+- body `SplitSyncRequest` { tickers: TickerList, start_date: date, end_date: date }
+
+### GET /portfolios/{portfolio_id}/strategy
+
+Get the portfolio's target-weight strategy. Auth: user.
+
+- path `portfolio_id`: str
+
+### PUT /portfolios/{portfolio_id}/strategy
+
+Save the portfolio's strategy and rebalance schedule. Auth: user.
+
+- path `portfolio_id`: str
+- body `UpdateStrategyRequest` (JSON body)
+
+### POST /portfolios/{portfolio_id}/strategy/preview
+
+Preview a strategy against current holdings without saving. Auth: user.
+
+- path `portfolio_id`: str
+- body `StrategyPreviewRequest` { as_of_date: date | None }
+
+### GET /portfolios/{portfolio_id}/transactions
+
+List the portfolio's transactions. Auth: user.
+
+- path `portfolio_id`: str
+- query `transaction_type`: str | None
+- query `ticker`: str | None
+- query `sync_ledger`: bool
+- body `date | None` (JSON body)
+- body `date | None` (JSON body)
+
+### POST /portfolios/{portfolio_id}/transactions
+
+Record a transaction in the portfolio ledger. Auth: user.
+
+- path `portfolio_id`: str
+- body `AddTransactionRequest` { transaction_date: date, transaction_type: str, ticker: str, shares: float, price: float, fees: float, notes: str | None, reinvest: bool | None, split_ratio: float | None, currency: str }
+
+### DELETE /portfolios/{portfolio_id}/transactions/{transaction_id}
+
+Delete a transaction of this portfolio. Auth: user.
+
+- path `portfolio_id`: str
+- path `transaction_id`: str
+
+### POST /risk/custom-scenario
+
+Apply user-defined shocks to a portfolio. Auth: user.
+
+- body `CustomScenarioApiRequest` { portfolio_id: str, name: str, description: str, market_impact_pct: float, asset_impacts: dict[str, float] }
+
+### POST /risk/monte-carlo
+
+Monte Carlo simulation on a ticker list. Auth: user. Rate limit: 1 concurrent run per user.
+
+- body `RiskMonteCarloRequest` { portfolio_id: str, start_date: date, end_date: date, time_horizon: int, num_simulations: int, initial_value: float, model: str }
+
+### POST /risk/monte-carlo/full
+
+Monte Carlo simulation for a saved portfolio. Auth: user. Rate limit: 1 concurrent run per user.
+
+- body `RiskMonteCarloFullRequest` { portfolio_id: str, start_date: date, end_date: date, time_horizon: int, num_simulations: int, initial_value: float, model: str, include_sample_paths: bool }
+
+### POST /risk/scenario-chain
+
+Apply a chain of scenarios in sequence. Auth: user.
+
+- body `ScenarioChainApiRequest` { portfolio_id: str, name: str, description: str, scenario_keys: list[str] }
+
+### GET /risk/scenarios
+
+Catalog of built-in stress scenarios. Auth: public.
+
+
+### POST /risk/stress-tests
+
+Stress-test a ticker list against scenarios. Auth: user.
+
+- body `StressTestRequest` { portfolio_id: str, scenario_names: list[str] }
+
+### POST /risk/stress-tests/full
+
+Historical scenarios bundle: recovery paths, breakdowns, timelines (Streamlit parity). Auth: user.
+
+- body `StressTestRequest` { portfolio_id: str, scenario_names: list[str] }
+
+### POST /risk/var
+
+Value at Risk and CVaR for a ticker list. Auth: user.
+
+- body `RiskVarRequest` { portfolio_id: str, start_date: date, end_date: date, confidence_level: float, include_monte_carlo: bool, num_simulations: int, time_horizon: int }
+
+### POST /risk/var/full
+
+Value at Risk and CVaR for a saved portfolio. Auth: user.
+
+- body `RiskVarFullRequest` { portfolio_id: str, start_date: date, end_date: date, confidence_level: float, include_monte_carlo: bool, num_simulations: int, time_horizon: int, rolling_window: int }
+
+### POST /stripe/webhook
+
+Stripe webhook. Verifies the signature, dedups by event id, re-fetches the subscription and updates plan state. Auth: public.
+
+- raw body + `Stripe-Signature` header; called by Stripe only
+
+### GET /ticker-price/{ticker}
+
+Latest price for one ticker. Auth: public. Rate limit: 60/minute.
+
+- path `ticker`: str
+- query `on_date`: date | None
+
+### DELETE /transactions/{transaction_id}
+
+Deprecated: prefer DELETE /portfolios/{id}/transactions/{tx_id}. Auth: user.
+
+- path `transaction_id`: str
+
+### POST /validate-tickers
+
+Check which tickers exist and return their latest price. Auth: public. Rate limit: 30/minute.
+
+- body `Annotated[TickerList, Body()]` (JSON body)

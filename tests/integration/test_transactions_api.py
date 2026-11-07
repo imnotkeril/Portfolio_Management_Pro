@@ -166,3 +166,32 @@ def test_holdings_endpoint(api_client: TestClient) -> None:
     assert len(rows) == 1
     assert rows[0]["ticker"] == "AAPL"
     assert rows[0]["quantity"] == 3.0
+
+
+def test_legacy_delete_foreign_transaction_is_404_and_keeps_row(
+    api_client: TestClient,
+) -> None:
+    owner = _register_and_headers(api_client)
+    pid = _create_portfolio(api_client, owner)
+    tx = api_client.post(
+        f"/portfolios/{pid}/transactions",
+        json={
+            "transaction_date": "2024-01-01",
+            "transaction_type": "DEPOSIT",
+            "ticker": "CASH",
+            "shares": 500.0,
+            "price": 1.0,
+        },
+        headers=owner,
+    )
+    assert tx.status_code == 200
+    tx_id = tx.json()["id"]
+
+    other = _register_and_headers(api_client)
+    resp = api_client.delete(f"/transactions/{tx_id}", headers=other)
+    assert resp.status_code == 404
+
+    rows = api_client.get(
+        f"/portfolios/{pid}/transactions?sync_ledger=false", headers=owner
+    )
+    assert tx_id in {r["id"] for r in rows.json()}

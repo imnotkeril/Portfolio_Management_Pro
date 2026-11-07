@@ -68,8 +68,11 @@ export function TransactionForm({
     try {
       const res = await fetchTickerPrice(txTicker, txDate);
       if (res.valid && res.price != null && res.price > 0) {
-        setTxPrice(res.price);
-        applyDefaultFees(txShares, res.price, txType);
+        // Round to cents: a raw float (279.8399963378906) fails the input's
+        // step=0.01 native validation and silently blocks the submit.
+        const rounded = Math.max(0.01, Math.round(res.price * 100) / 100);
+        setTxPrice(rounded);
+        applyDefaultFees(txShares, rounded, txType);
         const dateNote =
           res.price_date && res.requested_date && res.price_date !== res.requested_date
             ? ` (nearest to ${res.requested_date})`
@@ -90,10 +93,7 @@ export function TransactionForm({
   }, [isCashFlow, txTicker, txDate, txShares, txType, applyDefaultFees]);
 
   useEffect(() => {
-    if (isCashFlow) {
-      setTxFees(0);
-      return;
-    }
+    if (isCashFlow) return;
     const t = window.setTimeout(() => {
       void loadHistoricalPrice();
     }, 400);
@@ -102,6 +102,7 @@ export function TransactionForm({
 
   useEffect(() => {
     if (isCashFlow) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fees are auto-derived from shares/price/type until the user edits them
     applyDefaultFees(txShares, txPrice, txType);
   }, [txShares, txPrice, txType, isCashFlow, applyDefaultFees]);
 
@@ -153,11 +154,11 @@ export function TransactionForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="label">
+          <label htmlFor="components-transaction-form-f1" className="label">
             Date
             <Tip text="Used to load historical close for BUY/SELL" />
           </label>
-          <input
+          <input id="components-transaction-form-f1"
             className="input"
             type="date"
             value={txDate}
@@ -166,8 +167,8 @@ export function TransactionForm({
           />
         </div>
         <div>
-          <label className="label">Type</label>
-          <select
+          <label htmlFor="components-transaction-form-f2" className="label">Type</label>
+          <select id="components-transaction-form-f2"
             className="input"
             value={txType}
             onChange={(e) => {
@@ -183,11 +184,11 @@ export function TransactionForm({
         </div>
         {isCashFlow ? (
           <div className="md:col-span-1">
-            <label className="label">
+            <label htmlFor="components-transaction-form-f3" className="label">
               Cash amount (USD)
               <Tip text="Deposit or withdraw cash in dollars" />
             </label>
-            <input
+            <input id="components-transaction-form-f3"
               className="input"
               type="number"
               min={0}
@@ -199,8 +200,8 @@ export function TransactionForm({
         ) : (
           <>
             <div>
-              <label className="label">Ticker</label>
-              <input
+              <label htmlFor="components-transaction-form-f4" className="label">Ticker</label>
+              <input id="components-transaction-form-f4"
                 className="input"
                 placeholder="AAPL"
                 value={txTicker}
@@ -208,8 +209,8 @@ export function TransactionForm({
               />
             </div>
             <div>
-              <label className="label">Shares (whole)</label>
-              <input
+              <label htmlFor="components-transaction-form-f5" className="label">Shares (whole)</label>
+              <input id="components-transaction-form-f5"
                 className="input"
                 type="number"
                 min={1}
@@ -221,13 +222,13 @@ export function TransactionForm({
               />
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="components-transaction-form-f6" className="label">
                 Price per share
                 {priceLoading ? (
                   <span className="text-white/40 text-xs ml-2">Loading…</span>
                 ) : null}
               </label>
-              <input
+              <input id="components-transaction-form-f6"
                 className="input"
                 type="number"
                 min={0}
@@ -243,11 +244,11 @@ export function TransactionForm({
               ) : null}
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="components-transaction-form-f7" className="label">
                 Fees (IB estimate)
                 <Tip text="$0.005/share, min $1, max 1% — editable" />
               </label>
-              <input
+              <input id="components-transaction-form-f7"
                 className="input"
                 type="number"
                 min={0}
@@ -264,8 +265,8 @@ export function TransactionForm({
       </div>
 
       <div>
-        <label className="label">Notes (optional)</label>
-        <input
+        <label htmlFor="components-transaction-form-f8" className="label">Notes (optional)</label>
+        <input id="components-transaction-form-f8"
           className="input"
           placeholder="Optional notes..."
           value={txNotes}

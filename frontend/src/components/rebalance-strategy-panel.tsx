@@ -92,11 +92,11 @@ export function RebalanceStrategyPanel({
       </div>
 
       <div>
-        <label className="label">
+        <label htmlFor="components-rebalance-strategy-panel-f1" className="label">
           Rebalance frequency
           <Tip text="How often holdings are brought back to target weights (automatic)" />
         </label>
-        <select
+        <select id="components-rebalance-strategy-panel-f1"
           className="input"
           value={intervalValue}
           onChange={(e) => onIntervalChange(e.target.value)}

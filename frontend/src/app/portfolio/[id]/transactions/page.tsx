@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import {
@@ -23,23 +23,23 @@ export default function PortfolioTransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const rows = await api.get<Transaction[]>(
-        `/portfolios/${portfolioId}/transactions`,
-      );
-      setTransactions(rows);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [portfolioId]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    api
+      .get<Transaction[]>(`/portfolios/${portfolioId}/transactions`)
+      .then((rows) => {
+        if (!cancelled) setTransactions(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [portfolioId]);
 
   const onSubmit = async (payload: TransactionFormPayload) => {
     setError(null);
@@ -99,6 +99,7 @@ export default function PortfolioTransactionsPage() {
       </div>
 
       {transactions.length > 0 ? (
+        <div className="overflow-x-auto">
         <table className="data-table">
           <thead>
             <tr>
@@ -139,6 +140,7 @@ export default function PortfolioTransactionsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       ) : (
         !loading && (
           <div className="alert alert-info">No transactions yet.</div>

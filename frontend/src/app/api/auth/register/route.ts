@@ -6,6 +6,7 @@ import {
   getBackendUrl,
   normalizeAuthBody,
 } from "@/lib/auth-cookie";
+import { forwardedForHeaders } from "@/lib/client-ip";
 
 export async function POST(request: NextRequest) {
   const raw = await request.json();
@@ -19,7 +20,10 @@ export async function POST(request: NextRequest) {
 
   const registerRes = await fetch(`${getBackendUrl()}/auth/register`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...forwardedForHeaders(request),
+    },
     body: JSON.stringify(body),
   });
 
@@ -30,7 +34,10 @@ export async function POST(request: NextRequest) {
 
   const loginRes = await fetch(`${getBackendUrl()}/auth/login/json`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...forwardedForHeaders(request),
+    },
     body: JSON.stringify({ email: body.email, password: body.password }),
   });
 

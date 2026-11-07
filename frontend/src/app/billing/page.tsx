@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { api } from "@/lib/api";
@@ -23,32 +23,50 @@ function BillingContent() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const loadStatus = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await api.get<BillingStatus>("/billing/status");
-      setStatus(data);
-      setMessage(null);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    api
+      .get<BillingStatus>("/billing/status")
+      .then((data) => {
+        if (cancelled) return;
+        setStatus(data);
+        setMessage(null);
+      })
+      .catch((err) => {
+        if (!cancelled) setMessage(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const paramMessage =
+    searchParams.get("success") === "1"
+      ? "Payment received — refreshing your plan…"
+      : searchParams.get("canceled") === "1"
+        ? "Checkout canceled."
+        : null;
+  const paymentSucceeded = searchParams.get("success") === "1";
 
   useEffect(() => {
-    if (user) void loadStatus();
-  }, [user, loadStatus]);
-
-  useEffect(() => {
-    if (searchParams.get("success") === "1") {
-      setMessage("Payment received — refreshing your plan…");
-      void loadStatus();
-    }
-    if (searchParams.get("canceled") === "1") {
-      setMessage("Checkout canceled.");
-    }
-  }, [searchParams, loadStatus]);
+    if (!paymentSucceeded) return;
+    let cancelled = false;
+    api
+      .get<BillingStatus>("/billing/status")
+      .then((data) => {
+        if (!cancelled) setStatus(data);
+      })
+      .catch(() => {
+        /* keep the "refreshing" message; the plan card shows the last known status */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentSucceeded]);
 
   const startCheckout = async () => {
     setBusy(true);
@@ -121,8 +139,7 @@ function BillingContent() {
 
         {!status?.stripe_configured ? (
           <p className="text-sm text-amber-400/90">
-            Stripe is not configured on the server. Set STRIPE_SECRET_KEY and
-            STRIPE_PRICE_ID_PRO to enable checkout.
+            Billing is not set up yet. Upgrades are unavailable for now; the rest of the app works as usual.
           </p>
         ) : null}
 
@@ -149,17 +166,14 @@ function BillingContent() {
           ) : null}
         </div>
 
-        {message ? (
+        {(message ?? paramMessage) ? (
           <p className="text-sm text-white/70 border-t border-white/10 pt-3">
-            {message}
+            {message ?? paramMessage}
           </p>
         ) : null}
       </div>
 
-      <p className="text-xs text-white/40">
-        Signed in as {user?.email}. Test locally with{" "}
-        <code className="text-white/60">stripe listen --forward-to localhost:8000/stripe/webhook</code>
-      </p>
+      <p className="text-xs text-white/40">Signed in as {user?.email}.</p>
     </div>
   );
 }

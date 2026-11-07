@@ -19,6 +19,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -39,8 +40,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refresh().finally(() => setLoading(false));
-  }, [refresh]);
+    let cancelled = false;
+    authApi
+      .me()
+      .then((me) => {
+        if (!cancelled) setUser(me);
+      })
+      .catch(() => {
+        if (!cancelled) setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -81,9 +96,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.refresh();
   }, [router]);
 
+  const deleteAccount = useCallback(
+    async (password: string) => {
+      const res = await authApi.deleteAccount(password);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof data?.detail === "string"
+            ? data.detail
+            : "Could not delete the account",
+        );
+      }
+      setUser(null);
+      router.push("/");
+      router.refresh();
+    },
+    [router],
+  );
+
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, refresh }),
-    [user, loading, login, register, logout, refresh],
+    () => ({ user, loading, login, register, logout, deleteAccount, refresh }),
+    [user, loading, login, register, logout, deleteAccount, refresh],
   );
 
   return (

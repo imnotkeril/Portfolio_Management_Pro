@@ -220,9 +220,11 @@ export default function CreatePortfolioPage() {
   const [description, setDescription] = useState("");
   const [baseCurrency, setBaseCurrency] = useState("USD");
   const [capital, setCapital] = useState(100000);
-  const [nameStatus, setNameStatus] = useState<
-    "idle" | "checking" | "available" | "taken" | "invalid"
-  >("idle");
+  /** Result of the async uniqueness check, keyed by the name it was run for. */
+  const [nameCheck, setNameCheck] = useState<{
+    name: string;
+    result: "available" | "taken";
+  } | null>(null);
 
   /* --- step 2 --- */
   const [method, setMethod] = useState<InputMethod>("text");
@@ -317,6 +319,16 @@ export default function CreatePortfolioPage() {
     );
   }, [positions, validationMap]);
 
+  const trimmedName = name.trim();
+  const nameStatus: "idle" | "checking" | "available" | "taken" | "invalid" =
+    !trimmedName
+      ? "idle"
+      : trimmedName.length > 100
+        ? "invalid"
+        : nameCheck?.name === trimmedName
+          ? nameCheck.result
+          : "checking";
+
   const canProceedStep1 = name.trim().length > 0 && nameStatus === "available";
 
   const canProceedStep3 = (() => {
@@ -329,24 +341,17 @@ export default function CreatePortfolioPage() {
 
   /* --- name validation --- */
   useEffect(() => {
-    if (!name.trim()) {
-      setNameStatus("idle");
-      return;
-    }
-    if (name.trim().length > 100) {
-      setNameStatus("invalid");
-      return;
-    }
-    setNameStatus("checking");
+    const checked = name.trim();
+    if (!checked || checked.length > 100) return;
     const timeout = setTimeout(async () => {
       try {
         const list = await api.get<{ name: string }[]>("/portfolios");
         const exists = list.some(
-          (p) => p.name.toLowerCase() === name.trim().toLowerCase(),
+          (p) => p.name.toLowerCase() === checked.toLowerCase(),
         );
-        setNameStatus(exists ? "taken" : "available");
+        setNameCheck({ name: checked, result: exists ? "taken" : "available" });
       } catch {
-        setNameStatus("available");
+        setNameCheck({ name: checked, result: "available" });
       }
     }, 400);
     return () => clearTimeout(timeout);
@@ -476,6 +481,7 @@ export default function CreatePortfolioPage() {
       const tpl = TEMPLATES[selectedTemplate];
       if (tpl) {
         const text = customizeTemplate ? customTemplateText : tpl.assets;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds the editable draft when entering step 3; positions stay user-editable afterwards
         setPositions(parseTextPositions(text));
       }
     }
@@ -484,6 +490,7 @@ export default function CreatePortfolioPage() {
   /* --- go to step 3 from file --- */
   useEffect(() => {
     if (step === 3 && method === "file" && filePositions.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds the editable draft when entering step 3; positions stay user-editable afterwards
       setPositions(filePositions);
     }
   }, [step, method, filePositions]);
@@ -497,7 +504,7 @@ export default function CreatePortfolioPage() {
       try {
         const raw =
           method === "file" ? filePositions : positions;
-        let rows = raw.filter((p) => {
+        const rows = raw.filter((p) => {
           if (Object.keys(validationMap).length > 0) {
             return validationMap[p.ticker]?.valid !== false;
           }
@@ -825,11 +832,11 @@ export default function CreatePortfolioPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="label">
+              <label htmlFor="app-create-page-f1" className="label">
                 Portfolio Name *
                 <Tip text="Enter a unique name for your portfolio. Must be unique — cannot match existing portfolio names." />
               </label>
-              <input
+              <input id="app-create-page-f1"
                 className="input"
                 placeholder="e.g., Tech Growth Portfolio"
                 value={name}
@@ -837,11 +844,11 @@ export default function CreatePortfolioPage() {
               />
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="app-create-page-f2" className="label">
                 Base Currency
                 <Tip text="The currency for your portfolio. All values and calculations will be in this currency." />
               </label>
-              <select
+              <select id="app-create-page-f2"
                 className="input"
                 value={baseCurrency}
                 onChange={(e) => setBaseCurrency(e.target.value)}
@@ -854,11 +861,11 @@ export default function CreatePortfolioPage() {
               </select>
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="app-create-page-f3" className="label">
                 Description
                 <Tip text="Optional notes about your investment strategy. Helps you remember the purpose of this portfolio." />
               </label>
-              <textarea
+              <textarea id="app-create-page-f3"
                 className="input"
                 placeholder="Optional description of your investment strategy"
                 value={description}
@@ -867,11 +874,11 @@ export default function CreatePortfolioPage() {
               />
             </div>
             <div>
-              <label className="label">
+              <label htmlFor="app-create-page-f4" className="label">
                 Initial Investment ($)
                 <Tip text="Starting capital amount. Used to calculate number of shares for each position. Minimum: $1.00." />
               </label>
-              <input
+              <input id="app-create-page-f4"
                 className="input"
                 type="number"
                 min={1}
@@ -970,7 +977,16 @@ export default function CreatePortfolioPage() {
               <div
                 key={value}
                 className={`radio-option ${method === value ? "active" : ""}`}
+                role="radio"
+                aria-checked={method === value}
+                tabIndex={0}
                 onClick={() => setMethod(value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setMethod(value);
+                  }
+                }}
               >
                 <div className="radio-dot">
                   <div className="radio-dot-inner" />
@@ -1129,8 +1145,8 @@ export default function CreatePortfolioPage() {
               </div>
 
               <div>
-                <label className="label">Portfolio Assets:</label>
-                <textarea
+                <label htmlFor="app-create-page-f5" className="label">Portfolio Assets:</label>
+                <textarea id="app-create-page-f5"
                   className="input"
                   rows={5}
                   value={textInput}
@@ -1364,11 +1380,11 @@ export default function CreatePortfolioPage() {
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="label">
+                    <label htmlFor="app-create-page-f6" className="label">
                       Ticker *
                       <Tip text="Stock symbol, e.g. AAPL for Apple, MSFT for Microsoft. Use standard ticker symbols." />
                     </label>
-                    <input
+                    <input id="app-create-page-f6"
                       className="input"
                       placeholder="e.g., AAPL"
                       value={manualTicker}
@@ -1379,11 +1395,11 @@ export default function CreatePortfolioPage() {
                     />
                   </div>
                   <div>
-                    <label className="label">
+                    <label htmlFor="app-create-page-f7" className="label">
                       Weight (%)
                       <Tip text="Percentage allocation (will be normalized to sum to 100%). E.g., 30 for 30% of portfolio." />
                     </label>
-                    <input
+                    <input id="app-create-page-f7"
                       className="input"
                       type="number"
                       min={0.1}
@@ -1557,11 +1573,11 @@ export default function CreatePortfolioPage() {
               </Expander>
 
               <div>
-                <label className="label">
+                <label htmlFor="app-create-page-f8" className="label">
                   Choose a template:
                   <Tip text="Select a base strategy to start with. All templates can be customized after selection." />
                 </label>
-                <select
+                <select id="app-create-page-f8"
                   className="input"
                   value={selectedTemplate}
                   onChange={(e) => {
@@ -1614,8 +1630,8 @@ export default function CreatePortfolioPage() {
 
                   {customizeTemplate && (
                     <div>
-                      <label className="label">Modify the template:</label>
-                      <textarea
+                      <label htmlFor="app-create-page-f9" className="label">Modify the template:</label>
+                      <textarea id="app-create-page-f9"
                         className="input"
                         rows={3}
                         value={customTemplateText}
@@ -1764,11 +1780,11 @@ export default function CreatePortfolioPage() {
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
               <div>
-                <label className="label">
+                <label htmlFor="app-create-page-f10" className="label">
                   Planned Cash Allocation: {cashAllocation}%
                   <Tip text="Percentage to intentionally keep in cash. Useful for maintaining liquidity or waiting for better entry points." />
                 </label>
-                <input
+                <input id="app-create-page-f10"
                   type="range"
                   min={0}
                   max={50}
@@ -1799,7 +1815,16 @@ export default function CreatePortfolioPage() {
             <div className="radio-group">
               <div
                 className={`radio-option ${portfolioMode === "buy_hold" ? "active" : ""}`}
+                role="radio"
+                aria-checked={portfolioMode === "buy_hold"}
+                tabIndex={0}
                 onClick={() => setPortfolioMode("buy_hold")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setPortfolioMode("buy_hold");
+                  }
+                }}
               >
                 <div className="radio-dot">
                   <div className="radio-dot-inner" />
@@ -1816,7 +1841,16 @@ export default function CreatePortfolioPage() {
               </div>
               <div
                 className={`radio-option ${portfolioMode === "transactions" ? "active" : ""}`}
+                role="radio"
+                aria-checked={portfolioMode === "transactions"}
+                tabIndex={0}
                 onClick={() => setPortfolioMode("transactions")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setPortfolioMode("transactions");
+                  }
+                }}
               >
                 <div className="radio-dot">
                   <div className="radio-dot-inner" />
@@ -1836,11 +1870,11 @@ export default function CreatePortfolioPage() {
             {portfolioMode === "transactions" && (
               <div className="mt-3 space-y-3">
                 <div>
-                  <label className="label">
+                  <label htmlFor="app-create-page-f11" className="label">
                     Portfolio inception date
                     <Tip text="Initial BUY/DEPOSIT transactions use this date." />
                   </label>
-                  <input
+                  <input id="app-create-page-f11"
                     type="date"
                     className="input"
                     value={inceptionDate}
@@ -1879,8 +1913,8 @@ export default function CreatePortfolioPage() {
             <p className="text-sm text-white/50 mb-3">
               Periodically return holdings to the target weights defined above.
             </p>
-            <label className="label">Rebalance frequency</label>
-            <select
+            <label htmlFor="app-create-page-f12" className="label">Rebalance frequency</label>
+            <select id="app-create-page-f12"
               className="input max-w-md"
               value={rebalanceInterval}
               onChange={(e) => setRebalanceInterval(e.target.value)}

@@ -1,777 +1,211 @@
-# Wild Market Capital - User Guide
+# Portfolio Management Terminal — User Guide
 
-**Complete guide to using the Portfolio Management Terminal.**
-
----
-
-## Table of Contents
-
-1. [Getting Started](#getting-started)
-2. [Dashboard](#dashboard)
-3. [Portfolio Management](#portfolio-management)
-4. [Portfolio Analysis](#portfolio-analysis)
-5. [Portfolio Optimization](#portfolio-optimization)
-6. [Risk Analysis](#risk-analysis)
-7. [Forecasting](#forecasting)
-8. [Transactions](#transactions)
-9. [Troubleshooting](#troubleshooting)
+This guide explains how to use the web app (branded **WILD MARKET**) to build portfolios, analyse them, optimize allocations, stress-test risk, forecast returns, and manage your plan. It describes the Next.js interface as it is in this repository. For installation, see the [README](README.md).
 
 ---
 
-## Getting Started
+## Contents
 
-### First Launch
+1. [Getting started](#getting-started)
+2. [Navigation](#navigation)
+3. [Dashboard](#dashboard)
+4. [Creating a portfolio](#creating-a-portfolio)
+5. [Portfolio list and portfolio overview](#portfolio-list-and-portfolio-overview)
+6. [Transactions](#transactions)
+7. [Analysis](#analysis)
+8. [Optimization (Pro)](#optimization-pro)
+9. [Risk](#risk)
+10. [Forecasting (Pro)](#forecasting-pro)
+11. [Plans and billing](#plans-and-billing)
+12. [Settings](#settings)
+13. [Troubleshooting](#troubleshooting)
 
-1. **Start the Application**:
-   ```bash
-   python run.py
-   ```
-   The application opens at `http://localhost:8501`
+---
 
-2. **Check System Status**:
-   - Look at the sidebar "System Status" section
-   - Ensure API status shows "Online" (green)
-   - Response time should be <100ms
-   - Click "Refresh Status" if needed
+## Getting started
 
-3. **Understand Navigation**:
-   - **Sidebar**: Main navigation menu (always visible)
-   - **Pages**: Dashboard, Create Portfolio, Portfolio List, Portfolio Analysis, Optimization, Risk Analysis, Forecasting
+1. Open the home page and choose **Register** (or **Sign in** if you already have an account).
+2. Enter your email and password. After sign in you return to the page you came from, or to the **Dashboard** if there is none. Registration opens the Dashboard.
+3. Your session is kept in a cookie. Use **Sign out** in the top bar to end it.
 
-### Creating Your First Portfolio
+Public pages: home (`/`), sign in (`/login`), register (`/register`). Every other page needs a signed-in session.
 
-**Recommended Steps**:
+---
 
-1. **Start with Dashboard**:
-   - View market conditions
-   - Check major indices (S&P 500, NASDAQ, Dow Jones, Russell 2000)
-   - Use quick navigation buttons
+## Navigation
 
-2. **Create a Test Portfolio**:
-   - Click "Create Portfolio" in sidebar or dashboard
-   - Use "Text Input" method (fastest)
-   - Enter: `AAPL 40%, MSFT 30%, GOOGL 30%`
-   - Follow the 5-step wizard to completion
+The top bar shows the pages of the app:
 
-3. **View Your Portfolio**:
-   - Go to "Portfolio List"
-   - Click "View" on your portfolio
-   - Explore Overview, Positions, Transactions, Strategies tabs
+| Item | Page | What it is for |
+|------|------|----------------|
+| Dashboard | `/dashboard` | Market indices and an overview |
+| Portfolio List | `/portfolios` | All your portfolios |
+| Create | `/create` | Build a new portfolio |
+| Analysis | `/analysis` | Metrics and charts for one portfolio |
+| Optimization | `/optimization` | Optimal allocations (Pro) |
+| Risk | `/risk` | VaR, Monte Carlo, stress tests, scenarios |
+| Forecasting | `/forecasting` | Price and return forecasts (Pro) |
+| Billing | `/billing` | Your plan |
+| Settings | `/settings` | Account email, billing link, sign out |
 
-4. **Run Analysis**:
-   - Navigate to "Portfolio Analysis"
-   - Select your portfolio
-   - Choose date range (default: 1 year)
-   - Explore all 5 tabs and metrics
+Portfolio pages carry their own tabs (see [Portfolio list and portfolio overview](#portfolio-list-and-portfolio-overview)). `/portfolio/new` redirects to `/create`.
 
 ---
 
 ## Dashboard
 
-**Location**: Sidebar → "Dashboard"
-
-### Features
-
-**Quick Navigation**:
-- 6 navigation buttons: Portfolio List, Create Portfolio, Analysis, Optimization, Risk Analysis, Forecasting
-
-**Market Indices**:
-- **S&P 500 (^GSPC)**: Current price, daily change
-- **NASDAQ (^NDX)**: Technology-focused index
-- **Dow Jones (^DJI)**: 30 large-cap stocks
-- **Russell 2000 (^RUT)**: Small-cap index
-- Real-time updates with color coding (green/red)
-
-**Indices Comparison Chart**:
-- Always shows 1 year of data
-- Cumulative returns for all 4 indices
-- Interactive Plotly chart (zoom, pan, hover)
-
-**Market Statistics**:
-- Market volatility indicators
-- Trading volume statistics
-- Market breadth metrics
+The dashboard shows the major market indices fetched from the market-data provider. Index values depend on the provider, so they may be delayed or temporarily unavailable.
 
 ---
 
-## Portfolio Management
+## Creating a portfolio
 
-### Creating Portfolios
+Open **Create**. Choose one of four input methods:
 
-**5 Methods Available**:
+- **Text** (fastest): type tickers with weights, for example `AAPL 40%, MSFT 30%, GOOGL 30%`.
+- **File**: upload a CSV with positions.
+- **Manual**: add one ticker at a time. Each ticker is validated against the market-data provider before you add it.
+- **Template**: start from a predefined template and customize it.
 
-1. **Wizard** (Step-by-Step):
-   - **Step 1**: Portfolio Information (name, description, currency, initial investment)
-   - **Step 2**: Choose Input Method (Text, File, Manual, Template)
-   - **Step 3**: Add Assets (varies by method)
-   - **Step 4**: Settings & Review (cash management, portfolio mode)
-   - **Step 5**: Create & Results
-   - Best for beginners
-   - Validation at each step
-
-2. **Text Input** (Fastest):
-   - Natural language entry
-   - Supports multiple formats:
-     - `AAPL:40%, MSFT:30%, GOOGL:30%` (colon with percentages)
-     - `AAPL 0.4, MSFT 0.3, GOOGL 0.3` (space with decimals)
-     - `AAPL 40, MSFT 30, GOOGL 30` (numbers > 1 auto-percentage)
-     - `AAPL, MSFT, GOOGL` (equal weights)
-   - Real-time parsing and validation
-   - Automatic weight normalization
-
-3. **CSV Import**:
-   - Upload CSV or Excel files
-   - Required columns: `ticker`, `weight` (or `shares`)
-   - Automatic column mapping
-   - Data preview and validation
-   - Error reporting with downloadable error report
-
-4. **Manual Entry**:
-   - Add positions one by one
-   - Real-time ticker validation
-   - Current price fetching
-   - Full control over allocation
-   - Dynamic form with add/remove
-
-5. **Templates**:
-   - Pre-built investment strategies:
-     - Value Factor, Quality Factor, Growth Factor
-     - Low Volatility, Small Cap Factor, Dividend Factor
-     - Profitability Factor, 60/40 Balanced, All Weather Portfolio
-     - Tech Focus
-   - Customizable allocations
-   - Quick start option
-
-### Managing Portfolios
-
-**Portfolio List View**:
-- **Search & Filter**: Search by name/description, sort by name/date/value
-- **Portfolio Table**: Editable table with selection checkboxes
-- **Bulk Operations**: Update prices, delete selected portfolios
-- **Individual Actions**: Edit, View, Analyze, Delete buttons per portfolio
-
-**Portfolio View** (4 Tabs):
-- **Overview Tab**: Portfolio summary, key metrics, positions table, allocation charts
-- **Positions Tab**: Full position management (edit, add, remove)
-- **Transactions Tab**: Transaction history, add/edit/delete, import/export CSV
-- **Strategies Tab**: Strategy management (for backtesting)
-
-**Portfolio Editor**:
-- Edit name, description, currency, starting capital
-- Inline position editing (shares, purchase price, weight target)
-- Add/remove positions
-- Transaction management
-- Strategy configuration
-
-**Available Operations**:
-- **View**: See portfolio details, positions, transactions, strategies
-- **Edit**: Update name, description, positions, transactions
-- **Clone**: Duplicate with modifications
-- **Delete**: Remove portfolio (with confirmation)
-- **Export**: CSV/Excel export (coming soon)
+Set the starting capital and the rebalance frequency, review the summary, and create the portfolio. Free accounts can hold **one** portfolio; see [Plans and billing](#plans-and-billing).
 
 ---
 
-## Portfolio Analysis
+## Portfolio list and portfolio overview
 
-**Location**: Sidebar → "Portfolio Analysis"
+**Portfolio List** shows every portfolio with a sort control. Open a portfolio to reach its overview. From the list you can also edit a portfolio and delete it.
 
-### Analysis Configuration
+Each portfolio has these tabs:
 
-**Parameters**:
-- **Portfolio Selection**: Dropdown with all portfolios
-- **Date Range**: Start date and end date pickers
-- **Benchmark**: Optional benchmark ticker (SPY, QQQ, VTI, etc.) or another portfolio
-- **Calculate Button**: Triggers metric calculation
+- **Overview**: holdings, realized and unrealized P&L, dividend income, and the starting capital.
+- **Transactions**: the transaction ledger (see [Transactions](#transactions)).
+- **Analysis**, **Risk**, **Optimization**, **Forecasting**: open the matching page with that portfolio already selected.
 
-### Tab 1: Overview
+A portfolio runs in one of two modes:
 
-**Key Metrics Dashboard**:
-- **Performance Metrics**: Total Return, CAGR, Annualized Return, YTD, MTD, QTD, Best/Worst Periods, Win Rate
-- **Risk Metrics**: Volatility (daily/weekly/monthly/annual), Max Drawdown, VaR (90%/95%/99%), CVaR
-- **Risk-Adjusted Ratios**: Sharpe, Sortino, Calmar, Information Ratio
-- **Market Metrics**: Beta, Alpha (CAPM), R², Correlation, Tracking Error
-
-**Charts**:
-- **Cumulative Returns**: Portfolio vs benchmark over time
-- **Drawdown Chart**: Underwater plot showing all drawdown periods
-- **Key Metrics Summary Table**: Side-by-side comparison with benchmark
-
-### Tab 2: Performance
-
-**Sub-tab 2.1: Returns Analysis**:
-- Cumulative Returns chart (full period)
-- Daily Active Returns area chart (portfolio - benchmark)
-- Return by Periods table (1M, 3M, 6M, 1Y, 3Y, 5Y, Since Inception)
-- Expected Returns table (daily, weekly, monthly, quarterly, yearly)
-- Common Performance Periods (CPP) analysis
-- Best/Worst 3-month periods
-
-**Sub-tab 2.2: Periodic Analysis**:
-- Monthly Returns Heatmap (calendar view, color-coded)
-- Yearly Returns bar chart
-- Quarterly Returns bar chart
-- Period Comparison table (sortable, filterable)
-
-**Sub-tab 2.3: Distribution**:
-- Returns Distribution histogram with normal distribution overlay
-- Q-Q Plot (Quantile-Quantile) for normality testing
-- Statistical Tests (Shapiro-Wilk, skewness, kurtosis)
-- Outlier Analysis scatter plot
-
-### Tab 3: Risk
-
-**Sub-tab 3.1: Key Risk Metrics**:
-- Volatility metrics (daily, weekly, monthly, annual)
-- Drawdown metrics (Max, Current, Average, Duration, Recovery)
-- VaR summary (90%, 95%, 99% at different confidence levels)
-- CVaR summary (Expected Shortfall)
-- Complete Risk Metrics table (all 22 metrics)
-
-**Sub-tab 3.2: Drawdown Analysis**:
-- Underwater Plot (full drawdown visualization)
-- Drawdown Periods table (all drawdowns with dates, depth, duration)
-- Drawdown Recovery Analysis (recovery time statistics)
-- Drawdown Statistics summary
-
-**Sub-tab 3.3: VaR & CVaR**:
-- VaR Distribution chart (histogram with VaR levels marked)
-- VaR Methods Comparison table (Historical, Parametric, Cornish-Fisher, Monte Carlo)
-- CVaR Analysis (expected shortfall visualization)
-- Rolling VaR (VaR over time, time series chart)
-
-**Sub-tab 3.4: Rolling Risk Metrics**:
-- Rolling Volatility (30-day, 60-day, 90-day windows)
-- Rolling Sharpe Ratio
-- Rolling Sortino Ratio
-- Rolling Beta
-- All displayed as time series charts
-
-### Tab 4: Assets & Correlations
-
-**Sub-tab 4.1: Asset Overview & Impact**:
-- Asset Metrics table (individual asset performance, contribution to return/risk)
-- Asset Impact on Returns (bar chart)
-- Asset Impact on Risk (bar chart)
-- Risk vs Weight Comparison (scatter plot)
-
-**Sub-tab 4.2: Correlation Analysis**:
-- Correlation Matrix Heatmap (all assets vs all assets)
-- Correlation with Benchmark (bar chart)
-- Correlation Statistics (average, min/max, distribution)
-- Clustered Correlation Matrix (hierarchical clustering with dendrogram)
-
-**Sub-tab 4.3: Asset Details & Dynamics**:
-- Asset Price Charts (individual price charts for all assets)
-- Volume Analysis (trading volume charts)
-- Price vs Volume scatter plots
-- Detailed Asset Analysis (comprehensive asset view)
-
-### Tab 5: Export & Reports
-
-**CSV Export**:
-- Portfolio data
-- Metrics (all or selected)
-- Returns data
-- Positions data
-
-**Excel Export**:
-- Multi-sheet workbook
-- Summary, Holdings, Metrics, Returns, History sheets
-- Formatted tables
-
-**PDF Report Generation**:
-- Screenshot-based PDF (captures actual Streamlit pages)
-- Selectable sections: Overview, Performance, Risk, Assets & Correlations
-- Full page screenshots with charts
-- High quality output
-
----
-
-## Portfolio Optimization
-
-**Location**: Sidebar → "Portfolio Optimization"
-
-### Optimization Methods
-
-**18 Methods Available**:
-
-1. **Mean-Variance (Markowitz)**: Classic portfolio theory (Max Sharpe, Min Variance, Max Return objectives)
-2. **Black-Litterman**: Bayesian approach with market views
-3. **Risk Parity**: Equal risk contribution
-4. **Hierarchical Risk Parity (HRP)**: Clustering-based, robust
-5. **CVaR Optimization**: Tail risk focus (minimize CVaR)
-6. **Mean-CVaR**: Return vs tail risk trade-off
-7. **Robust Optimization**: Uncertainty sets, worst-case optimization
-8. **Maximum Diversification**: Maximize diversification ratio
-9. **Minimum Correlation**: Minimize average correlation
-10. **Inverse Correlation Weighting**: Anti-correlation focus
-11. **Equal Weight**: Simple equal allocation
-12. **Min Variance**: Minimum volatility portfolio
-13. **Max Sharpe**: Maximum Sharpe ratio
-14. **Max Return**: Maximum expected return
-15. **Kelly Criterion**: Optimal bet sizing
-16. **Min Tracking Error**: Minimize deviation from benchmark
-17. **Max Alpha**: Maximize alpha (excess return)
-18. **Market Cap Weighting**: Market capitalization weights
-
-### Configuration
-
-**Parameters**:
-- **Date Range**: Historical period for optimization (start date, end date)
-- **Out-of-Sample Testing**: Validate on unseen data
-  - **Training Window**: 30% (recommended), 50%, or 60% of analysis period
-  - Shows training period dates and validation period dates
-- **Benchmark**: Compare to SPY, QQQ, VTI, DIA, IWM, or custom ticker
-- **Objective Function**: Varies by method (Max Sharpe, Min Variance, Max Return, Min CVaR)
-
-**Constraints**:
-- **Weight Limits**: Min/Max weight per asset (0% to 100%)
-- **Portfolio Constraints**: Long-only (no shorting), sum to 100%
-- **Group Constraints**: Sector/geographic limits (if sector data available)
-- **Cardinality**: Min/Max number of positions
-- **Turnover**: Maximum turnover limit (coming soon)
-
-### Results Display
-
-**Optimized Weights Table**:
-- Ticker, Current Weight, Optimized Weight, Change, Change %, New Shares
-
-**Trade List**:
-- Required transactions (Buy/Sell for each asset)
-- Shares to buy/sell
-- Estimated cost
-- Transaction type
-
-**Before/After Comparison**:
-- Metrics comparison: Expected Return, Volatility, Sharpe Ratio, Max Drawdown, Beta
-- Visual comparison with improvement indicators
-- Color-coded differences
-
-**Transaction-led portfolios** (`ledger_mode = transactions`):
-
-- **Current** curve: your real ledger (deposits, withdrawals, buys/sells, dividends, scheduled rebalances to position targets).
-- **Optimized** curve: same **policy shell** as your portfolio — real **DEPOSIT/WITHDRAWAL** (USD, same dates), **rebalance interval** from portfolio settings (`rebalance_interval_months`: 1 / 3 / 6 / 12 months), but trades aim at the **optimizer’s weights**, not your saved position targets.
-- Opening allocation to optimized weights happens on the first day in the analysis window with full prices (whole shares, IB-style fee estimates like live rebalance).
-- **Buy-and-hold** portfolios still use fixed-share drift for the optimized track.
-- **Train/validation/test row split** is disabled for transaction-led runs so charts, metrics, and the efficient frontier share one calendar (a warning is shown if you had split mode on).
-- Technical detail: [docs/production/phases/phase-4-optimization-ledger-parity.md](docs/production/phases/phase-4-optimization-ledger-parity.md).
-
-**Efficient Frontier**:
-- Risk-return curve visualization
-- Current portfolio marked
-- Optimized portfolio marked (same return model as the performance chart: ledger replay vs buy-and-hold)
-- Interactive: click points to see weights
-
-**Sensitivity Analysis**:
-- Parameter variation testing
-- Weight stability assessment
-- Robustness recommendations
-
----
-
-## Risk Analysis
-
-**Location**: Sidebar → "Risk Analysis"
-
-### Tab 1: VaR Analysis
-
-**Configuration**:
-- **Confidence Level**: Slider from 90% to 99% (default: 95%)
-- **Time Horizon**: 1-30 days forward (default: 1 day)
-
-**Methods**:
-1. **Historical VaR**: Based on historical returns (no distribution assumptions)
-2. **Parametric VaR**: Assumes normal distribution (uses mean and volatility)
-3. **Cornish-Fisher VaR**: Adjusts for skewness and kurtosis (more accurate for non-normal)
-4. **Monte Carlo VaR**: Simulation-based (10,000+ simulations)
-
-**Results**:
-- VaR and CVaR at different confidence levels (90%, 95%, 99%)
-- Methods Comparison table (all methods side-by-side)
-- VaR Distribution chart (histogram with VaR levels marked)
-- Rolling VaR (VaR over time, time series chart)
-- VaR Sensitivity Analysis (parameter variation)
-- Portfolio VaR vs Component VaR (risk decomposition by asset)
-
-### Tab 2: Monte Carlo Simulation
-
-**Configuration**:
-- **Number of Paths**: 1,000 - 100,000 (default: 10,000)
-- **Time Horizon**: 1-365 days (default: 30 days)
-- **Simulation Method**: Geometric Brownian Motion (GBM)
-
-**Results**:
-- **Distribution of Outcomes**: Histogram of final values
-- **Probability Metrics**: Probability of loss, gain, >X% loss, >X% gain
-- **Confidence Intervals**: 90%, 95%, 99% confidence intervals
-- **Path Visualization**: Sample paths shown (representative scenarios)
-- **Statistics**: Mean, median, std dev, min, max, percentiles (5th, 25th, 50th, 75th, 95th)
-- **Extreme Scenarios**: Worst-case and best-case scenarios
-
-### Tab 3: Historical Scenarios
-
-**Available Scenarios**:
-- **2008 Financial Crisis**: Sep 2008 - Mar 2009
-- **2020 COVID-19 Crash**: Feb 2020 - Apr 2020
-- **2000 Dot-com Bubble**: Mar 2000 - Oct 2002
-- **1987 Black Monday**: Oct 1987
-- **Custom Historical Period**: Select any date range
-
-**Results for Each Scenario**:
-- Portfolio Impact (total loss/gain, percentage change, absolute value change)
-- Position-Level Impacts (each asset's contribution, worst/best positions)
-- Comparison Across Scenarios (all scenarios in one table)
-- Recovery Analysis (time to recover, recovery path)
-
-### Tab 4: Custom Scenario
-
-**Scenario Creation**:
-- **Scenario Name**: Descriptive name (e.g., "Tech Crash", "Inflation Spike")
-- **Asset Shocks**: Define % change for each asset (positive or negative)
-- **Correlation Changes**: Modify correlations (advanced, optional)
-
-**Results**:
-- Portfolio Impact (total impact percentage and value)
-- Position Breakdown (each position's impact)
-- Interpretation (automatic analysis, risk assessment, recommendations)
-
-### Tab 5: Scenario Chain
-
-**Chain Configuration**:
-- Define sequence of scenarios (e.g., Crisis → Recovery → Growth)
-- Cumulative impact analysis
-- Recovery paths
-
-**Results**:
-- Cumulative Impact (total impact across all scenarios)
-- Step-by-step breakdown
-- Path Visualization (portfolio value over time with scenario transitions)
-- Recovery Analysis
-
----
-
-## Forecasting
-
-**Location**: Sidebar → "Forecasting"
-
-### Asset/Portfolio Selection
-
-**Single Asset Forecasting**:
-- Dropdown of all tickers in portfolios
-- Or enter custom ticker
-- Real-time validation
-
-**Portfolio Forecasting**:
-- Choose from portfolio list
-- Forecasts aggregate portfolio (weighted)
-
-### Forecasting Parameters
-
-**Training Period**:
-- **Start Date**: Historical data start (default: 1 year ago)
-- **End Date**: Training data end (default: Today)
-- Recommendations: 1-2 years for short-term, 3-5 years for long-term
-
-**Out-of-Sample Testing**:
-- **Training Window**: 30% (recommended), 50%, or 60% of analysis period
-- Validates forecast accuracy on unseen data
-- Shows training period dates and validation period dates
-
-**Forecast Horizon**:
-- Options: 1 Day, 1 Week (5 days), 2 Weeks (10 days), 1 Month (21 days), 3 Months (63 days), 6 Months (126 days), 1 Year (252 days)
-- Custom: Any number of days
-
-### Forecasting Methods
-
-**Classical** (3 methods):
-- **ARIMA**: AutoRegressive Integrated Moving Average (trend forecasting)
-- **GARCH**: Generalized Autoregressive Conditional Heteroskedasticity (volatility forecasting)
-- **ARIMA-GARCH**: Combined mean and volatility model
-
-**Machine Learning** (3 methods):
-- **Random Forest**: Ensemble of decision trees
-- **SVM/SVR**: Support Vector Regression
-- **XGBoost**: Extreme Gradient Boosting
-
-**Deep Learning** (3 methods):
-- **LSTM**: Long Short-Term Memory (recurrent neural network)
-- **TCN**: Temporal Convolutional Network
-- **SSA-MAEMD-TCN**: Hybrid decomposition + deep learning (most sophisticated)
-
-**Simple** (1 method):
-- **Prophet**: Facebook's forecasting tool (handles seasonality well)
-
-**Ensemble**:
-- **Weighted Average**: Combines multiple forecasts
-- **Model Selection**: Automatically selects best model
-
-### Forecast Results
-
-**4 Results Tabs**:
-
-1. **Forecasts Comparison**:
-   - Side-by-side comparison of all selected methods
-   - Historical data + validation period + forecast period
-   - Confidence intervals
-   - Best model selection
-
-2. **Individual Forecasts**:
-   - Detailed view for each method
-   - Model-specific charts and information
-   - Parameter details
-
-3. **Forecast Quality**:
-   - Validation metrics (MAE, RMSE, MAPE, Directional Accuracy)
-   - Residuals analysis
-   - Model performance comparison
-
-4. **Detailed Analysis**:
-   - Model information (parameters, training time, complexity)
-   - Forecast statistics (point forecast, confidence intervals, percentiles)
-   - Technical analysis
+- **Buy-and-hold**: the positions are held as fixed shares from the start date.
+- **With transactions (ledger)**: returns follow your transactions (buys, sells, deposits, withdrawals) and the rebalance schedule.
 
 ---
 
 ## Transactions
 
-**Location**: Portfolio List → View Portfolio → Transactions Tab
+Open a portfolio and choose **Transactions**. The page shows total invested and the number of transactions, and an **Add transaction** form.
 
-### Adding Transactions
+Supported transaction types include:
 
-**Transaction Types**:
-- **BUY**: Purchase shares
-- **SELL**: Sell shares
-- **DEPOSIT**: Add cash to portfolio
-- **WITHDRAWAL**: Remove cash from portfolio
+- **BUY** and **SELL** of a ticker, with quantity and price
+- **DEPOSIT** and **WITHDRAWAL** of cash
+- **DIVIDEND** and stock splits (these are synchronized from market data for the portfolio's tickers)
 
-**Transaction Form**:
-- **Date**: Transaction date (date picker, max: today)
-- **Type**: BUY, SELL, DEPOSIT, WITHDRAWAL (dropdown)
-- **Ticker**: Ticker symbol (auto-set to CASH for DEPOSIT/WITHDRAWAL)
-- **Shares**: Number of shares (or amount for CASH)
-- **Price**: Price per share (auto-set to $1.00 for CASH)
-- **Fees**: Transaction fees (optional, default: $0.00)
-- **Notes**: Optional notes (max 500 characters)
+Delete a transaction from the list if it was entered by mistake. Changes update the holdings and the P&L.
 
-**Features**:
-- Real-time validation
-- Total amount calculation (shares × price)
-- Ticker validation for BUY/SELL
-- Automatic CASH handling for DEPOSIT/WITHDRAWAL
+---
 
-### Transaction Management
+## Analysis
 
-**Transaction History Table**:
-- Date, Type, Ticker, Shares, Price, Amount, Fees, Notes
-- Sortable columns
-- Color-coded transaction types
-- Edit/Delete actions
+**Analysis** computes metrics for one portfolio over a period.
 
-**Available Operations**:
-- **View**: See all transactions in chronological order
-- **Add**: Use "Add Transaction" expander form
-- **Edit**: Edit existing transactions (coming soon)
-- **Delete**: Delete transactions with confirmation
-- **Import**: Import from CSV/Excel file
-- **Export**: Export to CSV file
+1. Pick the **portfolio**, the **start date** and the **end date**.
+2. Choose a **comparison**: none, an index ETF (for example SPY), or another portfolio.
+3. Set the **risk-free rate** (in percent, for example 4.35).
+4. Click **Calculate Metrics**. **Update Prices** refreshes market prices first.
 
-**Transaction Summary**:
-- Total transactions count
-- First transaction date
-- Last transaction date
-- Total invested (sum of BUY + DEPOSIT amounts)
+Results are split into five tabs:
 
-### Portfolio Modes
+- **Overview**: key metrics (total return, CAGR, volatility, maximum drawdown, Sharpe, Sortino, beta, alpha) and the cumulative return chart.
+- **Performance**: returns over time, periodic returns, and benchmark comparison.
+- **Risk**: risk metrics and drawdowns.
+- **Assets & Correlations**: per-asset metrics and the correlation matrix.
+- **Export & Reports**: download the analytics as JSON.
 
-**Buy-and-Hold** (Default):
-- Fixed positions (shares don't change)
-- No transaction tracking
-- Simple mode for static portfolios
+---
 
-**With Transactions**:
-- Track all operations (BUY, SELL, DEPOSIT, WITHDRAWAL)
-- Calculate positions from transaction history
-- Real portfolio history
-- Positions update automatically based on transactions
+## Optimization (Pro)
 
-**Mode Indicator**:
-- Shown in portfolio view
-- Green badge: "With Transactions"
-- Blue badge: "Buy-and-Hold"
+**Optimization** finds allocations for a portfolio. It requires the Pro plan.
+
+1. Choose a **method** from the dropdown (for example **Max Sharpe** or **Min Vol**; the dropdown also offers the other methods in the engine, such as HRP and Black–Litterman). Each method has its own parameters under **Method Parameters**.
+2. Set the **covariance estimator**: shrinkage, Ledoit–Wolf, or sample covariance.
+3. Set **Constraints** (weight bounds and similar limits).
+4. Run the optimization. Results show:
+   - **Allocation**: the optimized weights.
+   - **Efficient frontier (training window)** and **Correlation (training window)**.
+   - **Performance (test window)** and **Optimized vs current (test window)**: the out-of-sample comparison, so the optimized weights are judged on data they were not fitted to.
+   - **Suggested trades**: the buys and sells that would move the portfolio to the optimized weights.
+
+Suggested trades are advice, not orders. Nothing is executed from this page.
+
+---
+
+## Risk
+
+**Risk** measures how much the portfolio could lose. Set the **analysis period** first.
+
+- **Key risk metrics** and **VaR & CVaR** at several confidence levels.
+- **VaR methods comparison**: historical, parametric and Monte Carlo estimates side by side, with rolling VaR.
+- **Monte Carlo simulation**: the distribution of final values with percentiles and a recovery timeline.
+- **Historical scenarios** and **Extreme scenarios**: how the portfolio behaved in past crises.
+- **Custom scenario**: define your own shocks to the assets and see the impact, including the per-position breakdown.
+- **Scenario chain**: apply several scenarios in sequence.
+
+---
+
+## Forecasting (Pro)
+
+**Forecasting** projects future prices or returns. It requires the Pro plan.
+
+1. Select an **asset** (one ticker) or the **portfolio**.
+2. Set the **forecast horizon** and the **analysis / validation** window. Out-of-sample testing scores the model on data held back from fitting.
+3. Choose a **forecasting method** family:
+   - **Classical** (for example ARIMA and GARCH-style models)
+   - **Machine Learning**
+   - **Deep Learning** (these need the full dependency set; see the README)
+   - **Simple** baselines
+4. Read **Forecast results** and **All forecasts vs history**. Forecasts are estimates with uncertainty, not guarantees.
+
+---
+
+## Plans and billing
+
+**Billing** (`/billing`) shows your current plan and status.
+
+| | Free | Pro |
+|--|------|-----|
+| Portfolios | 1 | Unlimited |
+| Analysis, Risk, Create | yes | yes |
+| Optimization | no | yes |
+| Forecasting | no | yes |
+
+- **Upgrade**: use the checkout button on the billing page. Payment is handled by Stripe Checkout.
+- **Manage**: use the Customer Portal button to change or cancel the subscription and to update payment details.
+- After a successful payment the plan updates when Stripe notifies the server; if it does not change right away, reload the page.
+
+If the billing page says Stripe is not configured, billing is not set up on this server; the rest of the app still works.
+
+---
+
+## Settings
+
+**Settings** shows the email of the signed-in account, links to **Billing & plan**, and has a **Sign out** button.
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
-**"Portfolio not found"**:
-- Check "Portfolio List" to verify portfolio exists
-- Refresh the page
-- Restart application if persistent
-- Check database connection
-
-**"Ticker not found" or "Invalid ticker symbol"**:
-- Verify ticker symbol spelling (e.g., AAPL, not APPL)
-- Check if ticker is still active (not delisted)
-- Try alternative format (e.g., BRK.B vs BRK-B)
-- Check system status in sidebar (API should be online)
-- Wait a few minutes and retry (API might be temporarily unavailable)
-
-**"Insufficient data" or "Not enough historical data"**:
-- Reduce date range (try 6 months instead of 1 year)
-- Check ticker listing date (newly listed stocks have limited history)
-- Verify data availability in price charts
-- Use different ticker if data insufficient
-
-**"Optimization failed" or "No solution found"**:
-- Relax constraints (increase max weight, reduce min weight)
-- Check if constraints are feasible (e.g., min weights sum to >100%)
-- Increase date range for more data
-- Try different optimization method
-- Remove cardinality constraints if too restrictive
-
-**"Forecast error" or "Model training failed"**:
-- Increase training period (more historical data)
-- Check data quality (no missing values, no extreme outliers)
-- Try simpler model (ARIMA instead of LSTM)
-- Reduce forecast horizon
-- Enable out-of-sample testing to validate
-
-**"Slow performance" or "Calculation taking too long"**:
-- Reduce date range
-- Use simpler optimization method
-- Run forecasts one at a time (not simultaneously)
-- Check API status (might be slow)
-- Clear cache and retry
-- Restart application if needed
-
-**"Chart not displaying" or "Empty chart"**:
-- Check date range (ensure data exists for selected period)
-- Verify portfolio has positions
-- Check if benchmark data available
-- Try different browser
-- Refresh page
-- Clear browser cache
-
-**"Export failed" or "PDF generation error"**:
-- Ensure Streamlit app is running
-- Check browser automation tools installed (Playwright)
-- Verify write permissions
-- Try CSV export instead of PDF
-- Check available disk space
-
-### Performance Tips
-
-**For Large Portfolios** (20+ assets):
-- Use shorter date ranges for faster calculations
-- Prefer simpler optimization methods (Equal Weight, Min Variance)
-- Disable out-of-sample testing for faster results
-- Use cached data when possible
-
-**For Long Date Ranges** (5+ years):
-- Calculate metrics in batches
-- Use sampling for Monte Carlo (fewer paths, e.g., 1,000 instead of 10,000)
-- Simplify forecast models
-- Export data for external analysis if needed
-
-**For Multiple Forecasts**:
-- Run forecasts sequentially, not simultaneously
-- Use faster methods (ARIMA, Prophet) for quick results
-- Save results before running next forecast
-- Use ensemble only for final decision
+| Symptom | What to do |
+|---------|------------|
+| Redirected to sign in | Your session expired. Sign in again. |
+| Creating a portfolio is refused | The Free plan allows one portfolio. Delete an existing portfolio or upgrade to Pro. |
+| Optimization or Forecasting is locked | These need the Pro plan. See [Plans and billing](#plans-and-billing). |
+| Ticker is rejected | The ticker is not known to the market-data provider. Check the symbol (for example `BRK-B`). |
+| Prices or metrics are missing | The market-data provider may be unreachable or rate-limiting. Wait and use **Update Prices** or recalculate. |
+| Billing page does not show a change after paying | Reload the page. The plan updates after Stripe confirms the payment. |
+| The page does not load at all | Check with the operator that the web app and the API are both running. |
 
 ---
 
-## Best Practices
+## Notes
 
-### Portfolio Creation
-- **Start Simple**: Begin with 5-10 positions, expand gradually
-- **Diversify**: Max 20-30% per asset to reduce concentration risk
-- **Use Templates**: Leverage pre-built strategies for quick start
-- **Validate Tickers**: Always verify ticker symbols before creating
-- **Set Realistic Capital**: Use actual investment amounts for accurate analysis
-
-### Analysis
-- **Date Range Selection**:
-  - **Short-term**: 3-6 months (for active trading)
-  - **Medium-term**: 1 year (most common, balanced view)
-  - **Long-term**: 3-5 years (for strategic planning)
-- **Benchmark Selection**:
-  - Tech portfolios: Use QQQ (NASDAQ-100)
-  - Broad market: Use SPY (S&P 500) or VTI (Total Market)
-  - Sector-specific: Use relevant sector ETF
-- **Metric Interpretation**:
-  - Sharpe Ratio: >1 is good, >2 is excellent
-  - Max Drawdown: Consider your risk tolerance
-  - Beta: <1 = less volatile, >1 = more volatile
-  - Alpha: Positive = outperformance, negative = underperformance
-
-### Optimization
-- **Method Selection**:
-  - **General use**: Mean-Variance (Max Sharpe)
-  - **Stable results**: Black-Litterman
-  - **Risk-focused**: Risk Parity or CVaR Optimization
-  - **Many assets**: Hierarchical Risk Parity (HRP)
-  - **Conservative**: Mean-CVaR or Robust Optimization
-- **Constraint Guidelines**:
-  - Min weight: 2-5% (prevents tiny positions)
-  - Max weight: 20-30% (prevents concentration)
-  - Cardinality: 10-20 positions (balance diversification and complexity)
-- **Out-of-Sample Testing**: Always enable for validation (30% window recommended)
-
-### Risk Management
-- **VaR Usage**: Use multiple methods (Historical + Parametric + Cornish-Fisher) and compare
-- **Stress Testing**: Test against historical crises and create custom scenarios for your specific risks
-- **Monte Carlo**: Run for probabilistic analysis (10,000 paths recommended)
-- **Drawdown Management**: Monitor current drawdown regularly, set drawdown limits
-
-### Forecasting
-- **Model Selection**:
-  - **Short-term** (1-5 days): ARIMA or LSTM
-  - **Medium-term** (1-3 months): ARIMA-GARCH or XGBoost
-  - **Long-term** (6-12 months): Prophet or Ensemble
-  - **Always**: Use ensemble for production decisions
-- **Training Data**: Use sufficient history (at least 1 year, preferably 2-3 years)
-- **Validation**: Always enable out-of-sample testing, review MAE, RMSE, MAPE metrics
-- **Interpretation**: Trust confidence intervals, not just point forecasts
-
-### Transaction Management
-- **Record Promptly**: Enter transactions as soon as possible for accurate history
-- **Include Fees**: Add transaction fees for accurate cost basis
-- **Use Notes**: Add notes for context (e.g., "Rebalancing", "Dividend reinvestment")
-- **Regular Review**: Review transaction history regularly for accuracy
-- **Export Backup**: Export transactions to CSV regularly for backup
-
----
-
-## Keyboard Shortcuts
-
-**Chart Interactions** (Plotly):
-- **Mouse Wheel**: Zoom in/out
-- **Double-Click**: Reset zoom
-- **Click and Drag**: Pan around chart
-- **Hover**: See exact values
-- **Click Legend**: Show/hide series
-- **Right-Click**: Context menu (reset, export, etc.)
-
-**Form Navigation**:
-- **Tab**: Move to next field
-- **Enter**: Submit form
-- **Escape**: Close dialogs/modals
-
-**Table Interactions**:
-- **Click Column Header**: Sort by that column
-- **Click Again**: Reverse sort order
-- **Search Box**: Type to filter rows (real-time)
-
----
-
-## Additional Resources
-
-For technical documentation and architecture details, please refer to the project repository or contact the development team.
-
----
-
-**For questions or issues, please open an issue on GitHub.**
+- The app has no keyboard shortcuts of its own. Charts respond to hovering (tooltips) and the standard browser keys apply to forms and tables.
+- Figures are computed from market data and your transactions. They are for analysis and are not investment advice.

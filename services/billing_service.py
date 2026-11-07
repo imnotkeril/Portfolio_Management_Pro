@@ -8,10 +8,15 @@ from typing import Any
 
 from config.settings import settings
 from core.data_manager.subscription_repository import SubscriptionRepository
-from core.exceptions import BillingNotConfiguredError
+from core.exceptions import BillingError, BillingNotConfiguredError
 from models.subscription import Subscription
 from models.user import User
-from services.billing.plans import PLAN_FREE, PLAN_PRO, is_pro_subscription
+from services.billing.plans import (
+    PLAN_FREE,
+    PLAN_PRO,
+    PRO_ACTIVE_STATUSES,
+    is_pro_subscription,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +51,57 @@ def _resolve_price_id(stripe, price_or_product: str) -> str:
     )
 
 
+def _as_dict(obj: Any) -> dict[str, Any]:
+    """Plain dict from a StripeObject (stripe>=16 is not a dict) or a dict."""
+    if obj is None:
+        return {}
+    to_dict = getattr(obj, "to_dict", None)
+    if callable(to_dict):
+        return dict(to_dict())
+    return dict(obj)
+
+
+def _period_end(sub: dict[str, Any]) -> datetime | None:
+    """Current period end of a subscription.
+
+    Newer Stripe API versions moved ``current_period_end`` from the
+    subscription to its items; older ones keep it on the subscription.
+    """
+    ends = [
+        int(i["current_period_end"])
+        for i in (sub.get("items") or {}).get("data") or []
+        if i.get("current_period_end")
+    ]
+    top = sub.get("current_period_end")
+    if top:
+        ends.append(int(top))
+    if not ends:
+        return None
+    return datetime.fromtimestamp(max(ends), tz=timezone.utc)
+
+
+def _plan_for_status(status: str) -> str:
+    return PLAN_PRO if status in PRO_ACTIVE_STATUSES else PLAN_FREE
+
+
+def _invoice_subscription_id(invoice: dict[str, Any]) -> str | None:
+    """Subscription id of an invoice across Stripe API versions."""
+    direct = invoice.get("subscription")
+    if isinstance(direct, dict):
+        direct = direct.get("id")
+    if direct:
+        return str(direct)
+    parent = (invoice.get("parent") or {}).get("subscription_details") or {}
+    if parent.get("subscription"):
+        return str(parent["subscription"])
+    for line in (invoice.get("lines") or {}).get("data") or []:
+        item = (line.get("parent") or {}).get("subscription_item_details") or {}
+        sid = line.get("subscription") or item.get("subscription")
+        if sid:
+            return str(sid)
+    return None
+
+
 class BillingService:
     """Orchestrates subscription rows and Stripe API calls."""
 
@@ -65,28 +121,45 @@ class BillingService:
             subs = stripe.Subscription.list(
                 customer=sub.stripe_customer_id,
                 status="all",
-                limit=1,
+                limit=10,
             )
-            if subs.data:
-                s0 = subs.data[0]
-                status = str(s0.get("status") or "active")
-                plan = PLAN_PRO if status in ("active", "trialing") else PLAN_FREE
-                end_ts = s0.get("current_period_end")
-                period_dt = (
-                    datetime.fromtimestamp(int(end_ts), tz=timezone.utc)
-                    if end_ts
-                    else None
+            items = [_as_dict(x) for x in subs.data]
+            if items:
+                # Prefer a live subscription over a newer canceled one.
+                s0 = next(
+                    (x for x in items if x.get("status") in PRO_ACTIVE_STATUSES),
+                    items[0],
                 )
+                status = str(s0.get("status") or "canceled")
                 return self._repo.sync_stripe_subscription(
                     user.id,
-                    plan=plan,
+                    plan=_plan_for_status(status),
                     status=status,
                     stripe_subscription_id=str(s0.get("id") or "") or None,
-                    current_period_end=period_dt,
+                    current_period_end=_period_end(s0),
                 )
         except Exception as exc:
             logger.warning("Stripe sync failed for %s: %s", user.id, exc)
         return sub
+
+    def cancel_subscription_for_deletion(self, user_id: str) -> None:
+        """Cancel the user's Stripe subscription immediately before account deletion.
+
+        No-op when the user never had one. A subscription Stripe no longer knows
+        counts as cancelled. Any other failure raises ``BillingError`` so the
+        account is not deleted while billing could still run.
+        """
+        sub = self._repo.find_by_user_id(user_id)
+        if sub is None or not sub.stripe_subscription_id:
+            return
+        try:
+            stripe = _stripe_client()
+            stripe.Subscription.cancel(sub.stripe_subscription_id)
+        except Exception as exc:
+            if getattr(exc, "code", None) == "resource_missing":
+                return
+            logger.warning("Stripe cancel failed for %s: %s", user_id, exc)
+            raise BillingError("Could not cancel the subscription") from exc
 
     def get_status(self, user: User) -> dict[str, Any]:
         sub = self.sync_from_stripe(user)
@@ -175,84 +248,105 @@ class BillingService:
         }.get(event.type)
 
         if handler:
-            handler(event.data.object)
+            try:
+                handler(event.data.object)
+            except Exception:
+                # The event was marked before handling (dedupe for concurrent
+                # deliveries); un-mark it so Stripe's retry is not dropped.
+                self._repo.unmark_event(event_id)
+                raise
         else:
             logger.info("Unhandled Stripe event type: %s", event.type)
 
         return {"status": "ok"}
 
-    def _on_checkout_completed(self, session: Any) -> None:
-        user_id = (session.get("metadata") or {}).get("user_id")
-        customer_id = session.get("customer")
-        subscription_id = session.get("subscription")
-        if not user_id and customer_id:
-            sub = self._repo.find_by_stripe_customer_id(str(customer_id))
-            if sub:
-                user_id = sub.user_id
-        if not user_id:
-            logger.warning("checkout.session.completed without user_id")
+    def _fetch_subscription(self, sub_id: str) -> dict[str, Any] | None:
+        """Authoritative subscription state from Stripe (None if it is gone)."""
+        import stripe
+
+        try:
+            return _as_dict(stripe.Subscription.retrieve(sub_id))
+        except stripe.InvalidRequestError as exc:
+            if getattr(exc, "code", None) == "resource_missing" or "No such" in str(
+                exc
+            ):
+                return None
+            raise
+
+    def _reconcile(self, row: Subscription | None, sub_id: str | None) -> None:
+        """Write Stripe's current state of ``sub_id`` onto the user's row.
+
+        The event body is never trusted for entitlement: stale or out-of-order
+        events therefore cannot re-grant (or revoke) Pro. Events for a
+        subscription other than the one on the row are ignored.
+        """
+        if row is None:
             return
-        self._repo.update_pro_from_checkout(
-            user_id,
-            stripe_customer_id=str(customer_id) if customer_id else "",
-            stripe_subscription_id=(str(subscription_id) if subscription_id else None),
-            status="active",
-        )
+        current = row.stripe_subscription_id
+        sub_id = sub_id or current
+        if not sub_id:
+            logger.info("Stripe event without subscription id; ignored")
+            return
+        if current and current != sub_id:
+            logger.info("Ignoring event for non-current subscription %s", sub_id)
+            return
+        state = self._fetch_subscription(sub_id)
+        status = str(state.get("status") or "") if state else "canceled"
+        if _plan_for_status(status) == PLAN_PRO:
+            self._repo.sync_stripe_subscription(
+                row.user_id,
+                plan=PLAN_PRO,
+                status=status,
+                stripe_subscription_id=sub_id,
+                current_period_end=_period_end(state or {}),
+            )
+        elif current == sub_id:
+            self._repo.downgrade_to_free(row.user_id)
+
+    def _row_for_customer(self, customer_id: Any) -> Subscription | None:
+        if not customer_id:
+            return None
+        return self._repo.find_by_stripe_customer_id(str(customer_id))
+
+    def _on_checkout_completed(self, session: Any) -> None:
+        data = _as_dict(session)
+        user_id = (data.get("metadata") or {}).get("user_id")
+        customer_id = data.get("customer")
+        subscription_id = data.get("subscription")
+        if isinstance(subscription_id, dict):
+            subscription_id = subscription_id.get("id")
+        row = self._row_for_customer(customer_id)
+        if row is None and user_id:
+            row = self._repo.find_by_user_id(str(user_id))
+        if row is None:
+            logger.warning("checkout.session.completed without a known user")
+            return
+        if customer_id and row.stripe_customer_id != str(customer_id):
+            row.stripe_customer_id = str(customer_id)
+            row = self._repo.save(row)
+        if data.get("payment_status") not in ("paid", "no_payment_required"):
+            logger.info("Checkout not paid yet; Pro is granted on a later event")
+            return
+        # A paid checkout starts a new subscription: a non-Pro row (e.g. one
+        # canceled earlier) must accept the new id.
+        if (
+            subscription_id
+            and row.stripe_subscription_id != str(subscription_id)
+            and not is_pro_subscription(row)
+        ):
+            row.stripe_subscription_id = None
+            row = self._repo.save(row)
+        self._reconcile(row, str(subscription_id) if subscription_id else None)
 
     def _on_invoice_paid(self, invoice: Any) -> None:
-        customer_id = invoice.get("customer")
-        period_end = invoice.get("lines", {}).get("data", [{}])
-        end_ts = None
-        if period_end:
-            end_ts = period_end[0].get("period", {}).get("end")
-        period_dt = None
-        if end_ts:
-            period_dt = datetime.fromtimestamp(int(end_ts), tz=timezone.utc)
-        sub = (
-            self._repo.find_by_stripe_customer_id(str(customer_id))
-            if customer_id
-            else None
-        )
-        if sub is None:
-            return
-        self._repo.sync_stripe_subscription(
-            sub.user_id,
-            plan=PLAN_PRO,
-            status="active",
-            stripe_subscription_id=sub.stripe_subscription_id,
-            current_period_end=period_dt,
-        )
+        data = _as_dict(invoice)
+        row = self._row_for_customer(data.get("customer"))
+        self._reconcile(row, _invoice_subscription_id(data))
 
     def _on_subscription_updated(self, stripe_sub: Any) -> None:
-        customer_id = stripe_sub.get("customer")
-        sub = (
-            self._repo.find_by_stripe_customer_id(str(customer_id))
-            if customer_id
-            else None
-        )
-        if sub is None:
-            return
-        status = str(stripe_sub.get("status") or "active")
-        plan = PLAN_PRO if status in ("active", "trialing") else PLAN_FREE
-        end_ts = stripe_sub.get("current_period_end")
-        period_dt = (
-            datetime.fromtimestamp(int(end_ts), tz=timezone.utc) if end_ts else None
-        )
-        self._repo.sync_stripe_subscription(
-            sub.user_id,
-            plan=plan,
-            status=status,
-            stripe_subscription_id=str(stripe_sub.get("id") or "") or None,
-            current_period_end=period_dt,
-        )
+        data = _as_dict(stripe_sub)
+        row = self._row_for_customer(data.get("customer"))
+        self._reconcile(row, str(data.get("id") or "") or None)
 
     def _on_subscription_deleted(self, stripe_sub: Any) -> None:
-        customer_id = stripe_sub.get("customer")
-        sub = (
-            self._repo.find_by_stripe_customer_id(str(customer_id))
-            if customer_id
-            else None
-        )
-        if sub is None:
-            return
-        self._repo.downgrade_to_free(sub.user_id)
+        self._on_subscription_updated(stripe_sub)

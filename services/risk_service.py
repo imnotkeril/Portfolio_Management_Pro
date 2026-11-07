@@ -9,6 +9,7 @@ import logging
 from datetime import date
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from core.exceptions import InsufficientDataError, ValidationError
@@ -31,6 +32,9 @@ from services.data_service import DataService
 from services.portfolio_service import PortfolioService
 
 logger = logging.getLogger(__name__)
+
+# Cap on simulated paths returned to API clients (S-03).
+MAX_RETURNED_PATHS = 100
 
 
 class RiskService:
@@ -147,6 +151,27 @@ class RiskService:
             model,
         )
 
+        # Never return every simulated path (hundreds of MB): ship at most
+        # MAX_RETURNED_PATHS evenly spaced samples plus the full-sample
+        # envelope (max / min / median path) the UI needs.
+        finals = np.asarray(result.final_values, dtype=float)
+        paths = getattr(result, "simulated_paths", None)
+        sample_paths = None
+        envelope = None
+        if paths is not None:
+            paths = np.asarray(paths)
+            if paths.ndim == 2 and paths.shape[0] > 0:
+                n = paths.shape[0]
+                idx = np.linspace(0, n - 1, min(MAX_RETURNED_PATHS, n), dtype=int)
+                sample_paths = paths[idx].tolist()
+                if finals.shape[0] == n:
+                    mid = int(np.argmin(np.abs(finals - np.percentile(finals, 50))))
+                    envelope = {
+                        "max": paths.max(axis=0).tolist(),
+                        "min": paths.min(axis=0).tolist(),
+                        "median": paths[mid].tolist(),
+                    }
+
         return {
             "portfolio_id": portfolio_id,
             "time_horizon": time_horizon,
@@ -154,12 +179,9 @@ class RiskService:
             "model": model,
             "percentiles": result.percentiles,
             "statistics": result.statistics,
-            "final_values": result.final_values.tolist(),
-            "simulated_paths": (
-                result.simulated_paths.tolist()
-                if hasattr(result, "simulated_paths")
-                else None
-            ),
+            "final_values": finals.tolist(),
+            "simulated_paths": sample_paths,
+            "path_envelope": envelope,
         }
 
     def run_stress_test(

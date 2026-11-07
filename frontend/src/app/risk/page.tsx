@@ -381,8 +381,7 @@ function RiskPageContent() {
       <header>
         <h1 className="text-3xl font-semibold text-white">Risk Analysis</h1>
         <p className="mt-2 text-white/60">
-          VaR, Monte Carlo, historical stress tests, custom shocks and scenario chains — aligned with
-          the Streamlit risk page.
+          VaR, Monte Carlo, historical stress tests, custom shocks and scenario chains.
         </p>
       </header>
 
@@ -394,8 +393,8 @@ function RiskPageContent() {
             <h2 className="text-lg text-white">Analysis period</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="text-xs text-white/50">Start</label>
-                <input
+                <label htmlFor="app-risk-page-f1" className="text-xs text-white/50">Start</label>
+                <input id="app-risk-page-f1"
                   type="date"
                   className="input mt-1"
                   value={startDate}
@@ -407,8 +406,8 @@ function RiskPageContent() {
                 />
               </div>
               <div>
-                <label className="text-xs text-white/50">End</label>
-                <input
+                <label htmlFor="app-risk-page-f2" className="text-xs text-white/50">End</label>
+                <input id="app-risk-page-f2"
                   type="date"
                   className="input mt-1"
                   value={endDate}
@@ -419,8 +418,8 @@ function RiskPageContent() {
               </div>
             </div>
             <div>
-              <label className="text-xs text-white/50">Portfolio</label>
-              <select
+              <label htmlFor="app-risk-page-f3" className="text-xs text-white/50">Portfolio</label>
+              <select id="app-risk-page-f3"
                 className="input mt-1"
                 value={portfolioId}
                 onChange={(e) => setPortfolioId(e.target.value)}
@@ -466,10 +465,10 @@ function RiskPageContent() {
               <h2 className="text-xl text-white">Value at Risk (VaR)</h2>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-xs text-white/50">
+                  <label htmlFor="app-risk-page-f4" className="text-xs text-white/50">
                     Confidence level: {varConf}%
                   </label>
-                  <input
+                  <input id="app-risk-page-f4"
                     type="range"
                     min={90}
                     max={99}
@@ -479,8 +478,8 @@ function RiskPageContent() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-white/50">Time horizon (days)</label>
-                  <input
+                  <label htmlFor="app-risk-page-f5" className="text-xs text-white/50">Time horizon (days)</label>
+                  <input id="app-risk-page-f5"
                     type="number"
                     min={1}
                     max={30}
@@ -490,8 +489,8 @@ function RiskPageContent() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-white/50">Rolling VaR window (days)</label>
-                  <input
+                  <label htmlFor="app-risk-page-f6" className="text-xs text-white/50">Rolling VaR window (days)</label>
+                  <input id="app-risk-page-f6"
                     type="number"
                     min={30}
                     max={252}
@@ -753,8 +752,8 @@ function RiskPageContent() {
               </p>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-xs text-white/50">Horizon (days forward)</label>
-                  <input
+                  <label htmlFor="app-risk-page-f7" className="text-xs text-white/50">Horizon (days forward)</label>
+                  <input id="app-risk-page-f7"
                     type="number"
                     min={1}
                     max={252}
@@ -764,8 +763,8 @@ function RiskPageContent() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-white/50">Simulations</label>
-                  <select
+                  <label htmlFor="app-risk-page-f8" className="text-xs text-white/50">Simulations</label>
+                  <select id="app-risk-page-f8"
                     className="input mt-1"
                     value={mcSims}
                     onChange={(e) => setMcSims(Number(e.target.value))}
@@ -778,8 +777,8 @@ function RiskPageContent() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-white/50">Initial portfolio value ($)</label>
-                  <input
+                  <label htmlFor="app-risk-page-f9" className="text-xs text-white/50">Initial portfolio value ($)</label>
+                  <input id="app-risk-page-f9"
                     type="number"
                     min={1}
                     step={1000}
@@ -789,8 +788,8 @@ function RiskPageContent() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-white/50">Model</label>
-                  <select
+                  <label htmlFor="app-risk-page-f10" className="text-xs text-white/50">Model</label>
+                  <select id="app-risk-page-f10"
                     className="input mt-1"
                     value={mcModel}
                     onChange={(e) => setMcModel(e.target.value as typeof mcModel)}
@@ -1456,8 +1455,8 @@ function RiskPageContent() {
                 onChange={(e) => setCustDesc(e.target.value)}
               />
               <div>
-                <label className="text-xs text-white/50">Market impact %</label>
-                <input
+                <label htmlFor="app-risk-page-f11" className="text-xs text-white/50">Market impact %</label>
+                <input id="app-risk-page-f11"
                   type="range"
                   min={-100}
                   max={100}
@@ -1468,10 +1467,10 @@ function RiskPageContent() {
                 <span className="text-sm text-white/70">{custMarketPct}%</span>
               </div>
               <div>
-                <label className="text-xs text-white/50">
+                <label htmlFor="app-risk-page-f12" className="text-xs text-white/50">
                   Asset shocks (one per line: TICKER:-15 or TICKER:-15%)
                 </label>
-                <textarea
+                <textarea id="app-risk-page-f12"
                   className="input mt-1 font-mono text-sm"
                   rows={5}
                   value={custAssetsText}

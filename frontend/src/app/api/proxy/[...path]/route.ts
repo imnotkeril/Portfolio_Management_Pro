@@ -5,6 +5,8 @@ import {
   getBackendUrl,
   isPublicProxyPath,
 } from "@/lib/auth-cookie";
+import { forwardedForHeaders } from "@/lib/client-ip";
+import { sanitizeProxyPath } from "@/lib/proxy-path";
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
@@ -13,7 +15,10 @@ async function proxyRequest(
   context: RouteContext,
 ): Promise<NextResponse> {
   const { path } = await context.params;
-  const pathStr = path.join("/");
+  const pathStr = sanitizeProxyPath(path);
+  if (pathStr === null) {
+    return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  }
   const token = request.cookies.get(AUTH_COOKIE)?.value;
 
   if (!token && !isPublicProxyPath(pathStr)) {
@@ -25,7 +30,7 @@ async function proxyRequest(
     target.searchParams.set(key, value);
   });
 
-  const headers: HeadersInit = {};
+  const headers: Record<string, string> = { ...forwardedForHeaders(request) };
   const contentType = request.headers.get("content-type");
   if (contentType) headers["Content-Type"] = contentType;
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -40,7 +45,12 @@ async function proxyRequest(
     init.body = await request.text();
   }
 
-  const upstream = await fetch(target.toString(), init);
+  let upstream: Response;
+  try {
+    upstream = await fetch(target.toString(), init);
+  } catch {
+    return NextResponse.json({ detail: "Upstream unavailable" }, { status: 502 });
+  }
   const body = await upstream.text();
 
   return new NextResponse(body, {

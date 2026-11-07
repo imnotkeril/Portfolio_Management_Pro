@@ -351,6 +351,7 @@ select.input { cursor: pointer; appearance: auto; }
   box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
   pointer-events: none;
   opacity: 0;
+  display: none;
   transition: opacity 0.15s;
 }
 .tooltip-bubble::after {
@@ -362,8 +363,10 @@ select.input { cursor: pointer; appearance: auto; }
   border: 5px solid transparent;
   border-top-color: #1e2130;
 }
-.tooltip-wrap:hover .tooltip-bubble {
+.tooltip-wrap:hover .tooltip-bubble,
+.tooltip-wrap:focus-within .tooltip-bubble {
   opacity: 1;
+  display: block;
 }
 
 /* --- Checkbox styled --- */
@@ -415,4 +418,23 @@ input[type="range"] {
 .tab-btn.active {
   background: rgb(191 159 251 / 12%);
   color: var(--accent);
+}
+
+/* --- Touch targets on small screens (WCAG 2.5.8) --- */
+@media (max-width: 767px) {
+  .btn,
+  .input,
+  .checkbox-label,
+  .data-table button,
+  .data-table a {
+    min-height: 44px;
+  }
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+  }
+  .data-table button,
+  .data-table a {
+    min-width: 44px;
+  }
 }

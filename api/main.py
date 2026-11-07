@@ -4,19 +4,23 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from datetime import date
-from typing import Any
+from pathlib import Path
+from typing import Annotated, Any
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, Field, model_validator
 
 from api.dependencies import get_current_user, require_pro
 from api.rate_limit import rate_limit
 from api.routers import auth as auth_router
 from api.routers import billing as billing_router
+from api.security_headers import SecurityHeadersMiddleware, docs_kwargs, is_production
 from config.settings import settings
 from core.analytics_engine.chart_data import (
     get_asset_impact_on_return_data,
@@ -99,10 +103,25 @@ class AddTransactionRequest(BaseModel):
     currency: str = "USD"
 
 
+# Upper bounds on request sizes (S-03): one request must not be able to
+# allocate unbounded memory or CPU.
+MAX_SIMULATIONS = 50_000
+MAX_HORIZON_DAYS = 2_520
+MAX_SIMULATED_CELLS = 2_000_000  # num_simulations * time_horizon
+MAX_TICKERS = 100
+MAX_TICKER_LEN = 20
+MAX_FORECAST_HORIZON = 365
+
+TickerList = Annotated[
+    list[Annotated[str, Field(min_length=1, max_length=MAX_TICKER_LEN)]],
+    Field(max_length=MAX_TICKERS),
+]
+
+
 class DividendSyncRequest(BaseModel):
     """Sync dividends from market data."""
 
-    tickers: list[str]
+    tickers: TickerList
     start_date: date
     end_date: date
     reinvest: bool = False
@@ -111,7 +130,7 @@ class DividendSyncRequest(BaseModel):
 class SplitSyncRequest(BaseModel):
     """Sync stock splits from market data."""
 
-    tickers: list[str]
+    tickers: TickerList
     start_date: date
     end_date: date
 
@@ -134,24 +153,36 @@ class RiskVarRequest(BaseModel):
     portfolio_id: str
     start_date: date
     end_date: date
-    confidence_level: float = 0.95
+    confidence_level: float = Field(0.95, ge=0.5, le=0.9999)
     include_monte_carlo: bool = True
-    num_simulations: int = 10000
-    time_horizon: int = 1
+    num_simulations: int = Field(10000, ge=100, le=MAX_SIMULATIONS)
+    time_horizon: int = Field(1, ge=1, le=MAX_HORIZON_DAYS)
+
+    @model_validator(mode="after")
+    def _bound_total_work(self) -> RiskVarRequest:
+        if self.num_simulations * self.time_horizon > MAX_SIMULATED_CELLS:
+            raise ValueError("num_simulations * time_horizon is too large")
+        return self
 
 
 class RiskMonteCarloRequest(BaseModel):
     portfolio_id: str
     start_date: date
     end_date: date
-    time_horizon: int = 252
-    num_simulations: int = 10000
-    initial_value: float = 1.0
-    model: str = "gbm"
+    time_horizon: int = Field(252, ge=1, le=MAX_HORIZON_DAYS)
+    num_simulations: int = Field(5000, ge=100, le=MAX_SIMULATIONS)
+    initial_value: float = Field(1.0, gt=0, le=1e12)
+    model: str = Field("gbm", max_length=32)
+
+    @model_validator(mode="after")
+    def _bound_total_work(self) -> RiskMonteCarloRequest:
+        if self.num_simulations * self.time_horizon > MAX_SIMULATED_CELLS:
+            raise ValueError("num_simulations * time_horizon is too large")
+        return self
 
 
 class RiskVarFullRequest(RiskVarRequest):
-    rolling_window: int = 63
+    rolling_window: int = Field(63, ge=2, le=MAX_HORIZON_DAYS)
 
 
 class RiskMonteCarloFullRequest(RiskMonteCarloRequest):
@@ -211,7 +242,7 @@ class OptimizationFullRequest(OptimizationRequest):
 
     benchmark_for_charts: str | None = None
     include_efficient_frontier: bool = True
-    frontier_n_points: int = 150
+    frontier_n_points: int = Field(150, ge=2, le=300)
     include_sensitivity: bool = False
     sensitivity_analysis_type: str = "returns"
     notebook_split: bool = False
@@ -222,7 +253,7 @@ class ForecastAssetRequest(BaseModel):
     ticker: str
     start_date: date
     end_date: date
-    horizon: int
+    horizon: int = Field(ge=1, le=MAX_FORECAST_HORIZON)
     method: str
     method_params: dict[str, Any] | None = None
     out_of_sample: bool = False
@@ -233,7 +264,7 @@ class ForecastPortfolioRequest(BaseModel):
     portfolio_id: str
     start_date: date
     end_date: date
-    horizon: int
+    horizon: int = Field(ge=1, le=MAX_FORECAST_HORIZON)
     method: str
     method_params: dict[str, Any] | None = None
     out_of_sample: bool = False
@@ -248,8 +279,8 @@ class ForecastBatchRequest(BaseModel):
     portfolio_id: str | None = None
     start_date: date
     end_date: date
-    horizon: int
-    methods: list[str]
+    horizon: int = Field(ge=1, le=MAX_FORECAST_HORIZON)
+    methods: list[str] = Field(max_length=20)
     method_params: dict[str, dict[str, Any]] = Field(default_factory=dict)
     out_of_sample: bool = True
     training_ratio: float = 0.3
@@ -388,7 +419,11 @@ def _verify_portfolio_access(portfolio_id: str, user: User) -> None:
 
 
 ensure_database_schema()
-app = FastAPI(title="WMC Portfolio API", version="1.0.0")
+app = FastAPI(
+    title="WMC Portfolio API",
+    version="1.0.0",
+    **docs_kwargs(settings.environment),
+)
 
 # Browser talks to the Next.js BFF (same-origin), which forwards server-side to
 # this API — so CORS is only a safety net. Allow localhost dev plus the
@@ -410,6 +445,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+# Added after CORS so it is outermost and decorates every response.
+app.add_middleware(
+    SecurityHeadersMiddleware, production=is_production(settings.environment)
 )
 app.include_router(auth_router.router)
 app.include_router(billing_router.router)
@@ -436,6 +475,18 @@ forecasting_service = ForecastingService()
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+_LLMS_TXT = Path(__file__).with_name("llms.txt")
+
+
+@app.get("/llms.txt", response_class=PlainTextResponse, include_in_schema=False)
+def llms_txt() -> PlainTextResponse:
+    """API reference for LLM clients (generated by scripts/gen_llms_txt.py)."""
+    return PlainTextResponse(
+        _LLMS_TXT.read_text(encoding="utf-8"),
+        media_type="text/markdown; charset=utf-8",
+    )
 
 
 @app.get("/dashboard/indices")
@@ -501,7 +552,9 @@ def dashboard_indices() -> list[dict[str, Any]]:
 
 
 @app.post("/validate-tickers", dependencies=[Depends(rate_limit("30/minute"))])
-def validate_tickers(tickers: list[str]) -> dict[str, bool]:
+def validate_tickers(
+    tickers: Annotated[TickerList, Body()],
+) -> dict[str, bool]:
     return data_service.validate_tickers(tickers)
 
 
@@ -594,6 +647,11 @@ def maintain_portfolio_ledger(
     portfolio_id: str,
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
+    try:
+        _verify_portfolio_access(portfolio_id, current_user)
+    except Exception as exc:
+        _handle_error(exc)
+        raise
     maintain_error: str | None = None
     stats: dict[str, int | str] = {"splits": 0, "dividends": 0, "rebalance": 0}
     try:
@@ -723,9 +781,8 @@ def get_transactions(
             _maintain_ledger(portfolio_id, current_user.id)
         except Exception as exc:
             logger.exception("Ledger maintain during get_transactions failed: %s", exc)
-    return [
-        _serialize_transaction(tx)
-        for tx in transaction_service.get_transactions(
+    try:
+        rows = transaction_service.get_transactions(
             portfolio_id,
             start_date=from_date,
             end_date=to_date,
@@ -733,7 +790,10 @@ def get_transactions(
             ticker=ticker,
             user_id=current_user.id,
         )
-    ]
+    except Exception as exc:
+        _handle_error(exc)
+        raise
+    return [_serialize_transaction(tx) for tx in rows]
 
 
 @app.post("/portfolios/{portfolio_id}/transactions")
@@ -789,11 +849,15 @@ def delete_transaction_legacy(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, bool]:
     """Deprecated: prefer DELETE /portfolios/{id}/transactions/{tx_id}."""
-    return {
-        "deleted": transaction_service.delete_transaction(
-            transaction_id, current_user.id
-        )
-    }
+    try:
+        return {
+            "deleted": transaction_service.delete_transaction(
+                transaction_id, current_user.id
+            )
+        }
+    except Exception as exc:
+        _handle_error(exc)
+        raise
 
 
 @app.get("/portfolios/{portfolio_id}/holdings")
@@ -1296,7 +1360,41 @@ def risk_var_full(
         raise
 
 
-@app.post("/risk/monte-carlo")
+# Per-process cap on concurrent Monte Carlo runs (S-03): each holds a
+# simulations x horizon float matrix in memory.
+MAX_CONCURRENT_MONTE_CARLO = 2
+_MC_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_MONTE_CARLO)
+# One run per user at a time, so a single account cannot hold every slot.
+_MC_LOCK = threading.Lock()
+_MC_ACTIVE_USERS: set[str] = set()
+
+
+def _monte_carlo_slot(current_user: User = Depends(get_current_user)):
+    with _MC_LOCK:
+        if current_user.id in _MC_ACTIVE_USERS:
+            raise HTTPException(
+                status_code=429,
+                detail="You already have a simulation running.",
+                headers={"Retry-After": "5"},
+            )
+        _MC_ACTIVE_USERS.add(current_user.id)
+    if not _MC_SLOTS.acquire(blocking=False):
+        with _MC_LOCK:
+            _MC_ACTIVE_USERS.discard(current_user.id)
+        raise HTTPException(
+            status_code=503,
+            detail="Server is busy running simulations, retry shortly.",
+            headers={"Retry-After": "5"},
+        )
+    try:
+        yield
+    finally:
+        _MC_SLOTS.release()
+        with _MC_LOCK:
+            _MC_ACTIVE_USERS.discard(current_user.id)
+
+
+@app.post("/risk/monte-carlo", dependencies=[Depends(_monte_carlo_slot)])
 def risk_monte_carlo(
     payload: RiskMonteCarloRequest,
     current_user: User = Depends(get_current_user),
@@ -1320,7 +1418,7 @@ def risk_monte_carlo(
         raise
 
 
-@app.post("/risk/monte-carlo/full")
+@app.post("/risk/monte-carlo/full", dependencies=[Depends(_monte_carlo_slot)])
 def risk_monte_carlo_full(
     payload: RiskMonteCarloFullRequest,
     current_user: User = Depends(get_current_user),

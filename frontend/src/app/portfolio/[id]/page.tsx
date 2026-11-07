@@ -10,6 +10,7 @@ import {
   marketValueByTicker,
   targetWeightPct,
 } from "@/lib/portfolio-allocation";
+import { buyHoldHoldings, buyHoldPnl } from "@/lib/buy-hold-holdings";
 import type { Holding, PnlSummary, Portfolio } from "@/lib/types";
 
 type OverviewRow = Holding & {
@@ -27,31 +28,58 @@ function growthPct(avgCost: number, marketPrice: number | null | undefined): str
 
 export default function PortfolioOverviewPage() {
   const id = String(useParams().id);
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [pnl, setPnl] = useState<PnlSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Result is tagged with the id it was loaded for; anything for another id is
+  // ignored, so navigating A -> B shows the loading state without resetting
+  // state synchronously inside the effect.
+  const [loaded, setLoaded] = useState<{
+    id: string;
+    portfolio: Portfolio | null;
+    holdings: Holding[];
+    pnl: PnlSummary | null;
+    error: string | null;
+  } | null>(null);
+  const current = loaded?.id === id ? loaded : null;
+  const portfolio = current?.portfolio ?? null;
+  const holdings = useMemo(() => current?.holdings ?? [], [current]);
+  const pnl = current?.pnl ?? null;
+  const loading = current === null;
+  const error = current?.error ?? null;
 
   useEffect(() => {
     if (!id || id === "undefined") return;
-    setLoading(true);
-    setError(null);
+    let cancelled = false;
     Promise.all([
       api.get<Portfolio>(`/portfolios/${id}`),
       api.get<Holding[]>(`/portfolios/${id}/holdings`).catch(() => [] as Holding[]),
       api.get<PnlSummary>(`/portfolios/${id}/pnl`).catch(() => null),
     ])
-      .then(([p, h, pnlRes]) => {
-        setPortfolio(p);
-        setHoldings(Array.isArray(h) ? h : []);
-        setPnl(pnlRes);
+      .then(async ([p, h, pnlRes]) => {
+        let rows = Array.isArray(h) ? h : [];
+        let pnlOut = pnlRes;
+        // Buy-and-hold portfolios have no ledger transactions: derive from positions.
+        if (rows.length === 0 && p.ledger_mode !== "transactions") {
+          rows = await buyHoldHoldings(p.positions);
+          if (rows.length > 0) pnlOut = buyHoldPnl(rows, pnlRes);
+        }
+        return { p, rows, pnlOut };
+      })
+      .then(({ p, rows, pnlOut }) => {
+        if (cancelled) return;
+        setLoaded({ id, portfolio: p, holdings: rows, pnl: pnlOut, error: null });
       })
       .catch((err) => {
-        setPortfolio(null);
-        setError(String(err).replace(/^Error: /, ""));
-      })
-      .finally(() => setLoading(false));
+        if (cancelled) return;
+        setLoaded({
+          id,
+          portfolio: null,
+          holdings: [],
+          pnl: null,
+          error: String(err).replace(/^Error: /, ""),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const overviewRows: OverviewRow[] = useMemo(() => {
@@ -160,15 +188,16 @@ export default function PortfolioOverviewPage() {
       ) : null}
       <section>
         <h2 className="text-lg font-semibold text-white mb-1">
-          Holdings (from transactions)
+          Holdings
         </h2>
         <p className="text-xs text-white/40 mb-3">
           Current % and return % use live market prices. Target % is your
           strategy weight (incl. cash).
         </p>
         {overviewRows.length === 0 ? (
-          <div className="alert alert-info">No holdings yet. Add a BUY transaction.</div>
+          <div className="alert alert-info">No holdings yet. Add a position or a BUY transaction.</div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
@@ -205,6 +234,7 @@ export default function PortfolioOverviewPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </section>

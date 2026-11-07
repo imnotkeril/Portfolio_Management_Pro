@@ -65,3 +65,25 @@ def test_portfolios_require_auth(api_client: TestClient) -> None:
     """Portfolio endpoints return 401 without token when auth is enabled."""
     response = api_client.get("/portfolios")
     assert response.status_code == 401
+
+
+def test_ledger_maintain_foreign_or_unknown_portfolio_is_404(
+    api_client: TestClient,
+) -> None:
+    """QA F-1: was an unhandled 500 on an authorization path."""
+    headers_a = _register_and_login(api_client, "mainta")
+    headers_b = _register_and_login(api_client, "maintb")
+    portfolio_id = _create_portfolio(api_client, headers_a)
+
+    foreign = api_client.post(
+        f"/portfolios/{portfolio_id}/ledger/maintain", headers=headers_b
+    )
+    assert foreign.status_code == 404
+    unknown = api_client.post(
+        f"/portfolios/{uuid.uuid4()}/ledger/maintain", headers=headers_b
+    )
+    assert unknown.status_code == 404
+    own = api_client.post(
+        f"/portfolios/{portfolio_id}/ledger/maintain", headers=headers_a
+    )
+    assert own.status_code == 200

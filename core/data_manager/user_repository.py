@@ -50,6 +50,44 @@ class UserRepository:
                 session.expunge(user)
             return user
 
+    def delete(self, user_id: str) -> bool:
+        """Delete a user and everything it owns. Returns False if not found.
+
+        Children are removed explicitly (not only via ``ON DELETE CASCADE``) so
+        the result is the same on databases that do not enforce foreign keys.
+        """
+        from models.portfolio import Portfolio
+        from models.position import Position
+        from models.subscription import Subscription
+        from models.transaction import Transaction
+
+        with get_db_session() as session:
+            portfolio_ids = [
+                pid
+                for (pid,) in session.query(Portfolio.id).filter(
+                    Portfolio.user_id == user_id
+                )
+            ]
+            if portfolio_ids:
+                session.query(Transaction).filter(
+                    Transaction.portfolio_id.in_(portfolio_ids)
+                ).delete(synchronize_session=False)
+                session.query(Position).filter(
+                    Position.portfolio_id.in_(portfolio_ids)
+                ).delete(synchronize_session=False)
+                session.query(Portfolio).filter(Portfolio.id.in_(portfolio_ids)).delete(
+                    synchronize_session=False
+                )
+            session.query(Subscription).filter(Subscription.user_id == user_id).delete(
+                synchronize_session=False
+            )
+            removed = (
+                session.query(UserORM)
+                .filter(UserORM.id == user_id)
+                .delete(synchronize_session=False)
+            )
+            return bool(removed)
+
     def ensure_system_user(self) -> UserORM:
         """Create migration/system user if missing (AUTH_DISABLED / backfill)."""
         with get_db_session() as session:

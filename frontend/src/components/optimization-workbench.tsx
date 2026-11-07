@@ -302,6 +302,7 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
   useEffect(() => {
     if (!useMinW) return;
     if (minWPct > maxAllowedMinPct) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clamp the editable value when the allowed maximum shrinks
       setMinWPct(maxAllowedMinPct);
     }
   }, [useMinW, minWPct, maxAllowedMinPct]);
@@ -309,6 +310,7 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
   useEffect(() => {
     if (!selectedMethod) return;
     const preset = getMethodPreset(selectedMethod);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the whole constraint form to the method's preset when the method changes
     setLongOnly(preset.longOnly);
     setMaxCashPct(preset.maxCashPct);
     setUseMinW(preset.useMinW);
@@ -578,7 +580,7 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
               terminal, buy-and-hold backtest for fair comparison vs current, optional train / validation split.
             </>
           ) : (
-            <>Optimize weights using the same methods and constraints as the Streamlit app.</>
+            <>Optimize weights with a choice of methods and constraints.</>
           )}
         </p>
       </header>
@@ -588,8 +590,8 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
       ) : (
         <form className="space-y-6" onSubmit={runOptimize}>
           <section className="panel p-6 space-y-4">
-            <label className="block text-sm text-white/50">Portfolio</label>
-            <select
+            <label htmlFor="components-optimization-workbench-f1" className="block text-sm text-white/50">Portfolio</label>
+            <select id="components-optimization-workbench-f1"
               className="input"
               value={portfolioId}
               onChange={(e) => setPortfolioId(e.target.value)}
@@ -639,8 +641,8 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
             <h2 className="text-lg font-medium text-white">Optimization Parameters</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-xs text-white/50 mb-1">Start date</label>
-                <input
+                <label htmlFor="components-optimization-workbench-f2" className="block text-xs text-white/50 mb-1">Start date</label>
+                <input id="components-optimization-workbench-f2"
                   type="date"
                   className="input"
                   value={startDate}
@@ -649,8 +651,8 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
                 />
               </div>
               <div>
-                <label className="block text-xs text-white/50 mb-1">End date</label>
-                <input
+                <label htmlFor="components-optimization-workbench-f3" className="block text-xs text-white/50 mb-1">End date</label>
+                <input id="components-optimization-workbench-f3"
                   type="date"
                   className="input"
                   value={endDate}
@@ -778,10 +780,10 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
 
             {METHODS_NEEDING_BENCHMARK.has(selectedMethod) ? (
               <div>
-                <label className="block text-xs text-white/50 mb-1">
+                <label htmlFor="components-optimization-workbench-f4" className="block text-xs text-white/50 mb-1">
                   Benchmark ticker (required for this method)
                 </label>
-                <input
+                <input id="components-optimization-workbench-f4"
                   className="input max-w-xs"
                   value={benchmarkOpt}
                   onChange={(e) => setBenchmarkOpt(e.target.value.toUpperCase())}
@@ -804,10 +806,10 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
                       />
                     </label>
                     <div>
-                      <label className="text-xs text-white/50">
+                      <label htmlFor="components-optimization-workbench-f5" className="text-xs text-white/50">
                         Max cash weight: {maxCashPct}%
                       </label>
-                      <input
+                      <input id="components-optimization-workbench-f5"
                         type="range"
                         min={0}
                         max={100}
@@ -948,8 +950,8 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
 
                 {(selectedMethod === "cvar_optimization" || selectedMethod === "mean_cvar") && (
                   <div>
-                    <label className="text-xs text-white/50">CVaR confidence</label>
-                    <select
+                    <label htmlFor="components-optimization-workbench-f6" className="text-xs text-white/50">CVaR confidence</label>
+                    <select id="components-optimization-workbench-f6"
                       className="input max-w-xs mt-1"
                       value={cvarConfidence}
                       onChange={(e) => setCvarConfidence(Number(e.target.value))}
@@ -964,8 +966,8 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
                 {selectedMethod === "robust" && (
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="text-xs text-white/50">Uncertainty radius (returns)</label>
-                      <input
+                      <label htmlFor="components-optimization-workbench-f7" className="text-xs text-white/50">Uncertainty radius (returns)</label>
+                      <input id="components-optimization-workbench-f7"
                         type="range"
                         min={0}
                         max={1}
@@ -977,8 +979,8 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
                       <span className="text-xs text-white/50">{robustUr.toFixed(2)}</span>
                     </div>
                     <div>
-                      <label className="text-xs text-white/50">Uncertainty radius (covariance)</label>
-                      <input
+                      <label htmlFor="components-optimization-workbench-f8" className="text-xs text-white/50">Uncertainty radius (covariance)</label>
+                      <input id="components-optimization-workbench-f8"
                         type="range"
                         min={0}
                         max={1}
@@ -994,8 +996,7 @@ export function OptimizationWorkbench({ variant }: { variant: OptimizationWorkbe
 
                 {selectedMethod === "black_litterman" && (
                   <div className="rounded-lg border border-[var(--info)]/30 bg-[var(--info-bg)] p-3 text-xs text-white/70">
-                    Black-Litterman uses market-implied equilibrium; custom views can be added later
-                    (same note as Streamlit).
+                    Black-Litterman uses market-implied equilibrium; custom views can be added later.
                   </div>
                 )}
 
