@@ -5,6 +5,77 @@ For the person who runs the product, not the developer. Everything here is check
 keys are never given to the agent; every step below is yours to do in the Stripe or hosting
 dashboards.
 
+## 0. Turn on payments, click by click
+
+You need three places open in your browser: **Stripe** (dashboard.stripe.com), **Hugging Face**
+(the server of the app) and **Vercel** (the website). Button names may differ a little from
+what is written here; look for the closest word. Never send a key by chat or email, and never
+paste it into a file in the project. Keys only go into the "secret" boxes below.
+
+Do everything first in **test mode** (the "Test mode" switch at the top right of Stripe is
+on, the dashboard shows an orange bar). Repeat the same steps in live mode when the test works.
+
+### Step 1. Make the product and the price (Stripe)
+1. Left menu -> **Product catalogue** -> **Add product**.
+2. Name: `Pro`. Under "Pricing" choose **Recurring**, type the monthly amount, currency, billing
+   period **Monthly**. Press **Add product**.
+3. On the product page find the price row, click the three dots `...` -> **Copy price ID**.
+   It looks like `price_1Abc...`. Keep it in a note for step 4.
+
+### Step 2. Get the secret key (Stripe)
+1. Left menu -> **Developers** -> **API keys**.
+2. In the box **Secret key** press **Reveal** and copy it. It starts with `sk_test_` in test mode
+   (`sk_live_` in live mode). This is a password: only paste it into the boxes in step 4.
+
+### Step 3. Tell Stripe where to send payment news (webhook)
+1. **Developers** -> **Webhooks** -> **Add destination** (older dashboards: **Add endpoint**).
+2. Endpoint URL: `https://<your Hugging Face app address>/stripe/webhook`
+   (for example `https://imnotkeril-portfolio-management-pro-api.hf.space/stripe/webhook`).
+   It is the address of the **server**, not of the website.
+3. Choose these four events (search by name and tick them):
+   `checkout.session.completed`, `invoice.paid`, `customer.subscription.updated`,
+   `customer.subscription.deleted`.
+4. Press **Add**. On the next page find **Signing secret**, press **Reveal**, copy it. It starts
+   with `whsec_`.
+
+### Step 4. Put the three values on the server (Hugging Face)
+1. Open your Space -> **Settings** -> **Variables and secrets**.
+2. Press **New secret** three times. Name on the left, value on the right:
+   - `STRIPE_SECRET_KEY` = the `sk_...` key from step 2
+   - `STRIPE_WEBHOOK_SECRET` = the `whsec_...` value from step 3
+   - `STRIPE_PRICE_ID_PRO` = the `price_...` id from step 1
+3. Press **New variable** (not secret): `FRONTEND_URL` = the address of your website, for
+   example `https://portfolio-lenz.vercel.app`.
+4. Also check that `CLIENT_IP_SIGNING_KEY` exists as a secret here. It must be the same
+   long text (32+ characters) that is on Vercel in step 5. If it is missing the server will
+   not start.
+5. Press the menu with three dots at the top right of the Space -> **Restart Space** (or
+   **Factory reboot**). Wait until the status says **Running**.
+
+### Step 5. Same key on the website (Vercel)
+1. Vercel -> project `portfolio-management-pro` -> **Settings** -> **Environment Variables**.
+2. Add `CLIENT_IP_SIGNING_KEY` with exactly the same value as on Hugging Face, for
+   **Production**. Press **Save**. The site must be deployed again for it to take effect
+   (the developer does this).
+
+### Step 6. Allow customers to cancel (Stripe)
+1. **Settings** (gear) -> **Billing** -> **Customer portal**.
+2. Turn the portal on; make sure **Customers can cancel subscriptions** is on. **Save**.
+
+### Step 7. Try it with a test card
+1. Open the website, register, press **Billing** -> upgrade.
+2. On the Stripe page pay with card `4242 4242 4242 4242`, any future date, any 3 digits, any
+   name and ZIP.
+3. You return to the site. After a few seconds the plan shows **Pro**. If not, reload once.
+4. Press **Manage subscription**, cancel. The plan goes back to Free when the paid period ends.
+5. In Stripe -> **Developers** -> **Webhooks** -> your endpoint: the latest events should have a
+   green 200. A red 400 means the signing secret in step 4 is wrong.
+
+### Going live
+Switch Stripe to live mode (top right). Redo steps 1, 2 and 3 there (live mode has its own
+product, key and webhook), replace the three secrets in step 4 with the live ones, restart the
+Space. Do not mix test and live values: checkout will fail.
+
 ## 1. What the plans are
 
 | Plan | Limit | Defined in |
