@@ -1,11 +1,9 @@
-"""Sync stock split transactions from market data."""
+"""Stock split sync (disabled: see SplitProcessor.sync_splits)."""
 
 from __future__ import annotations
 
 import logging
 from datetime import date
-
-import yfinance as yf
 
 from core.data_manager.transaction import Transaction
 from core.data_manager.transaction_repository import TransactionRepository
@@ -15,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class SplitProcessor:
-    """Create SPLIT rows from yfinance split history (idempotent)."""
+    """Former SPLIT-row sync from yfinance; now a deliberate no-op."""
 
     def __init__(
         self,
@@ -33,54 +31,12 @@ class SplitProcessor:
         end_date: date,
         user_id: str | None = None,
     ) -> list[Transaction]:
-        """Fetch splits and insert SPLIT transactions (skip duplicates)."""
-        self._portfolio_service.get_portfolio(portfolio_id, user_id)
-        existing = self._repository.find_by_portfolio(
-            portfolio_id,
-            start_date=start_date,
-            end_date=end_date,
-            transaction_type="SPLIT",
-        )
-        existing_keys = {
-            (tx.transaction_date, tx.ticker, round(tx.split_ratio or 0.0, 6))
-            for tx in existing
-        }
+        """Auto-sync of SPLIT rows is disabled; always returns no transactions.
 
-        created: list[Transaction] = []
-        for ticker in tickers:
-            sym = ticker.strip().upper()
-            if sym == "CASH":
-                continue
-            try:
-                splits = yf.Ticker(sym).splits
-            except Exception as exc:
-                logger.warning("Split fetch failed for %s: %s", sym, exc)
-                continue
-
-            if splits is None or splits.empty:
-                continue
-
-            for idx, ratio in splits.items():
-                split_date = idx.date() if hasattr(idx, "date") else idx
-                if split_date < start_date or split_date > end_date:
-                    continue
-                ratio_f = float(ratio)
-                if ratio_f <= 0:
-                    continue
-                key = (split_date, sym, round(ratio_f, 6))
-                if key in existing_keys:
-                    continue
-                txn = Transaction(
-                    transaction_date=split_date,
-                    transaction_type="SPLIT",
-                    ticker=sym,
-                    shares=1.0,
-                    price=1.0,
-                    split_ratio=ratio_f,
-                    notes="Auto-synced split",
-                )
-                saved = self._repository.save(txn, portfolio_id)
-                created.append(saved)
-                existing_keys.add(key)
-
-        return created
+        Market prices are split-adjusted back in time and every share count the app
+        records (initial positions, rebalances, price autofill) is on that adjusted
+        basis, so an extra SPLIT row multiplies holdings a second time. That made a
+        10:1 split inflate one position tenfold and trigger rebalances many times
+        the portfolio size. Existing auto-synced rows are ignored by the ledger.
+        """
+        return []

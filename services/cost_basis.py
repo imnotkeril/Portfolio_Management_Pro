@@ -91,7 +91,8 @@ class CostBasisCalculator:
             return
 
         if tx.transaction_type == "SPLIT":
-            self._apply_split(self._holdings, tx.ticker, tx.split_ratio or 1.0)
+            if tx.is_effective_split:
+                self._apply_split(self._holdings, tx.ticker, tx.split_ratio or 1.0)
             return
 
         if tx.transaction_type == "BUY":

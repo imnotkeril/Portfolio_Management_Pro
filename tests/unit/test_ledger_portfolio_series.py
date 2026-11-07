@@ -193,3 +193,27 @@ def test_split_after_window_end_still_adjusts_earlier_holdings() -> None:
     returns, values = _build_returns(txs, prices)
     assert abs(float(values.iloc[-1]) - 10_000.0) < 1e-6
     assert returns.abs().max() < 1e-9
+
+
+def test_auto_synced_split_neither_jumps_nor_inflates_value() -> None:
+    """Shares bought at split-adjusted prices stay as recorded; the synced SPLIT
+    row is ignored (was: holdings x10 on the split date)."""
+    dates = pd.bdate_range("2024-01-02", periods=6)
+    prices = pd.DataFrame({"AAPL": [50.0] * 6}, index=dates)
+    synced = Transaction(
+        transaction_date=dates[3].date(),
+        transaction_type="SPLIT",
+        ticker="AAPL",
+        shares=1.0,
+        price=1.0,
+        split_ratio=10.0,
+        notes="Auto-synced split",
+    )
+    txs = [
+        _deposit(date(2024, 1, 2), 10_000),
+        _buy(date(2024, 1, 2), "AAPL", 100, 50),
+        synced,
+    ]
+    returns, values = _build_returns(txs, prices)
+    assert returns.abs().max() < 1e-9
+    assert abs(float(values.iloc[-1]) - 10_000.0) < 1e-6
