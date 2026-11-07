@@ -123,7 +123,7 @@ class LedgerPortfolioSeriesBuilder:
         # split date). Splits after end_date count too: the prices already reflect them.
         splits: dict[str, list[tuple[date, float]]] = {}
         for t in transactions:
-            if t.transaction_type == "SPLIT" and t.split_ratio:
+            if t.is_effective_split and t.split_ratio:
                 splits.setdefault(t.ticker, []).append(
                     (t.transaction_date, float(t.split_ratio))
                 )

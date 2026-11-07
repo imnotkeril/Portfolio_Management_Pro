@@ -83,6 +83,26 @@ def test_split_doubles_quantity_halves_cost() -> None:
     assert leg.lots[0].cost_per_share == pytest.approx(50.0)
 
 
+def test_auto_synced_split_is_ignored() -> None:
+    """Share counts are on the split-adjusted basis; a synced SPLIT must not
+    multiply them again."""
+    txs = [
+        _buy(date(2024, 1, 1), "AAPL", 10, 100.0),
+        Transaction(
+            transaction_date=date(2024, 6, 1),
+            transaction_type="SPLIT",
+            ticker="AAPL",
+            shares=1.0,
+            price=1.0,
+            split_ratio=10.0,
+            notes="Auto-synced split",
+        ),
+    ]
+    leg = CostBasisCalculator(method="fifo").summarize(txs).holdings["AAPL"]
+    assert leg.quantity == pytest.approx(10.0)
+    assert leg.lots[0].cost_per_share == pytest.approx(100.0)
+
+
 def test_deposit_and_withdrawal_cash_balance() -> None:
     txs = [
         Transaction(

@@ -9,6 +9,9 @@ from core.exceptions import ValidationError
 logger = logging.getLogger(__name__)
 
 
+AUTO_SYNCED_SPLIT_NOTE = "Auto-synced split"
+
+
 class Transaction:
     """Transaction domain model (pure Python, no ORM dependencies)."""
 
@@ -110,3 +113,14 @@ class Transaction:
             and abs(self.shares - other.shares) < 0.0001
             and abs(self.price - other.price) < 0.01
         )
+
+    @property
+    def is_effective_split(self) -> bool:
+        """True for a SPLIT that must change share counts.
+
+        Auto-synced splits are ignored: prices and share counts in this app are
+        recorded on the split-adjusted basis (market data is adjusted back in
+        time), so applying the split again would multiply holdings a second time.
+        A split the user enters by hand keeps its meaning.
+        """
+        return self.transaction_type == "SPLIT" and self.notes != AUTO_SYNCED_SPLIT_NOTE
