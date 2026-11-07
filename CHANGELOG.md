@@ -15,6 +15,7 @@
 
 ### Fixed
 - Ledger analytics counted deposits and withdrawals as performance (a large deposit showed up as a one-day +700% jump, inflating total return, CAGR, volatility and ratios). Daily returns are now time-weighted (flows excluded) and total return and CAGR follow the same series.
+- Ledger valuation applied stock splits on top of split-adjusted market prices, so every split showed up as an N-fold one-day gain. Holdings are now scaled by the splits still to come, matching the price basis.
 - 404 instead of 500 for foreign or missing portfolios (transactions, ledger maintain).
 - Buy-and-hold portfolios show positions on the overview; portfolio navigation no longer shows stale data; transaction form price rounding.
 - `frontend/src/lib` was git-ignored; local SQLite files no longer baked into Docker images.
