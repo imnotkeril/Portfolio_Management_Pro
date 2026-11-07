@@ -14,6 +14,7 @@
 - Request size limits (Monte Carlo, tickers), bounded Monte Carlo response, API docs hidden and security headers in production, BFF proxy path allowlist.
 
 ### Fixed
+- Ledger analytics counted deposits and withdrawals as performance (a large deposit showed up as a one-day +700% jump, inflating total return, CAGR, volatility and ratios). Daily returns are now time-weighted (flows excluded) and total return and CAGR follow the same series.
 - 404 instead of 500 for foreign or missing portfolios (transactions, ledger maintain).
 - Buy-and-hold portfolios show positions on the overview; portfolio navigation no longer shows stale data; transaction form price rounding.
 - `frontend/src/lib` was git-ignored; local SQLite files no longer baked into Docker images.
