@@ -18,7 +18,7 @@ trap 'rm -rf "$WORK"' EXIT
 git -C "$ROOT" fetch -q origin
 SHA=$(git -C "$ROOT" rev-parse --short "$REF")
 
-git clone -q "https://huggingface.co/spaces/$SPACE" "$WORK/space"
+git clone -q "${HF_SPACE_URL:-https://huggingface.co/spaces/$SPACE}" "$WORK/space"
 cp "$WORK/space/README.md" "$WORK/space-README.md"
 head -n 1 "$WORK/space-README.md" | grep -q '^---$' || { echo "Space README has no front matter; aborting"; exit 1; }
 
