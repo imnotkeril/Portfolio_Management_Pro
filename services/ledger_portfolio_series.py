@@ -117,6 +117,24 @@ class LedgerPortfolioSeriesBuilder:
         except Exception:
             prices.index = pd.to_datetime(prices.index)
 
+        # Prices from the market-data provider are split-adjusted back in time, while
+        # the replay applies each SPLIT on its own date. Scale holdings by the splits
+        # still to come so shares and prices are on the same basis (no jump on the
+        # split date). Splits after end_date count too: the prices already reflect them.
+        splits: dict[str, list[tuple[date, float]]] = {}
+        for t in transactions:
+            if t.transaction_type == "SPLIT" and t.split_ratio:
+                splits.setdefault(t.ticker, []).append(
+                    (t.transaction_date, float(t.split_ratio))
+                )
+
+        def future_split_factor(ticker: str, day_date: date) -> float:
+            factor = 1.0
+            for split_date, ratio in splits.get(ticker, ()):
+                if split_date > day_date:
+                    factor *= ratio
+            return factor
+
         calc = CostBasisCalculator(method=cost_basis_method)
         tx_idx = 0
         n_tx = len(sorted_txs)
@@ -135,7 +153,7 @@ class LedgerPortfolioSeriesBuilder:
                     continue
                 px = float(prices.loc[day, ticker])
                 if pd.notna(px):
-                    total += shares * px
+                    total += shares * future_split_factor(ticker, day_date) * px
 
             if total > 0:
                 values[pd.Timestamp(day)] = total

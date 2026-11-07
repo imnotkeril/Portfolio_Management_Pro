@@ -151,3 +151,45 @@ def test_time_weighted_nav_ignores_deposit() -> None:
     assert abs(float(nav.iloc[-1]) - 10_000.0) < 1e-6
     # engine formula: total return from the NAV path is 0%, not +900%
     assert abs(float(nav.iloc[-1]) / float(nav.iloc[0]) - 1) < 1e-9
+
+
+def _split(d: date, ticker: str, ratio: float) -> Transaction:
+    return Transaction(
+        transaction_date=d,
+        transaction_type="SPLIT",
+        ticker=ticker,
+        shares=1.0,
+        price=1.0,
+        split_ratio=ratio,
+    )
+
+
+def test_split_does_not_create_a_jump_with_split_adjusted_prices() -> None:
+    """Prices are split-adjusted back in time, so the ledger must not multiply
+    shares a second time on the split date (that read as an N-fold gain)."""
+    dates = pd.bdate_range("2024-01-02", periods=6)
+    # Adjusted history: the 2:1 split on day 4 makes the whole series 50.
+    prices = pd.DataFrame({"AAPL": [50.0] * 6}, index=dates)
+    txs = [
+        _deposit(date(2024, 1, 2), 10_000),
+        _buy(date(2024, 1, 2), "AAPL", 100, 100),
+        _split(dates[3].date(), "AAPL", 2.0),
+    ]
+    returns, values = _build_returns(txs, prices)
+    assert float(values.iloc[0]) == 10_000.0
+    assert returns.abs().max() < 1e-9
+    assert abs(float(values.iloc[-1]) - 10_000.0) < 1e-6
+
+
+def test_split_after_window_end_still_adjusts_earlier_holdings() -> None:
+    """A split dated after end_date is already baked into adjusted prices."""
+    dates = pd.bdate_range("2024-01-02", periods=4)
+    prices = pd.DataFrame({"AAPL": [50.0] * 4}, index=dates)
+    txs = [
+        _deposit(date(2024, 1, 2), 10_000),
+        _buy(date(2024, 1, 2), "AAPL", 100, 100),
+        _split(date(2024, 6, 3), "AAPL", 2.0),
+    ]
+    returns, values = _build_returns(txs, prices)
+    assert abs(float(values.iloc[-1]) - 10_000.0) < 1e-6
+    assert returns.abs().max() < 1e-9
