@@ -407,7 +407,7 @@ function TimeSeriesChart({ data, data2, label1 = "Portfolio", label2 = "Benchmar
         <CartesianGrid stroke={C.grid} strokeDasharray="3 3" />
         <XAxis dataKey="x" tick={{ fill: C.text, fontSize: 10 }} tickLine={false} minTickGap={50} />
         <YAxis tick={{ fill: C.text, fontSize: 10 }} tickLine={false} tickFormatter={fmt} width={60} />
-        <RTooltip contentStyle={ttStyle} />
+        <RTooltip contentStyle={ttStyle} formatter={(v) => fmt(Number(v))} />
         <Legend wrapperStyle={{ fontSize: 11, color: C.text }} />
         <Area type="monotone" dataKey="p" name={label1} stroke={C.line1} fill="url(#gP)" strokeWidth={2} dot={false} />
         {data2 && <Area type="monotone" dataKey="b" name={label2} stroke={C.line2} fill="url(#gB)" strokeWidth={1.5} dot={false} />}
