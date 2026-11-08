@@ -121,10 +121,14 @@ class ARIMAGARCHForecaster(BaseForecaster):
 
             # Step 1: Fit ARIMA model to returns (models mean)
             logger.debug("Fitting ARIMA model for mean returns...")
+            # Holidays leave gaps, so the DatetimeIndex has no frequency and statsmodels
+            # >= 0.15 will not forecast from it; the model only needs positions.
+            # returns_data keeps its dates for the GARCH residual index below.
+            arima_input = pd.Series(returns_data.to_numpy(dtype=float))
             try:
                 if arima_auto and auto_arima is not None:
                     arima_model = auto_arima(
-                        returns_data,
+                        arima_input,
                         start_p=0,
                         start_q=0,
                         max_p=5,
@@ -146,7 +150,7 @@ class ARIMAGARCHForecaster(BaseForecaster):
                         arima_q = arima_q or 1
 
                     arima_order = (arima_p, arima_d, arima_q)
-                    arima_model = ARIMA(returns_data, order=arima_order)
+                    arima_model = ARIMA(arima_input, order=arima_order)
                     arima_fitted = arima_model.fit()
                     is_auto_arima = False
 

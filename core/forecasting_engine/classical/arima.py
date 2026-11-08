@@ -252,6 +252,11 @@ class ARIMAForecaster(BaseForecaster):
             else:
                 data = self.prices
 
+            # Market data has gaps (holidays), so its DatetimeIndex has no frequency and
+            # statsmodels >= 0.15 refuses to forecast from it. Positions are what the
+            # model needs; dates are attached to the result by the caller.
+            data = pd.Series(data.to_numpy(dtype=float))
+
             # Check stationarity for prices
             if not use_returns:
                 adf_result = adfuller(data.dropna())
