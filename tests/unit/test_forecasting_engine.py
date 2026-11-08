@@ -212,3 +212,63 @@ class TestBaseForecaster:
 
         change_pct = forecaster._calculate_change_pct(forecast_values, last_price)
         assert change_pct == 20.0  # (120 - 100) / 100 * 100
+
+
+class TestArimaIrregularIndex:
+    """Market data skips holidays, so the DatetimeIndex has no frequency."""
+
+    @staticmethod
+    def _prices() -> pd.Series:
+        rng = np.random.default_rng(1)
+        idx = pd.bdate_range("2023-01-02", periods=400).delete([10, 57, 120, 200])
+        values = 100 * np.cumprod(1 + rng.normal(0.0004, 0.01, len(idx)))
+        return pd.Series(values, index=idx)
+
+    @pytest.mark.parametrize(
+        "kwargs", [{"auto": True}, {"auto": False, "p": 1, "d": 0, "q": 1}]
+    )
+    def test_forecast_works_without_index_frequency(self, kwargs):
+        from core.forecasting_engine.classical.arima import ARIMAForecaster
+
+        result = ARIMAForecaster(self._prices()).forecast(horizon=10, **kwargs)
+        assert result.success is True
+        assert len(result.forecast_values) == 10
+        assert np.all(np.isfinite(result.forecast_values))
+
+
+@pytest.mark.parametrize(
+    "module,cls",
+    [
+        ("core.forecasting_engine.deep_learning.lstm", "LSTMForecaster"),
+        ("core.forecasting_engine.deep_learning.tcn", "TCNForecaster"),
+    ],
+)
+def test_directional_accuracy_metrics_on_arrays(module, cls):
+    """Was: `not <array>` raised, so every LSTM/TCN forecast with validation failed."""
+    pytest.importorskip("tensorflow")
+    import importlib
+
+    forecaster = getattr(importlib.import_module(module), cls)(
+        pd.Series(
+            np.linspace(100, 120, 60), index=pd.bdate_range("2024-01-02", periods=60)
+        )
+    )
+    y_true = np.array([1.0, 2.0, 1.5, 1.8, 1.2])
+    y_pred = np.array([1.0, 1.5, 1.7, 1.6, 1.9])
+    metrics = forecaster._calculate_directional_accuracy(y_true, y_pred)
+    # true moves + - + -, predicted + + - +: tp=1, fp=2, fn=1
+    assert metrics["directional_accuracy"] == pytest.approx(0.25)
+    assert metrics["precision"] == pytest.approx(1 / 3)
+    assert metrics["recall"] == pytest.approx(0.5)
+
+
+class TestArimaGarchIrregularIndex:
+    @pytest.mark.parametrize("kwargs", [{"arima_auto": True}, {"arima_auto": False}])
+    def test_forecast_works_without_index_frequency(self, kwargs):
+        from core.forecasting_engine.classical.arima_garch import ARIMAGARCHForecaster
+
+        prices = TestArimaIrregularIndex._prices()
+        result = ARIMAGARCHForecaster(prices).forecast(horizon=10, **kwargs)
+        assert result.success is True
+        assert len(result.forecast_values) == 10
+        assert np.all(np.isfinite(result.forecast_values))

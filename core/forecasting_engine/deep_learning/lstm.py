@@ -119,9 +119,9 @@ class LSTMForecaster(BaseForecaster):
 
         # Confusion matrix
         tp = np.sum((true_direction) & (pred_direction))
-        tn = np.sum((not true_direction) & (not pred_direction))
-        fp = np.sum((not true_direction) & (pred_direction))
-        fn = np.sum((true_direction) & (not pred_direction))
+        tn = np.sum((~true_direction) & (~pred_direction))
+        fp = np.sum((~true_direction) & (pred_direction))
+        fn = np.sum((true_direction) & (~pred_direction))
 
         # Precision, recall, F1
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
