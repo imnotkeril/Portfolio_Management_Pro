@@ -19,7 +19,7 @@ services:
 
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.api
     container_name: wmc-api
     ports:

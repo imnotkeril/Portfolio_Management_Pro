@@ -145,7 +145,7 @@ Open:
 - Web app: <http://localhost:3000>
 - API health: <http://localhost:8000/health>
 
-The first build is slow and large: `Dockerfile.api` installs the full `requirements.txt` (TensorFlow, Prophet, ...), and the API image is about 6 GB.
+The first build is slow and large: `backend/Dockerfile.api` installs the full `requirements.txt` (TensorFlow, Prophet, ...), and the API image is about 6 GB.
 
 Compose starts three services: `postgres` (PostgreSQL 16, user, password and database `portfolio`), `api` (runs `alembic upgrade head` and then Uvicorn), and `web` (Next.js standalone build). The host ports are fixed in `docker-compose.yml`: 3000, 8000 and 5432. If a port is taken, change the host side of that `ports:` entry.
 
@@ -156,14 +156,15 @@ Stripe values are read from a `.env` file in the project root by Compose interpo
 ```bash
 python -m venv .venv
 source .venv/bin/activate            # Windows PowerShell: .venv\Scripts\Activate.ps1
-pip install -c requirements.lock.txt -r requirements.txt   # full set: TensorFlow, Prophet, Playwright, ...
 cp .env.example .env                 # DATABASE_URL already points at localhost:5432
 docker compose up -d postgres        # only the postgres service
+cd backend
+pip install -c requirements.lock.txt -r requirements.txt   # full set: TensorFlow, Prophet, Playwright, ...
 alembic upgrade head
 uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The full set is large. For a lighter install use `pip install -c requirements.lock.txt -r requirements-deploy.txt` instead. It leaves out TensorFlow, Prophet, pmdarima, EMD-signal and Playwright, so the matching forecasting models and the Playwright PDF path are unavailable; the rest of the API works.
+The full set is large. For a lighter install use `pip install -c requirements.lock.txt -r requirements-deploy.txt` (run in `backend/`) instead. It leaves out TensorFlow, Prophet, pmdarima, EMD-signal and Playwright, so the matching forecasting models and the Playwright PDF path are unavailable; the rest of the API works.
 
 In a second terminal:
 
@@ -212,7 +213,7 @@ Copy `.env.example` to `.env` for local runs. Every variable is optional in deve
 | `STRIPE_WEBHOOK_SECRET` | unset | `config/settings.py` | Signing secret of the webhook endpoint (`whsec_...`). Without it the webhook returns 503. |
 | `STRIPE_PRICE_ID_PRO` | unset | `config/settings.py` | Price for the Pro plan (`price_...`). |
 | `BILLING_ENFORCEMENT` | `true` | `config/settings.py` | Enforces plan limits. `false` gives every user Pro features; never set it in production. |
-| `PORT` | `7860` | `Dockerfile` (`CMD`) | Listen port of the Hugging Face Spaces image. Not read by the Python code. |
+| `PORT` | `7860` | `backend/Dockerfile` (`CMD`) | Listen port of the Hugging Face Spaces image. Not read by the Python code. |
 
 `.env.example` also lists the names below. No code reads them yet, so setting them has no effect. They are marked `[unused]` there:
 
@@ -237,7 +238,7 @@ Login limits: 20 requests per minute per IP across `/auth/login` and `/auth/logi
 
 ## Testing and checks
 
-Backend (from the repository root, with the venv from Option B active and the dev tools installed):
+Backend (from `backend/`, with the venv from Option B active and the dev tools installed):
 
 ```bash
 pip install -c requirements.lock.txt -r requirements-dev.txt
@@ -271,34 +272,28 @@ npm run build
 
 ```text
 Portfolio_Management_Pro/
-├── api/                   FastAPI app: main.py (routes), routers/ (auth, billing), schemas/,
-│                          dependencies.py, rate_limit.py, security_headers.py
-├── core/                  Framework-agnostic business logic
-│   ├── analytics_engine/
-│   ├── auth/              password hashing, JWT
-│   ├── data_manager/      repositories (portfolios, transactions, users, subscriptions), price manager
-│   ├── forecasting_engine/  classical/, ml/, deep_learning/, simple/
-│   ├── optimization_engine/
-│   ├── risk_engine/       VaR, Monte Carlo, stress tests
-│   └── scenario_engine/
-├── services/              Orchestration over core/ (portfolio, ledger, optimization, risk, forecasting,
-│                          rebalance, billing/ with plans and webhook service)
-├── models/                SQLAlchemy models (users, portfolios, positions, transactions, subscriptions, ...)
-├── database/              session.py, migrate.py, migrations/ (Alembic)
-├── config/                settings.py (environment variables), logging, constants
+├── backend/               Python API (FastAPI) - everything below runs from here
+│   ├── api/               FastAPI app: main.py (routes), routers/ (auth, billing), schemas/,
+│   │                      dependencies.py, rate_limit.py, security_headers.py
+│   ├── core/              Framework-agnostic business logic (analytics, auth, data_manager,
+│   │                      forecasting_engine, optimization_engine, risk_engine, scenario_engine)
+│   ├── services/          Orchestration over core/ (portfolio, ledger, optimization, risk,
+│   │                      forecasting, rebalance, billing/ with plans and webhook service)
+│   ├── models/            SQLAlchemy models (users, portfolios, positions, transactions, ...)
+│   ├── database/          session.py, migrate.py, migrations/ (Alembic)
+│   ├── config/            settings.py (environment variables), logging, constants
+│   ├── tests/             unit/, integration/, performance/, conftest.py
+│   ├── Dockerfile         Hugging Face Spaces image (port 7860, runs migrations on boot)
+│   ├── Dockerfile.api     Compose image (port 8000)
+│   ├── requirements*.txt  requirements.txt (full), requirements-deploy.txt (slim),
+│   │                      requirements-dev.txt, requirements.lock.txt (pins)
+│   └── alembic.ini, pyproject.toml (Ruff, Black, isort, Mypy), pytest.ini, .coveragerc
 ├── frontend/              Next.js 16 app: src/app (pages and the BFF route under api/proxy),
 │                          src/components, src/lib (proxy allowlist, cookie, client IP)
-├── tests/                 unit/, integration/, performance/, conftest.py
-├── scripts/               Stripe CLI listener (PowerShell), profiling helper, git history helpers
+├── scripts/               Deploy (Hugging Face), prod verification, Stripe CLI listener, helpers
+├── docs/                  User guide and Stripe webhook notes
 ├── assets/screenshots/    README screenshots
-├── Dockerfile             Hugging Face Spaces image for the API (port 7860, runs migrations on boot)
-├── Dockerfile.api         Compose image for the API (port 8000)
-├── docker-compose.yml     postgres + api + web
-├── requirements*.txt      requirements.txt (full), requirements-deploy.txt (slim), requirements-dev.txt,
-│                          requirements.lock.txt (pins)
-├── alembic.ini
-├── pyproject.toml         Ruff, Black, isort, Mypy settings
-└── pytest.ini, .coveragerc
+└── docker-compose.yml     postgres + api + web
 ```
 
 ## Deployment
@@ -306,7 +301,7 @@ Portfolio_Management_Pro/
 The production setup:
 
 - **Web:** Vercel, project root `frontend/`. Set the web variables above, with `COOKIE_SECURE=true` and `CLIENT_IP_SIGNING_KEY` equal to the API's.
-- **API:** Hugging Face Spaces with the Docker SDK, using the root `Dockerfile` (port 7860). Runs `alembic upgrade head` on every boot, then Uvicorn with one process. Set `ENVIRONMENT=production`, a strong `JWT_SECRET`, `AUTH_DISABLED=false`, and the Stripe secrets as Space secrets. Keep one replica (see below).
+- **API:** Hugging Face Spaces with the Docker SDK, using `backend/Dockerfile` (port 7860; `scripts/deploy_hf.sh` publishes the contents of `backend/` to the Space). Runs `alembic upgrade head` on every boot, then Uvicorn with one process. Set `ENVIRONMENT=production`, a strong `JWT_SECRET`, `AUTH_DISABLED=false`, and the Stripe secrets as Space secrets. Keep one replica (see below).
 - **Database:** Supabase Postgres. Use the direct or session connection string with `sslmode=require` in `DATABASE_URL`. Take a dump before deploys that include migrations.
 - **Stripe:** the webhook endpoint is the API host (`https://<api-host>/stripe/webhook`), not the web host. It sends `checkout.session.completed`, `invoice.paid`, `customer.subscription.updated` and `customer.subscription.deleted`.
 
@@ -348,7 +343,7 @@ Other protections, with tests in `tests/`:
 
 1. Fork the repository and create a branch (`git checkout -b feature/your-feature`).
 2. Add or update tests for behaviour you change.
-3. Keep `core/` coverage at or above 70% (enforced by `pytest.ini` and CI).
+3. Keep `core/` coverage at or above 70% (enforced by `backend/pytest.ini` and CI).
 4. Run the lint, format and type checks listed in [Testing and checks](#testing-and-checks), or install the pre-commit hooks.
 5. Open a pull request.
 
