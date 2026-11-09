@@ -31,7 +31,7 @@ def test_llms_txt_lists_exactly_the_served_operations() -> None:
 
 def test_llms_txt_is_current_with_generator() -> None:
     result = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "gen_llms_txt.py"), "--check"],
+        [sys.executable, str(ROOT.parent / "scripts" / "gen_llms_txt.py"), "--check"],
         capture_output=True,
         check=False,
     )
