@@ -4,6 +4,8 @@ A web app for tracking investment portfolios: positions or a full transaction le
 
 The browser talks only to a Next.js app, which proxies to a FastAPI service backed by PostgreSQL. Market data comes from yfinance. Billing runs on Stripe.
 
+**Live demo:** <https://portfolio-lenz.vercel.app/>
+
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11-blue.svg" alt="Python 3.11"></a>
   <a href="https://github.com/imnotkeril/Portfolio_Management_Pro/actions/workflows/ci.yml"><img src="https://github.com/imnotkeril/Portfolio_Management_Pro/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
