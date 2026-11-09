@@ -105,7 +105,10 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs) -> None:
         """Initialize settings and create necessary directories."""
-        env_path = Path(__file__).resolve().parent.parent / ".env"
+        backend_dir = Path(__file__).resolve().parent.parent
+        # Repo-root .env (shared with docker compose) wins over backend/.env when present.
+        root_env = backend_dir.parent / ".env"
+        env_path = root_env if root_env.exists() else backend_dir / ".env"
         preserved_db_url = os.environ.get("DATABASE_URL")
         if env_path.is_file():
             # override=True so .env wins over Windows placeholder STRIPE_* in system env

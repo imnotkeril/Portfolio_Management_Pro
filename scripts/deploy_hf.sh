@@ -6,7 +6,7 @@
 # Usage: scripts/deploy_hf.sh [git-ref]      (default: origin/main)
 # What it does: clones the Space, keeps the Space's own README.md (it holds the
 # `sdk: docker`, `app_port: 7860` front matter), replaces every other file with the tracked
-# files of <git-ref>, commits and pushes. Nothing from .env or untracked files is sent.
+# files of backend/ at <git-ref>, commits and pushes. Nothing from .env or untracked files is sent.
 set -euo pipefail
 
 REF=${1:-origin/main}
@@ -24,10 +24,9 @@ head -n 1 "$WORK/space-README.md" | grep -q '^---$' || { echo "Space README has 
 
 # wipe tracked files of the Space except .git, then lay down the new tree
 git -C "$WORK/space" rm -rq . >/dev/null
-git -C "$ROOT" archive "$REF" | tar -x -C "$WORK/space"
+git -C "$ROOT" archive "$REF" backend | tar -x --strip-components=1 -C "$WORK/space"
 cp "$WORK/space-README.md" "$WORK/space/README.md"
-# frontend and local-only material do not belong in the API Space
-rm -rf "$WORK/space/frontend" "$WORK/space/docs"
+# only backend/ is published: the Space root is the contents of backend/
 
 git -C "$WORK/space" add -A
 if git -C "$WORK/space" diff --cached --quiet; then

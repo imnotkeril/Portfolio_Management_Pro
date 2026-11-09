@@ -1,6 +1,6 @@
 """Generate api/llms.txt from the FastAPI route declarations (static, AST-based).
 
-Run: python scripts/gen_llms_txt.py          (rewrites api/llms.txt)
+Run: python scripts/gen_llms_txt.py          (rewrites backend/api/llms.txt)
      python scripts/gen_llms_txt.py --check  (exit 1 if the file is stale)
 
 tests/unit/test_llms_txt.py also compares the file with the live app routes.
@@ -12,7 +12,7 @@ import ast
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent / "backend"
 SOURCES = [
     (ROOT / "api" / "main.py", ""),
     (ROOT / "api" / "routers" / "auth.py", None),

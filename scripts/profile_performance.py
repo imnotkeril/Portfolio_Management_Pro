@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
 from core.analytics_engine.engine import AnalyticsEngine
 from core.data_manager.portfolio import Portfolio
