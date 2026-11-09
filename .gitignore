@@ -161,3 +161,7 @@ coverage.xml
 # Documentation (not for public GitHub)
 docs/
 
+
+# Internal agent/planning files (kept locally, not published)
+CLAUDE.md
+OWNER_GUIDE.md

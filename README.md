@@ -310,7 +310,7 @@ The production setup:
 - **Database:** Supabase Postgres. Use the direct or session connection string with `sslmode=require` in `DATABASE_URL`. Take a dump before deploys that include migrations.
 - **Stripe:** the webhook endpoint is the API host (`https://<api-host>/stripe/webhook`), not the web host. It sends `checkout.session.completed`, `invoice.paid`, `customer.subscription.updated` and `customer.subscription.deleted`.
 
-Release steps and owner actions are in [OWNER_GUIDE.md](OWNER_GUIDE.md). Verify a deployment with `GET /health` on the API, `/login` on the web app and `GET /llms.txt` on the API.
+Verify a deployment with `GET /health` on the API, `/login` on the web app and `GET /llms.txt` on the API.
 
 ## Security
 
@@ -336,12 +336,11 @@ Other protections, with tests in `tests/`:
 - **Rate limiter and login throttle are per process, in memory.** Run one API process and one replica. Several workers or replicas multiply the limits.
 - **Logout does not revoke tokens.** JWTs are stateless and last 24 hours by default. After logout, a copy of the token still works until it expires.
 - **Account deletion is permanent.** `DELETE /auth/me` (password required) removes the user, portfolios, transactions and subscription row, and cancels the Stripe subscription first. Stripe keeps its own invoice records.
-- **Billing runs in Stripe test mode** until the live Stripe setup in [OWNER_GUIDE.md](OWNER_GUIDE.md) is done.
+- **Billing runs in Stripe test mode** until live Stripe keys are configured.
 
 ## Documentation
 
 - [USER_GUIDE.md](USER_GUIDE.md): task-oriented guide for the web app.
-- [OWNER_GUIDE.md](OWNER_GUIDE.md): plans and prices, refunds, revenue, key rotation.
 - [STRIPE_WEBHOOK_LOCAL.md](STRIPE_WEBHOOK_LOCAL.md): Stripe CLI webhook forwarding for local development.
 - [frontend/README.md](frontend/README.md): Next.js specifics.
 
