@@ -340,8 +340,8 @@ Other protections, with tests in `tests/`:
 
 ## Documentation
 
-- [USER_GUIDE.md](USER_GUIDE.md): task-oriented guide for the web app.
-- [STRIPE_WEBHOOK_LOCAL.md](STRIPE_WEBHOOK_LOCAL.md): Stripe CLI webhook forwarding for local development.
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md): task-oriented guide for the web app.
+- [docs/STRIPE_WEBHOOK_LOCAL.md](docs/STRIPE_WEBHOOK_LOCAL.md): Stripe CLI webhook forwarding for local development.
 - [frontend/README.md](frontend/README.md): Next.js specifics.
 
 ## Contributing
