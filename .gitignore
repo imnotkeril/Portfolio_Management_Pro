@@ -37,9 +37,8 @@ env/
 .env.*.local
 *.env
 
-# IDE and Editors (commit .vscode/settings.json for shared explorer excludes)
-.vscode/*
-!.vscode/settings.json
+# IDE and Editors
+.vscode/
 .idea/
 .cursor/
 *.swp
@@ -159,7 +158,9 @@ coverage.xml
 .pytest_cache/
 
 # Documentation (not for public GitHub)
-docs/
+docs/*
+!docs/USER_GUIDE.md
+!docs/STRIPE_WEBHOOK_LOCAL.md
 
 
 # Internal agent/planning files (kept locally, not published)
