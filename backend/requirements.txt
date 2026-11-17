@@ -1,45 +1,45 @@
 # Core dependencies
-numpy>=1.24.0
-pandas>=2.0.0
-scipy>=1.11.0
+numpy>=2.5.4
+pandas>=3.1.1
+scipy>=1.18.1
 statsmodels>=0.14.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
+pydantic>=2.14.3
+pydantic-settings>=2.16.3
 email-validator>=2.0.0
 
 # Database
-sqlalchemy>=2.0.0
+sqlalchemy>=2.1.8
 alembic>=1.12.0
 psycopg2-binary>=2.9.0
 
 # Auth (Phase 2)
 PyJWT>=2.10.0
 passlib[bcrypt]>=1.7.4
-bcrypt>=4.0.1,<4.1.0
+bcrypt>=4.3.0,<4.4.0
 
 # Data fetching
-yfinance>=0.2.0
+yfinance>=1.8.0
 requests>=2.31.0
-websockets>=13.0          # yfinance imports websockets.asyncio (needs >=12)
+websockets>=17.4          # yfinance imports websockets.asyncio (needs >=12)
 
 # Utilities
 python-dotenv>=1.0.0
 
 # Billing (Phase 5)
-stripe>=7.0.0
+stripe>=16.1.0
 
 # API Framework
-fastapi>=0.115.0
-python-multipart>=0.0.9   # FastAPI form data (OAuth2 login)
+fastapi>=0.162.7
+python-multipart>=0.0.33   # FastAPI form data (OAuth2 login)
 uvicorn[standard]>=0.34.0
 limits>=3.6               # IP-based rate limiting (auth + public endpoints)
 plotly>=5.17.0
 
 # PDF Generation
 reportlab>=4.0.0
-kaleido>=0.2.1
+kaleido>=1.5.1
 weasyprint>=60.0
-playwright>=1.40.0
+playwright>=1.65.2
 img2pdf>=0.5.0
 Pillow>=10.0.0
 
@@ -50,7 +50,7 @@ ecos>=2.0.0
 # Forecasting
 prophet>=1.1.0              # Facebook Prophet
 arch>=6.2.0                 # GARCH models
-xgboost>=2.0.0              # XGBoost
+xgboost>=3.4.1              # XGBoost
 scikit-learn>=1.3.0         # Random Forest, SVM
 pmdarima>=2.0.0             # Auto ARIMA
 tensorflow>=2.13.0          # Deep learning models (LSTM, TCN, SSA-MAEMD-TCN)
