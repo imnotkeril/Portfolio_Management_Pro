@@ -1,0 +1,8 @@
+# Portfolio Management Pro
+
+> Web app for tracking investment portfolios: positions or a transaction ledger, performance and risk analytics, optimization and forecasting, Stripe subscriptions for the Pro plan. FastAPI API, Next.js web app, PostgreSQL.
+
+- [README](README.md): overview, quick start, configuration, testing
+- [API reference](backend/api/llms.txt): every API operation as Markdown (also served at `GET /llms.txt` on the API; regenerate with `python scripts/gen_llms_txt.py`)
+- [User guide](docs/USER_GUIDE.md)
+- [Security policy](SECURITY.md)

@@ -161,6 +161,7 @@ coverage.xml
 docs/*
 !docs/USER_GUIDE.md
 !docs/STRIPE_WEBHOOK_LOCAL.md
+!docs/img/
 
 
 # Internal agent/planning files (kept locally, not published)

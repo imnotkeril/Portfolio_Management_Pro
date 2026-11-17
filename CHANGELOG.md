@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (branch chore/audit)
+## [1.0.0] - 2026-11-17
 
 ### Added
 - `DELETE /auth/me`: password-confirmed, permanent account deletion that cancels the Stripe subscription first.
