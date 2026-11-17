@@ -1,12 +1,16 @@
-<p align="center"><img src="docs/img/social-preview.png" alt="Portfolio Management Pro: portfolio analytics web app" width="100%"></p>
+<p align="center"><img src="docs/img/social-preview.png" alt="Portfolio Management Pro" width="900"></p>
 
-# Portfolio Management Pro
+<h1 align="center">Portfolio Management Pro</h1>
+<p align="center"><b>Portfolio analytics web app: performance, risk, optimization and forecasting</b><br>
+Track positions or a full transaction ledger, compare against any ETF or another portfolio, and unlock the Pro plan with Stripe.</p>
 
-A web app for tracking investment portfolios: positions or a full transaction ledger, performance and risk analytics, portfolio optimization and price forecasting, with Stripe subscriptions for the Pro plan.
-
-The browser talks only to a Next.js app, which proxies to a FastAPI service backed by PostgreSQL. Market data comes from yfinance. Billing runs on Stripe.
-
-**Live demo:** <https://portfolio-lenz.vercel.app/>
+<p align="center">
+  <a href="https://portfolio-lenz.vercel.app/"><b>Live demo</b></a> &nbsp;·&nbsp;
+  <a href="#quick-start">Quickstart</a> &nbsp;·&nbsp;
+  <a href="docs/USER_GUIDE.md">Docs</a> &nbsp;·&nbsp;
+  <a href="llms.txt">API reference</a> &nbsp;·&nbsp;
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
 
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11-blue.svg" alt="Python 3.11"></a>
@@ -17,6 +21,14 @@ The browser talks only to a Next.js app, which proxies to a FastAPI service back
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white" alt="FastAPI"></a>
   <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-web-black?logo=next.js&logoColor=white" alt="Next.js"></a>
 </p>
+
+<p align="center">
+  <a href="https://portfolio-lenz.vercel.app/"><img src="docs/img/analysis-performance.png" alt="Performance analysis of a demo portfolio against SPY" width="900"></a>
+</p>
+
+> The browser talks only to a Next.js app, which proxies to a FastAPI service backed by PostgreSQL. Market data comes from yfinance; billing runs on Stripe.
+>
+> **Not investment advice.** Analytics, optimization and forecasts are computed from historical prices and can be wrong.
 
 ## Contents
 
@@ -37,12 +49,18 @@ The browser talks only to a Next.js app, which proxies to a FastAPI service back
 
 ## Screenshots
 
-All captures are from the Next.js app at 1440x900, using a demo account and a demo portfolio with made-up transaction prices.
+All shots are 1920x1080 from a local run with a demo account and two demo portfolios of large-cap stocks (Yahoo Finance prices). Nothing here is a real account.
 
 | | |
 |---|---|
-| <a href="docs/img/02-dashboard.png"><img src="docs/img/02-dashboard.png" alt="Dashboard with a card for the demo portfolio showing 6 positions and 50,000 USD, with Open, Transactions, Analyze and Delete buttons" width="100%"></a> | <a href="docs/img/03-portfolio-overview.png"><img src="docs/img/03-portfolio-overview.png" alt="Portfolio overview with market value, starting capital, realized and unrealized PnL, TWR, MWR, dividend income, and a holdings table for AAPL, AMZN, GOOGL, JNJ, MSFT and cash" width="100%"></a> |
-| <a href="docs/img/04-analysis.png"><img src="docs/img/04-analysis.png" alt="Analysis page with the parameter form and the Overview tab showing total return, CAGR, volatility, max drawdown, Sharpe, Sortino, beta and alpha" width="100%"></a> | <a href="docs/img/05-risk.png"><img src="docs/img/05-risk.png" alt="Risk Analysis page with the analysis period, portfolio selector, and the Value at Risk form with confidence level and time horizon" width="100%"></a> |
+| ![Analysis page: performance metrics and cumulative returns against SPY](docs/img/analysis-performance.png) | ![Underwater plot and daily returns with written findings](docs/img/analysis-drawdown.png) |
+| **Performance vs SPY.** Total return, CAGR, volatility, drawdown, Sharpe, Sortino, beta and alpha next to the benchmark | **Drawdown and daily returns.** Underwater plot against the benchmark, with plain-language findings |
+| ![Asset and sector allocation donuts and the portfolio vs benchmark metrics table](docs/img/analysis-structure.png) | ![Value at Risk page with VaR and CVaR at 95% and 99% and a methods comparison](docs/img/risk-var.png) |
+| **Structure and comparison.** Asset and sector allocation, then every metric side by side with the benchmark | **Value at Risk.** Historical, parametric, Cornish-Fisher and Monte Carlo VaR, with CVaR |
+| ![VaR decomposition table and chart by holding](docs/img/risk-decomposition.png) | ![Optimized vs current portfolio on a test window and the allocation table](docs/img/optimization-results.png) |
+| **Risk decomposition.** Which holdings drive the portfolio VaR, with a concentration warning | **Optimization.** Optimized vs current allocation on a held-out test window, with a plain verdict |
+| ![Efficient frontier chart with max-Sharpe, min-volatility, optimized and current points](docs/img/optimization-frontier.png) | ![Forecast chart comparing ARIMA and Prophet against history with MAPE and RMSE](docs/img/forecast-results.png) |
+| **Efficient frontier.** Max-Sharpe, min-volatility, optimized and current points on the curve | **Forecasting.** ARIMA and Prophet against history, with MAPE and RMSE from out-of-sample validation |
 
 ## Features
 
