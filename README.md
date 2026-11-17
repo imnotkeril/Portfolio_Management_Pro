@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/img/social-preview.png" alt="Portfolio Management Pro: portfolio analytics web app" width="100%"></p>
+
 # Portfolio Management Pro
 
 A web app for tracking investment portfolios: positions or a full transaction ledger, performance and risk analytics, portfolio optimization and price forecasting, with Stripe subscriptions for the Pro plan.
@@ -9,6 +11,7 @@ The browser talks only to a Next.js app, which proxies to a FastAPI service back
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11-blue.svg" alt="Python 3.11"></a>
   <a href="https://github.com/imnotkeril/Portfolio_Management_Pro/actions/workflows/ci.yml"><img src="https://github.com/imnotkeril/Portfolio_Management_Pro/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/tests-451%20passed-brightgreen" alt="Tests: 451 passed">
   <a href="https://codecov.io/gh/imnotkeril/Portfolio_Management_Pro"><img src="https://codecov.io/gh/imnotkeril/Portfolio_Management_Pro/graph/badge.svg" alt="Codecov"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License MIT"></a>
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white" alt="FastAPI"></a>
@@ -36,25 +39,10 @@ The browser talks only to a Next.js app, which proxies to a FastAPI service back
 
 All captures are from the Next.js app at 1440x900, using a demo account and a demo portfolio with made-up transaction prices.
 
-<p align="center">
-  <img src="assets/screenshots/01-login.png" width="900" alt="Sign-in page with email and password fields, and links to Register and Home">
-</p>
-
-<p align="center">
-  <img src="assets/screenshots/02-dashboard.png" width="900" alt="Dashboard with a card for the demo portfolio showing 6 positions and 50,000 USD, with Open, Transactions, Analyze and Delete buttons">
-</p>
-
-<p align="center">
-  <img src="assets/screenshots/03-portfolio-overview.png" width="900" alt="Portfolio overview with market value, starting capital, realized and unrealized PnL, TWR, MWR, dividend income, and a holdings table for AAPL, AMZN, GOOGL, JNJ, MSFT and cash">
-</p>
-
-<p align="center">
-  <img src="assets/screenshots/04-analysis.png" width="900" alt="Analysis page with the parameter form and the Overview tab showing total return, CAGR, volatility, max drawdown, Sharpe, Sortino, beta and alpha">
-</p>
-
-<p align="center">
-  <img src="assets/screenshots/05-risk.png" width="900" alt="Risk Analysis page with the analysis period, portfolio selector, and the Value at Risk form with confidence level and time horizon">
-</p>
+| | |
+|---|---|
+| <a href="docs/img/02-dashboard.png"><img src="docs/img/02-dashboard.png" alt="Dashboard with a card for the demo portfolio showing 6 positions and 50,000 USD, with Open, Transactions, Analyze and Delete buttons" width="100%"></a> | <a href="docs/img/03-portfolio-overview.png"><img src="docs/img/03-portfolio-overview.png" alt="Portfolio overview with market value, starting capital, realized and unrealized PnL, TWR, MWR, dividend income, and a holdings table for AAPL, AMZN, GOOGL, JNJ, MSFT and cash" width="100%"></a> |
+| <a href="docs/img/04-analysis.png"><img src="docs/img/04-analysis.png" alt="Analysis page with the parameter form and the Overview tab showing total return, CAGR, volatility, max drawdown, Sharpe, Sortino, beta and alpha" width="100%"></a> | <a href="docs/img/05-risk.png"><img src="docs/img/05-risk.png" alt="Risk Analysis page with the analysis period, portfolio selector, and the Value at Risk form with confidence level and time horizon" width="100%"></a> |
 
 ## Features
 
@@ -292,7 +280,7 @@ Portfolio_Management_Pro/
 │                          src/components, src/lib (proxy allowlist, cookie, client IP)
 ├── scripts/               Deploy (Hugging Face), prod verification, Stripe CLI listener, helpers
 ├── docs/                  User guide and Stripe webhook notes
-├── assets/screenshots/    README screenshots
+├── docs/img/    README screenshots
 └── docker-compose.yml     postgres + api + web
 ```
 
